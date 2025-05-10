@@ -32,7 +32,7 @@ static void debug_print(uint32_t value)
 }
 void kernel_main(void) 
 {
-    volatile char* test = (volatile char*)0xC0000000;
+    volatile char* test = (volatile char*)0xB800;
     *test = 'K';
     *(test + 1) = 0x0F;
 

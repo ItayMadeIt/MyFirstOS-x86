@@ -60,10 +60,10 @@ _start:
     movl $page_directory, %eax
     movl %eax, %cr3
 
-    movl $0xC000000, %ebx
-    addl $kernel_main, %ebx
-    subl $0x0010000, %ebx
-
+    movl $kernel_main, %eax
+    pushl %eax
+    call debug_print
+    addl $4, %esp
 
     
     # Enable paging
@@ -71,14 +71,11 @@ _start:
     orl $0x80000000, %eax
     movl %eax, %cr0
     
-    movb $1, 0xC0000000
-
-    # pushl $page_directory
-    # call dump_directory
-    # addl $4, %esp
-
     # Transfer control to the main kernel (high address)
-    call kernel_main
+    movl $kernel_main, %eax
+    addl $0xC0000000, %eax
+    subl $0x00100000, %eax
+    call *%eax
 
     # Hang if kernel_main returns
     cli

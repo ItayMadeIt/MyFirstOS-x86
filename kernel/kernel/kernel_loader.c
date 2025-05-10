@@ -29,7 +29,7 @@ typedef struct page_directory
 
 
 
-static void debug_print(uint32_t value)
+void debug_print(uint32_t value)
 {
     volatile static char* vga = (volatile char*)0xB8000;
     vga+=sizeof(uint32_t) * 4 - 1;
