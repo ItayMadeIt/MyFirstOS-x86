@@ -31,6 +31,7 @@ KERNEL_OBJS=\
 $(KERNEL_ARCH_OBJS) \
 kernel/kernel.o \
 kernel/kernel_loader.o \
+kernel/paging.o \
 
 OBJS=\
 $(ARCHDIR)/crti.o \

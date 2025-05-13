@@ -1,5 +1,48 @@
 #include <stdint.h>
-#include <stdbool.h>
+ 
+// Each define here is for a specific flag in the descriptor.
+// Refer to the intel documentation for a description of what each one does.
+#define SEG_DESCTYPE(x)  ((x) << 0x04) // Descriptor type (0 for system, 1 for code/data)
+#define SEG_PRES(x)      ((x) << 0x07) // Present
+#define SEG_SAVL(x)      ((x) << 0x0C) // Available for system use
+#define SEG_LONG(x)      ((x) << 0x0D) // Long mode
+#define SEG_SIZE(x)      ((x) << 0x0E) // Size (0 for 16-bit, 1 for 32)
+#define SEG_GRAN(x)      ((x) << 0x0F) // Granularity (0 for 1B - 1MB, 1 for 4KB - 4GB)
+#define SEG_PRIV(x)     (((x) &  0x03) << 0x05)   // Set privilege level (0 - 3)
+ 
+#define SEG_DATA_RD        0x00 // Read-Only
+#define SEG_DATA_RDA       0x01 // Read-Only, accessed
+#define SEG_DATA_RDWR      0x02 // Read/Write
+#define SEG_DATA_RDWRA     0x03 // Read/Write, accessed
+#define SEG_DATA_RDEXPD    0x04 // Read-Only, expand-down
+#define SEG_DATA_RDEXPDA   0x05 // Read-Only, expand-down, accessed
+#define SEG_DATA_RDWREXPD  0x06 // Read/Write, expand-down
+#define SEG_DATA_RDWREXPDA 0x07 // Read/Write, expand-down, accessed
+#define SEG_CODE_EX        0x08 // Execute-Only
+#define SEG_CODE_EXA       0x09 // Execute-Only, accessed
+#define SEG_CODE_EXRD      0x0A // Execute/Read
+#define SEG_CODE_EXRDA     0x0B // Execute/Read, accessed
+#define SEG_CODE_EXC       0x0C // Execute-Only, conforming
+#define SEG_CODE_EXCA      0x0D // Execute-Only, conforming, accessed
+#define SEG_CODE_EXRDC     0x0E // Execute/Read, conforming
+#define SEG_CODE_EXRDCA    0x0F // Execute/Read, conforming, accessed
+ 
+#define GDT_CODE_PL0 SEG_DESCTYPE(1) | SEG_PRES(1) | SEG_SAVL(0) | \
+                     SEG_LONG(0)     | SEG_SIZE(1) | SEG_GRAN(1) | \
+                     SEG_PRIV(0)     | SEG_CODE_EXRD
+ 
+#define GDT_DATA_PL0 SEG_DESCTYPE(1) | SEG_PRES(1) | SEG_SAVL(0) | \
+                     SEG_LONG(0)     | SEG_SIZE(1) | SEG_GRAN(1) | \
+                     SEG_PRIV(0)     | SEG_DATA_RDWR
+ 
+#define GDT_CODE_PL3 SEG_DESCTYPE(1) | SEG_PRES(1) | SEG_SAVL(0) | \
+                     SEG_LONG(0)     | SEG_SIZE(1) | SEG_GRAN(1) | \
+                     SEG_PRIV(3)     | SEG_CODE_EXRD
+ 
+#define GDT_DATA_PL3 SEG_DESCTYPE(1) | SEG_PRES(1) | SEG_SAVL(0) | \
+                     SEG_LONG(0)     | SEG_SIZE(1) | SEG_GRAN(1) | \
+                     SEG_PRIV(3)     | SEG_DATA_RDWR
+ #include <stdbool.h>
 
 typedef struct virtual_metadata
 {
@@ -25,8 +68,6 @@ typedef struct page_directory
 {
     page_table_entry entries[ENTRIES_AMOUNT];
 } page_directory_t;
-
-
 
 
 void debug_print(uint32_t value)
@@ -57,165 +98,43 @@ void debug_print(uint32_t value)
     vga += 80 * 2 + 1;
 }
 
-void dump_table(page_table_t* table, uint32_t start)
+uint64_t create_descriptor(uint32_t base, uint32_t limit, uint16_t flag)
 {
-    debug_print((uint32_t)&table->entries[0]);
-    debug_print(~(uint32_t)(0));
-    debug_print((uint32_t)table->entries[start]);
-    debug_print((uint32_t)table->entries[start+1]);
-    debug_print((uint32_t)table->entries[start+2]);
-    debug_print((uint32_t)table->entries[start+3]);
-    debug_print(~(uint32_t)(0));
-    debug_print(~(uint32_t)(0));
+    uint64_t descriptor;
+ 
+    // Create the high 32 bit segment
+    descriptor  =  limit       & 0x000F0000;         // set limit bits 19:16
+    descriptor |= (flag <<  8) & 0x00F0FF00;         // set type, p, dpl, s, g, d/b, l and avl fields
+    descriptor |= (base >> 16) & 0x000000FF;         // set base bits 23:16
+    descriptor |=  base        & 0xFF000000;         // set base bits 31:24
+ 
+    // Shift by 32 to allow for low part of segment
+    descriptor <<= 32;
+ 
+    // Create the low 32 bit segment
+    descriptor |= base  << 16;                       // set base bits 15:0
+    descriptor |= limit  & 0x0000FFFF;               // set limit bits 15:0
+
+    return descriptor;
 }
+ 
+#define DESCRIPTORS_AMOUNT 5
 
-void dump_end_table(page_table_t* table, uint32_t entries_amount)
+void setup_gdt(uint32_t gdt_addr)
 {
-    debug_print((uint32_t)&table->entries[0]);
-    debug_print(~(uint32_t)(0));
-    debug_print((uint32_t)table->entries[entries_amount-4]);
-    debug_print((uint32_t)table->entries[entries_amount-3]);
-    debug_print((uint32_t)table->entries[entries_amount-2]);
-    debug_print((uint32_t)table->entries[entries_amount-1]);
-    debug_print(~(uint32_t)(0));
-    debug_print(~(uint32_t)(0));
-}
-void dump_directory(page_directory_t* dir)
-{
-    debug_print(~1);
-    debug_print((uint32_t)&dir->entries[768]);
-    debug_print(dir->entries[768]);
-    debug_print(~1);
-}
+    uint64_t descriptors[DESCRIPTORS_AMOUNT];
+    uint8_t i = 0;
 
+    descriptors[i++] = create_descriptor(0, 0, 0);
+    descriptors[i++] = create_descriptor(0, 0x000FFFFF, (GDT_CODE_PL0));
+    descriptors[i++] = create_descriptor(0, 0x000FFFFF, (GDT_DATA_PL0));
+    descriptors[i++] = create_descriptor(0, 0x000FFFFF, (GDT_CODE_PL3));
+    descriptors[i++] = create_descriptor(0, 0x000FFFFF, (GDT_DATA_PL3));
 
-
-
-
-
-
-
-void fetch_virtual_metadata(
-    virtual_metadata_t* virt_metadata, 
-    uint32_t virtual_addr, 
-    uint32_t physical_addr, 
-    uint32_t pages_amount)
-{
-    virt_metadata->physical_addr = physical_addr & (~0xFFF);
-    virt_metadata->virtual_addr = virtual_addr & (~0xFFF);
-
-    virt_metadata->virtual_dir_index = virt_metadata->virtual_addr >> 22;
-    virt_metadata->virtual_table_index = (virt_metadata->virtual_addr >> 12) & 0x3FF;
-
-    virt_metadata->pages_amount = pages_amount;
-
-    virt_metadata->tail_12_bits = physical_addr & 0xFFF;
-}
-
-bool map_virtual_metadata(
-    page_directory_t* page_directory_ptr,
-    page_table_t* page_tables_ptr,
-    const virtual_metadata_t* virt_metadata)
-{
-    uint32_t dir_entry = virt_metadata->virtual_dir_index;
-    uint32_t table_index = virt_metadata->virtual_table_index;
-    uint32_t phys_addr = virt_metadata->physical_addr;
-
-    uint32_t remaining_pages = virt_metadata->pages_amount;
-
-    while (remaining_pages > 0)
+    uint32_t* addr = (uint32_t*)gdt_addr;
+    for (i = 0; i < DESCRIPTORS_AMOUNT; ++i) 
     {
-        // Map the current page directory entry 
-        if (page_directory_ptr->entries[dir_entry] == 0)
-        {
-            page_directory_ptr->entries[dir_entry] = ((uint32_t)page_tables_ptr) | 0x3;
-        }
-
-        // Map the pages in this table
-        for (; table_index < ENTRIES_AMOUNT && remaining_pages > 0; ++table_index)
-        {
-            page_tables_ptr->entries[table_index] = phys_addr | 0x3;
-            phys_addr += 0x1000;
-            --remaining_pages;
-        }
-
-        // Move to the next directory entry if needed
-        if (remaining_pages > 0)
-        {
-            ++dir_entry;
-            ++page_tables_ptr;
-            table_index = 0;
-        }
+        addr[i * 2] = descriptors[i] & 0xFFFFFFFF;
+        addr[i * 2 + 1] = descriptors[i] >> 32;
     }
-
-    return true;
-}
-
-void map_pages(
-    uint32_t dir_value,
-    uint32_t table_value, 
-    uint32_t virt_addr, 
-    uint32_t phys_addr, 
-    uint32_t pages)
-{
-    page_directory_t* dir = (page_directory_t*)dir_value;
-    page_table_t* table = (page_table_t*)table_value;
-
-    virtual_metadata_t metadata;
-    fetch_virtual_metadata(
-        &metadata,
-        virt_addr,
-        phys_addr, 
-        pages
-    );
-
-    map_virtual_metadata(
-        dir, 
-        table, 
-        &metadata
-    ); 
-
-
-}
-
-static void zero_page_directory(uint32_t page_dir)
-{
-    volatile page_directory_t* page_dir_ptr = (page_directory_t*)page_dir;
-
-    for (uint32_t i = 0; i < ENTRIES_AMOUNT; ++i) 
-    {
-        page_dir_ptr->entries[i] = 0;
-    }
-}
-
-static void zero_page_table(uint32_t page_table, uint32_t amount)
-{
-    volatile page_table_t* page_table_ptr = (page_table_t*)page_table;
-
-    do
-    {
-        for (uint32_t i = 0; i < ENTRIES_AMOUNT; ++i) 
-        {
-            page_table_ptr->entries[i] = 0;
-        }
-
-        --amount;
-        ++page_table_ptr;
-
-    } while(amount);
-}
-
-
-void setup_paging(
-    uint32_t dir,
-    uint32_t kernel_table,
-    uint32_t boot_table)
-{
-    zero_page_directory(dir);
-    zero_page_table(kernel_table, 2);
-    zero_page_table(boot_table, 1);
-
-    map_pages(dir, kernel_table, 0xC0000000, 0x00100000, 2048);
-    
-    map_pages(dir, boot_table, 0x00000000, 0x00000000, 1024);
 }
