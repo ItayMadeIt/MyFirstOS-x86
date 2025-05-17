@@ -74,34 +74,6 @@ typedef struct page_directory
 } page_directory_t;
 
 
-void debug_print(uint32_t value)
-{
-    volatile static char* vga = (volatile char*)0xB8000;
-    vga+=sizeof(uint32_t) * 4 - 1;
-
-    uint8_t it = 8;
-
-    while (it)
-    {
-        char ch = (value & 0xF);
-        if (ch >= 10)
-        {
-            ch += 'A' - 10;
-        }
-        else 
-        {
-            ch += '0';
-        }
-
-        *vga-- = 0x0F;
-        *vga-- = ch;
-
-        value >>= 4;
-        --it;
-    }
-    vga += 80 * 2 + 1;
-}
-
 uint64_t create_descriptor(uint32_t base, uint32_t limit, uint16_t flag)
 {
     uint64_t descriptor;

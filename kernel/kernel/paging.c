@@ -33,13 +33,13 @@ static bool map_virtual_metadata(
         // Map the current page directory entry 
         if (page_directory_ptr->entries[dir_entry] == 0)
         {
-            page_directory_ptr->entries[dir_entry] = ((uint32_t)page_tables_ptr) | 0x3;
+            page_directory_ptr->entries[dir_entry] = ((uint32_t)page_tables_ptr) | 0x83;
         }
 
         // Map the pages in this table
         for (; table_index < ENTRIES_AMOUNT && remaining_pages > 0; ++table_index)
         {
-            page_tables_ptr->entries[table_index] = phys_addr | 0x3;
+            page_tables_ptr->entries[table_index] = phys_addr | 0x83;
             phys_addr += 0x1000;
             --remaining_pages;
         }
