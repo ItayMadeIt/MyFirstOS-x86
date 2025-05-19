@@ -1,5 +1,5 @@
 #include <stdint.h>
- 
+
 // Each define here is for a specific flag in the descriptor.
 // Refer to the intel documentation for a description of what each one does.
 #define SEG_DESCTYPE(x)  ((x) << 0x04) // Descriptor type (0 for system, 1 for code/data)
@@ -45,70 +45,75 @@
 
 #define DESCRIPTORS_AMOUNT 5
 
-
- #include <stdbool.h>
-
-typedef struct virtual_metadata
+typedef struct gdt_entry 
 {
-    uint32_t virtual_addr;  // 0xC0000000
-    uint32_t virtual_dir_index; // 768 -> 0xC0000000
-    uint32_t virtual_table_index; // 15 -> 0xC0015000
-    uint32_t physical_addr; // 0x00100032
-    uint32_t pages_amount;  // 2048 -> 4096*2048 bytes
-    uint16_t tail_12_bits;
-} virtual_metadata_t;
+    uint16_t limit_low;
+    uint16_t base_low;
+    uint8_t base_middle;
+    uint8_t access;
+    uint8_t granularity;
+    uint8_t base_high;
+} __attribute__((packed)) gdt_entry_t;
 
-typedef uint32_t page_entry;
-typedef uint32_t page_table_entry;
-
-#define ENTRIES_AMOUNT 1024
-
-typedef struct page_table
+typedef struct gdt_description
 {
-    page_entry entries[ENTRIES_AMOUNT];
-} page_table_t;
+    uint16_t limit;
+    uint32_t offset;
+} __attribute__((packed)) gdt_description_t ;
 
-typedef struct page_directory
+gdt_entry_t gdt_entries[DESCRIPTORS_AMOUNT]  __attribute__((aligned(16)));
+
+static void set_gdt_entry(gdt_entry_t* entry, uint32_t base, uint32_t limit, uint16_t flag)
 {
-    page_table_entry entries[ENTRIES_AMOUNT];
-} page_directory_t;
+    entry->limit_low    = limit & 0xFFFF;              // set limit low bits 15:00
+    entry->granularity  = (limit >> 16) & 0x0F;        // set limit high bits 19:16
 
+    entry->base_low     = base & 0xFFFF;               // set base bits 15:00
+    entry->base_middle  = (base >> 16) & 0xFF;         // set base bits 23:16
+    entry->base_high    = (base >> 24) & 0xFF;         // set base bits 31:24
 
-uint64_t create_descriptor(uint32_t base, uint32_t limit, uint16_t flag)
-{
-    uint64_t descriptor;
- 
-    // Create the high 32 bit segment
-    descriptor  =  limit       & 0x000F0000;         // set limit bits 19:16
-    descriptor |= (flag <<  8) & 0x00F0FF00;         // set type, p, dpl, s, g, d/b, l and avl fields
-    descriptor |= (base >> 16) & 0x000000FF;         // set base bits 23:16
-    descriptor |=  base        & 0xFF000000;         // set base bits 31:24
- 
-    // Shift by 32 to allow for low part of segment
-    descriptor <<= 32;
- 
-    // Create the low 32 bit segment
-    descriptor |= base  << 16;                       // set base bits 15:0
-    descriptor |= limit  & 0x0000FFFF;               // set limit bits 15:0
-
-    return descriptor;
+    entry->access       = flag & 0xFF;                 // set access bits 07:00
+    entry->granularity |= (flag >> 8) & 0xF0;          // set flags bits 03:00
 }
 
-void setup_gdt(uint32_t gdt_addr)
+
+static inline void load_gdt(gdt_description_t* gdtr)
 {
-    uint64_t descriptors[DESCRIPTORS_AMOUNT];
-    uint8_t i = 0;
+    // Load the GDT and reload the segment registers
+    asm volatile (
+        "lgdt (%0)\n\t"       // Load the GDT
+        "ljmp $0x08, $reload_cs\n\t"  // Long jump to flush the instruction pipeline
+        "reload_cs:\n\t"
+        "movw $0x10, %%ax\n\t" // Load the data segment selectors
+        "movw %%ax, %%ds\n\t"
+        "movw %%ax, %%es\n\t"
+        "movw %%ax, %%fs\n\t"
+        "movw %%ax, %%gs\n\t"
+        "movw %%ax, %%ss\n\t"
+        :
+        : "r" (gdtr)
+        : "memory", "eax"
+    );
+}
 
-    descriptors[i++] = create_descriptor(0, 0, 0);
-    descriptors[i++] = create_descriptor(0, 0x000FFFFF, (GDT_CODE_PL0));
-    descriptors[i++] = create_descriptor(0, 0x000FFFFF, (GDT_DATA_PL0));
-    descriptors[i++] = create_descriptor(0, 0x000FFFFF, (GDT_CODE_PL3));
-    descriptors[i++] = create_descriptor(0, 0x000FFFFF, (GDT_DATA_PL3));
 
-    uint32_t* addr = (uint32_t*)gdt_addr;
-    for (i = 0; i < DESCRIPTORS_AMOUNT; ++i) 
-    {
-        addr[i * 2] = descriptors[i] & 0xFFFFFFFF;
-        addr[i * 2 + 1] = descriptors[i] >> 32;
-    }
+void setup_gdt()
+{
+    // Setup GDT entries
+
+    // First GDT entry to null
+    set_gdt_entry(&gdt_entries[0], 0, 0,0);
+
+    set_gdt_entry(&gdt_entries[1], 0, 0xFFFFF, GDT_CODE_PL0);
+    set_gdt_entry(&gdt_entries[2], 0, 0xFFFFF, GDT_DATA_PL0);
+    set_gdt_entry(&gdt_entries[3], 0, 0xFFFFF, GDT_CODE_PL3);
+    set_gdt_entry(&gdt_entries[4], 0, 0xFFFFF, GDT_DATA_PL3);
+
+    // Setup the GDTR
+    gdt_description_t gdtr;
+    gdtr.offset = (uint32_t)gdt_entries; 
+    gdtr.limit = sizeof(gdt_entries) - 1; 
+
+    // Load the GDT to the CPU
+    load_gdt((uint32_t)&gdtr);
 }

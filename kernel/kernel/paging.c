@@ -1,4 +1,38 @@
-#include <kernel_loader/paging_defs.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+typedef struct virtual_metadata
+{
+    uint32_t virtual_addr;  // 0xC0000000
+    uint32_t virtual_dir_index; // 768 -> 0xC0000000
+    uint32_t virtual_table_index; // 15 -> 0xC0015000
+    uint32_t physical_addr; // 0x00100032
+    uint32_t pages_amount;  // 2048 -> 4096*2048 bytes
+    uint16_t tail_12_bits;
+} virtual_metadata_t;
+
+typedef uint32_t page_entry;
+typedef uint32_t page_table_entry;
+
+#define ENTRIES_AMOUNT 1024
+
+typedef struct page_table
+{
+    page_entry entries[ENTRIES_AMOUNT];
+}  __attribute__((aligned(ENTRIES_AMOUNT * sizeof(page_entry)))) page_table_t;
+
+typedef struct page_directory
+{
+    page_table_entry entries[ENTRIES_AMOUNT];
+}  __attribute__((aligned(ENTRIES_AMOUNT * sizeof(page_table_entry)))) page_directory_t;
+
+#define KERNEL_TABLES 2
+#define BOOT_TABLES 1
+
+page_directory_t kernel_directory; 
+page_table_t kernel_tables[KERNEL_TABLES];
+page_table_t boot_tables[KERNEL_TABLES];
+
 
 static void fetch_virtual_metadata(
     virtual_metadata_t* virt_metadata, 
@@ -57,15 +91,12 @@ static bool map_virtual_metadata(
 }
 
 static void map_pages(
-    uint32_t dir_value,
-    uint32_t table_value, 
+    page_directory_t* dir,
+    page_table_t* table, 
     uint32_t virt_addr, 
     uint32_t phys_addr, 
     uint32_t pages)
 {
-    page_directory_t* dir = (page_directory_t*)dir_value;
-    page_table_t* table = (page_table_t*)table_value;
-
     virtual_metadata_t metadata;
     fetch_virtual_metadata(
         &metadata,
@@ -83,44 +114,62 @@ static void map_pages(
 
 }
 
-static void zero_page_directory(uint32_t page_dir)
+static void zero_page_directory(page_directory_t* page_dir)
 {
-    volatile page_directory_t* page_dir_ptr = (page_directory_t*)page_dir;
-
     for (uint32_t i = 0; i < ENTRIES_AMOUNT; ++i) 
     {
-        page_dir_ptr->entries[i] = 0;
+        page_dir->entries[i] = 0;
     }
 }
 
-static void zero_page_table(uint32_t page_table, uint32_t amount)
+static void zero_page_table(page_table_t* page_table, uint32_t amount)
 {
-    volatile page_table_t* page_table_ptr = (page_table_t*)page_table;
-
     do
     {
         for (uint32_t i = 0; i < ENTRIES_AMOUNT; ++i) 
         {
-            page_table_ptr->entries[i] = 0;
+            page_table->entries[i] = 0;
         }
 
         --amount;
-        ++page_table_ptr;
+        ++page_table;
 
     } while(amount);
 }
 
 
-void setup_paging(
-    uint32_t dir,
-    uint32_t kernel_table,
-    uint32_t boot_table)
+static inline void set_page_directory(page_directory_t* page_directory)
 {
-    zero_page_directory(dir);
-    zero_page_table(kernel_table, 2);
-    zero_page_table(boot_table, 1);
+    asm volatile (
+        "mov %0, %%cr3"
+        :
+        : "r" (page_directory)
+    );
+} 
 
-    map_pages(dir, kernel_table, 0xC0000000, 0x00100000, 2048);
-    
-    map_pages(dir, boot_table, 0x00000000, 0x00000000, 1024);
+
+static inline void enable_paging()
+{
+    asm volatile (
+        "mov %%cr0, %%eax\n\t"
+        "or $0x80000000, %%eax\n\t"
+        "mov %%eax, %%cr0\n\t"
+        :
+        :
+        : "eax"
+    );
+} 
+
+void setup_paging()
+{
+    zero_page_directory(&kernel_directory);
+    zero_page_table(kernel_tables, 2);
+    zero_page_table(boot_tables, 1);
+
+    map_pages(&kernel_directory, kernel_tables, 0xC0000000, 0x00100000, 2048);
+    map_pages(&kernel_directory, boot_tables, 0x00000000, 0x00000000, 1024);
+
+    set_page_directory(&kernel_directory);
+
+    enable_paging();
 }

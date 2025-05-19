@@ -96,68 +96,7 @@ _start:
     # Call global constructors
     call _init
 
-init_gdt:
-    # Initialize gdt
-    pushl $gdt
-    call setup_gdt
-    addl $4, %esp
-    # Load the new GDT
-    lgdt gdt_descriptor          
-
-    ljmp $0x08, $reload_CS
-
-reload_CS:
-   # Reload data segment registers:
-   # 0x10 = kernel data segment
-   movw  $0x10, %ax 
-   movw  %ax, %ds
-   movw  %ax, %es
-   movw  %ax, %fs
-   movw  %ax, %gs
-   movw  %ax, %ss
-
-init_idt:
-    pushl $isr_stub_err
-    pushl $isr_stub_no_err
-    pushl $idt_descriptor
-    pushl $idt_table
-    call setup_idt
-    add $16, %esp
-
-    lidt idt_descriptor
-
-init_paging:
-    # Initialize paging
-    pushl $page_boot_tables
-    pushl $page_kernel_tables
-    pushl $page_directory
-    call setup_paging
-    addl $12, %esp
-
-    # Set the page directory
-    movl $page_directory, %eax
-    movl %eax, %cr3
-    
-    # Enable paging
-    movl %cr0, %eax
-    orl $0x80000000, %eax
-    movl %eax, %cr0
-    
-    movl $isr_stub_no_err, %eax
-    pushl %eax
-    call debug_print
-    addl $4, %esp
-
-    # If enabling this, should allow for the EIP += 2 code in isr_stub_no_err
-    # movl $320, %eax
-    # movl $0, %edx
-    # idiv %edx
-
-    # Transfer control to the main kernel (high kernel address)
-    movl $kernel_main, %eax
-    addl $0xBFF00000, %eax # 0xC0000000 - 0x0010000
-    call *%eax
-
+    call entry_main
 
     # Hang if kernel_main returns
     cli

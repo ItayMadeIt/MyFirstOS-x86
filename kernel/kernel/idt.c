@@ -30,6 +30,8 @@ typedef struct idt_entry {
     uint16_t offset_high;           // Upper 16 bits of the handler function address
 } __attribute__((packed)) idt_entry_t;
 
+idt_entry_t idt_entries[IDT_ENTRIES] __attribute__((aligned(16)));
+
 typedef struct idt_descriptor 
 {
 	uint16_t limit;
@@ -41,7 +43,7 @@ void idt_c_handler(uint32_t error_code)
     debug_print(error_code);
 }
 
-void idt_set_descriptor(idt_entry_t* entry, uint32_t handler_addr, uint16_t selector, uint8_t type_attr)
+static void set_idt_entry(idt_entry_t* entry, uint32_t handler_addr, uint16_t selector, uint8_t type_attr)
 {
     entry->zero = 0;
     
@@ -52,35 +54,24 @@ void idt_set_descriptor(idt_entry_t* entry, uint32_t handler_addr, uint16_t sele
     entry->type_attr = type_attr;
 }
 
-void print_idt_entry(idt_entry_t* entry, int index) 
+static inline void load_idt_descriptor(idt_descriptor_t* idt_descriptor)
 {
-    entry += index;
+    asm volatile (
+        "lidt (%0)"
+        :
+        : "r" (idt_descriptor)
+        : "memory"
+    );
+} 
 
-    debug_print_str("IDT Offset Low:");
-    debug_print(entry->offset_low);
-    debug_print_str("\n");
-
-    debug_print_str("IDT Segment Selector:");
-    debug_print(entry->segment_selector);
-    debug_print_str("\n");
-
-    debug_print_str("IDT Type Attr:");
-    debug_print(entry->type_attr);
-    debug_print_str("\n");
-
-    debug_print_str("IDT Offset High:");
-    debug_print(entry->offset_high);
-    debug_print_str("\n");
-}
-
-
-void setup_idt(uint32_t idt_table_addr, uint32_t idt_descriptor_addr, uint32_t isr_stub_no_err_addr, uint32_t isr_stub_err_addr)
+void setup_idt()
 {
-    idt_entry_t* idt_entries = (idt_entry_t*)idt_table_addr;
+    extern void isr_stub_no_err();
+    extern void isr_stub_err();
 
     for (uint16_t i = 0; i < IDT_ENTRIES; ++i) 
     {
-        uint32_t callback = isr_stub_no_err_addr;
+        uint32_t callback = (uint32_t)(isr_stub_no_err);
         uint8_t type_attr = IDT_INTERRUPT_32_DPL0; 
 
         switch (i) 
@@ -100,16 +91,16 @@ void setup_idt(uint32_t idt_table_addr, uint32_t idt_descriptor_addr, uint32_t i
             case 14:
             case 17:
             case 21:
-                callback = isr_stub_err_addr;
+                callback = (uint32_t)isr_stub_err;
                 break;
         }
 
-        idt_set_descriptor(&idt_entries[i], callback, SEGMENT_SELECTOR_CODE_DPL0, type_attr);
+        set_idt_entry(&idt_entries[i], callback, SEGMENT_SELECTOR_CODE_DPL0, type_attr);
     }
 
-    // print_idt_entry(idt_entries, 0);
+    idt_descriptor_t idt_descriptor;
+    idt_descriptor.base = (uint32_t)&idt_entries;
+    idt_descriptor.limit = sizeof(idt_entries)- 1;
 
-    idt_descriptor_t* idt_descriptor = (idt_descriptor_t*)idt_descriptor_addr;
-    idt_descriptor->base = idt_table_addr;
-    idt_descriptor->limit = (uint16_t)sizeof(idt_entry_t) * IDT_ENTRIES - 1;
+    load_idt_descriptor(&idt_descriptor);
 }
