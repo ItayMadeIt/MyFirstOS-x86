@@ -17,10 +17,16 @@ void entry_main()
     setup_gdt();
     setup_idt();
     setup_paging();
+    
+    setup_isr();
+
+    asm volatile (
+        "mov %0, %%edx\n\t"
+        "div %%edx\n\t"
+        :
+        : "r"(0)
+        : "eax", "edx"
+    );
 
     virt_kernel_main();
-
-    debug_print_str("\"What the hell nah\"");
-
-    while (1);
 }

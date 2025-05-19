@@ -34,6 +34,7 @@ kernel/kernel_loader.o \
 kernel/paging.o \
 kernel/gdt.o \
 kernel/idt.o \
+kernel/isr.o \
 kernel/entry.o \
 kernel/io.o \
 

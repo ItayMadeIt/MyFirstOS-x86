@@ -54,36 +54,6 @@ stack_top:
 .type _start, @function
 jmp _start
 
-.global isr_stub_err
-.global isr_stub_no_err
-isr_stub_err:
-    pusha
-    
-    movl 32(%esp), %eax    
-    pushl %eax
-    call idt_c_handler
-    add $4, %esp
-
-    popa 
-
-    # remove the error from the stack
-    add $4, %esp
-
-    iret
-
-
-isr_stub_no_err:
-    pusha
-
-    # An example to skip idiv (idiv is 2 bytes)
-    # addl $2,  32(%esp) # add to the EIP 2 bytes to skip IDIV
-    pushl $0
-    call idt_c_handler
-    addl $4, %esp
-
-    popa               
-
-    iret
 
 _start:
     # Set up the stack

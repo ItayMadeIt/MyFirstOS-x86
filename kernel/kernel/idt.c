@@ -21,6 +21,38 @@
 
 #define IDT_ENTRIES 256
 
+extern void isr0();
+extern void isr1();
+extern void isr2();
+extern void isr3();
+extern void isr4();
+extern void isr5();
+extern void isr6();
+extern void isr7();
+extern void isr8();
+extern void isr9();
+extern void isr10();
+extern void isr11();
+extern void isr12();
+extern void isr13();
+extern void isr14();
+extern void isr15();
+extern void isr16();
+extern void isr17();
+extern void isr18();
+extern void isr19();
+extern void isr20();
+extern void isr21();
+extern void isr22();
+extern void isr23();
+extern void isr24();
+extern void isr25();
+extern void isr26();
+extern void isr27();
+extern void isr28();
+extern void isr29();
+extern void isr30();
+extern void isr31();
 
 typedef struct idt_entry {
     uint16_t offset_low;            // Lower 16 bits of the handler function address
@@ -40,16 +72,16 @@ typedef struct idt_descriptor
 
 void idt_c_handler(uint8_t interrupt_number, uint32_t error_code)
 {
-    if (interrupt_number > 32)
+    if (interrupt_number >= 32)
     {
         debug_print_str("Interrupt number wasn't normal\n\n");
         debug_print(interrupt_number);
 
         // Sort of a halt
         while (1);
-
     }
 
+    debug_print_str("Interrupt number is: ");
     debug_print(interrupt_number);
 }
 
@@ -74,39 +106,46 @@ static inline void load_idt_descriptor(idt_descriptor_t* idt_descriptor)
     );
 }
 
+void set_interrupt_callback(uint8_t entry_index, void (*callback) (uint32_t interrupt_number, uint32_t error_code))
+{
+    idt_entries[entry_index].offset_low  = ((uint32_t)callback) & 0xFFFF;
+    idt_entries[entry_index].offset_high = ((uint32_t)callback >> 16) & 0xFFFF;
+}
+
 void setup_idt()
 {
-    extern void isr_stub_no_err();
-    extern void isr_stub_err();
-
-    for (uint16_t i = 0; i < IDT_ENTRIES; ++i) 
-    {
-        void (*callback) = isr_stub_no_err;
-        uint8_t type_attr = IDT_INTERRUPT_32_DPL0; 
-
-        switch (i) 
-        {
-            // IDT Trap entries:
-            case 1:
-            case 3:
-            case 4:
-                type_attr = IDT_TRAP_32_PL0;
-                break;
-            // IDT error entries:
-            case 8:
-            case 10:
-            case 11:
-            case 12:
-            case 13:
-            case 14:
-            case 17:
-            case 21:
-                callback = isr_stub_err;
-                break;
-        }
-
-        set_idt_entry(&idt_entries[i], callback, SEGMENT_SELECTOR_CODE_DPL0, type_attr);
-    }
+    set_idt_entry(&idt_entries[0x00], isr0 , SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+    set_idt_entry(&idt_entries[0x01], isr1 , SEGMENT_SELECTOR_CODE_DPL0, IDT_TRAP_32_PL0);
+    set_idt_entry(&idt_entries[0x02], isr2 , SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+    set_idt_entry(&idt_entries[0x03], isr3 , SEGMENT_SELECTOR_CODE_DPL0, IDT_TRAP_32_PL0);
+    set_idt_entry(&idt_entries[0x04], isr4 , SEGMENT_SELECTOR_CODE_DPL0, IDT_TRAP_32_PL0);
+    set_idt_entry(&idt_entries[0x05], isr5 , SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+    set_idt_entry(&idt_entries[0x06], isr6 , SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+    set_idt_entry(&idt_entries[0x07], isr7 , SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+    set_idt_entry(&idt_entries[0x08], isr8 , SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+    set_idt_entry(&idt_entries[0x09], isr9 , SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+    set_idt_entry(&idt_entries[0x0A], isr10, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+    set_idt_entry(&idt_entries[0x0B], isr11, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+    set_idt_entry(&idt_entries[0x0C], isr12, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+    set_idt_entry(&idt_entries[0x0D], isr13, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+    set_idt_entry(&idt_entries[0x0E], isr14, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+    set_idt_entry(&idt_entries[0x0F], isr15, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+    set_idt_entry(&idt_entries[0x10], isr16, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+    set_idt_entry(&idt_entries[0x11], isr17, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+    set_idt_entry(&idt_entries[0x12], isr18, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+    set_idt_entry(&idt_entries[0x13], isr19, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+    set_idt_entry(&idt_entries[0x14], isr20, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+    set_idt_entry(&idt_entries[0x15], isr21, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+    set_idt_entry(&idt_entries[0x16], isr22, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+    set_idt_entry(&idt_entries[0x17], isr23, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+    set_idt_entry(&idt_entries[0x18], isr24, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+    set_idt_entry(&idt_entries[0x19], isr25, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+    set_idt_entry(&idt_entries[0x1A], isr26, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+    set_idt_entry(&idt_entries[0x1B], isr27, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+    set_idt_entry(&idt_entries[0x1C], isr28, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+    set_idt_entry(&idt_entries[0x1D], isr29, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+    set_idt_entry(&idt_entries[0x1E], isr30, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+    set_idt_entry(&idt_entries[0x1F], isr31, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
 
     idt_descriptor_t idt_descriptor;
     idt_descriptor.base = (uint32_t)&idt_entries;
