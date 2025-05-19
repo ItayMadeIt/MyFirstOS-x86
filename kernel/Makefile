@@ -35,6 +35,7 @@ kernel/paging.o \
 kernel/gdt.o \
 kernel/idt.o \
 kernel/entry.o \
+kernel/io.o \
 
 OBJS=\
 $(ARCHDIR)/crti.o \

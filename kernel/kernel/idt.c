@@ -38,12 +38,22 @@ typedef struct idt_descriptor
 	uint32_t base;
 } __attribute__((packed)) idt_descriptor_t;
 
-void idt_c_handler(uint32_t error_code)
+void idt_c_handler(uint8_t interrupt_number, uint32_t error_code)
 {
-    debug_print(error_code);
+    if (interrupt_number > 32)
+    {
+        debug_print_str("Interrupt number wasn't normal\n\n");
+        debug_print(interrupt_number);
+
+        // Sort of a halt
+        while (1);
+
+    }
+
+    debug_print(interrupt_number);
 }
 
-static void set_idt_entry(idt_entry_t* entry, uint32_t handler_addr, uint16_t selector, uint8_t type_attr)
+static void set_idt_entry(idt_entry_t* entry, void (*handler_addr), uint16_t selector, uint8_t type_attr)
 {
     entry->zero = 0;
     
@@ -62,7 +72,7 @@ static inline void load_idt_descriptor(idt_descriptor_t* idt_descriptor)
         : "r" (idt_descriptor)
         : "memory"
     );
-} 
+}
 
 void setup_idt()
 {
@@ -71,7 +81,7 @@ void setup_idt()
 
     for (uint16_t i = 0; i < IDT_ENTRIES; ++i) 
     {
-        uint32_t callback = (uint32_t)(isr_stub_no_err);
+        void (*callback) = isr_stub_no_err;
         uint8_t type_attr = IDT_INTERRUPT_32_DPL0; 
 
         switch (i) 
@@ -91,7 +101,7 @@ void setup_idt()
             case 14:
             case 17:
             case 21:
-                callback = (uint32_t)isr_stub_err;
+                callback = isr_stub_err;
                 break;
         }
 
