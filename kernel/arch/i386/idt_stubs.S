@@ -16,7 +16,6 @@ isr\n:
     pusha
     pushl 32(%esp)       # Error code (right after registers 4 * 8 = 32)
     pushl $\n            # Interrupt number
-    pushl $0
     call idt_c_handler
     addl $8, %esp
     popa

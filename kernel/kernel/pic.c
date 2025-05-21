@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <kernel_loader/io.h>
 
 #define PIC1		0x20		/* IO base address for master PIC */
 #define PIC2		0xA0		/* IO base address for slave PIC */
@@ -90,7 +91,7 @@ uint16_t pic_get_isr(void)
     return __pic_get_irq_reg(PIC_READ_ISR);
 }
 
-void update_pic()
+void setup_pic()
 {
-	
+	PIC_remap(0x20, 0x28);
 }

@@ -5,41 +5,11 @@
 .set MAGIC,    0x1BADB002
 .set CHECKSUM, -(MAGIC + FLAGS)
 
-.set IDT_ENTRIES, 256
-.set IDT_ENTRY_SIZE, 8 # Size of an IDT entry, called a gate descriptor
-
 .section .multiboot
 .align 4
 .long MAGIC
 .long FLAGS
 .long CHECKSUM
-
-
-.section .rodata
-.align 8
-gdt:
-    .skip 40 # 5 - 8 byte entries
-gdt_descriptor:
-    .word gdt_end - gdt - 1
-    .long gdt
-gdt_end:
-
-idt_table:
-    .skip IDT_ENTRIES * IDT_ENTRY_SIZE
-idt_descriptor:
-    .word gdt_end - gdt - 1
-    .long gdt
-
-# Page Tables and Stack
-.section .data
-.align 4096
-page_directory:
-.skip 0x00001000  # 4 KiB (Page Directory)
-
-page_kernel_tables:
-.skip 0x00002000  # 8 KiB (2 MiB) 
-page_boot_tables:
-.skip 0x00001000  # 4 KiB (1 MiB)
 
 
 .section .bss
