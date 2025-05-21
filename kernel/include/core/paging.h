@@ -1,6 +1,3 @@
-#include <stdint.h>
-#include <stdbool.h>
-
 typedef struct virtual_metadata
 {
     uint32_t virtual_addr;  // 0xC0000000
@@ -19,9 +16,10 @@ typedef uint32_t page_table_entry;
 typedef struct page_table
 {
     page_entry entries[ENTRIES_AMOUNT];
-} page_table_t;
+}  __attribute__((aligned(ENTRIES_AMOUNT * sizeof(page_entry)))) page_table_t;
 
 typedef struct page_directory
 {
     page_table_entry entries[ENTRIES_AMOUNT];
-} page_directory_t;
+}  __attribute__((aligned(ENTRIES_AMOUNT * sizeof(page_table_entry)))) page_directory_t;
+

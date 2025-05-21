@@ -1,7 +1,5 @@
 #include <stdint.h>
-
-#define DIVIDE_0_INDEX 0
-#define PAGE_FAULT_INDEX 14
+#include <drivers/isr.h>
 
 void interrupt_div0(uint32_t _unused_)
 {
@@ -30,6 +28,6 @@ void interrupt_page_fault(uint32_t error)
 
 void setup_isr()
 {
-    set_interrupt_callback(DIVIDE_0_INDEX  , interrupt_div0      );
-    set_interrupt_callback(PAGE_FAULT_INDEX, interrupt_page_fault);
+    set_interrupt_c_callback(DIVIDE_0_INDEX  , interrupt_div0      );
+    set_interrupt_c_callback(PAGE_FAULT_INDEX, interrupt_page_fault);
 }
