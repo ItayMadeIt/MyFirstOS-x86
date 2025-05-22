@@ -1,20 +1,30 @@
 {
   "configurations": [
     {
-      "name": "Kernel Dev",
-      "defines": [
-        "__is_libk"
-        ],
-        "includePath": [
-        "${workspaceFolder}/libc/include",
+      "name": "Kernel",
+      "includePath": [
         "${workspaceFolder}/kernel/include",
-        "${workspaceFolder}/sysroot/usr/include"
-        ],
-
-      "compilerPath": "/home/itaymadeit/opt/cross/bin/i686-elf-gcc",
+        "${workspaceFolder}/kernel/arch/i386",
+        "${workspaceFolder}/libk/include",
+        "${workspaceFolder}/libc/include"
+      ],
+      "defines": [
+        "_KERNEL",
+        "__i386__"
+      ],
+      "compilerPath": "/usr/bin/gcc",
       "cStandard": "c11",
       "cppStandard": "c++17",
-      "intelliSenseMode": "gcc-x86"
+      "intelliSenseMode": "gcc-x86",
+      "browse": {
+        "path": [
+          "${workspaceFolder}/kernel/include",
+          "${workspaceFolder}/kernel/arch/i386",
+          "${workspaceFolder}/libk/include",
+          "${workspaceFolder}/libc/include"
+        ],
+        "limitSymbolsToIncludedHeaders": true
+      }
     }
   ],
   "version": 4
