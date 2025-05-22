@@ -35,6 +35,7 @@ core/paging.o \
 core/gdt.o \
 core/idt.o \
 core/isr.o \
+core/timer.o \
 core/entry.o \
 drivers/tty.o \
 drivers/pic.o \
