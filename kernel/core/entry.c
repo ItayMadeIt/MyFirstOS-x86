@@ -61,6 +61,7 @@ void entry_main()
     
     // Setup basic one-core timer
     setup_pit();
+    setup_ps2();
 
     sti();
 

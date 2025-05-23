@@ -39,6 +39,7 @@ core/timer.o \
 core/entry.o \
 drivers/tty.o \
 drivers/pic.o \
+drivers/ps2_key.o 
 
 OBJS=\
 $(ARCHDIR)/boot/crti.o \

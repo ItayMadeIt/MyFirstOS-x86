@@ -1,6 +1,9 @@
 {
     "C_Cpp.intelliSenseEngine": "default",
     "files.associations": {
-        "debug.h": "c"
+        "*.embeddedhtml": "html",
+        "debug.h": "c",
+        "io.h": "c",
+        "stdint.h": "c"
     },
 }

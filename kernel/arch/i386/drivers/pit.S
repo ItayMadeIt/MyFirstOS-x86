@@ -19,10 +19,6 @@ IRQ0_handler:
 	addl %eax, system_timer_fractions     # Update system timer tick fractions
 	adcl %ebx, system_timer_ms            # Update system timer tick milli-seconds
 
-    pushl system_timer_ms
-    call debug_print_int
-    addl $4, %esp
-
     # Send the EOI to the PIC
 	movb $0x20, %al
     outb %al, $0x20  
