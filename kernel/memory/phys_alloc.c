@@ -6,20 +6,22 @@
 
 #define BITS_IN_BIT 8
 
-uint8_t pages_allocated[MAX_MEM_SPACE / PAGE_SIZE / BITS_IN_BIT];
+#define PAGES_ARR_SIZE MAX_MEM_SPACE / PAGE_SIZE / BITS_IN_BIT
 
-extern uint8_t kernel_end_var;
-uint32_t kernel_end;
+uint8_t pages_allocated[PAGES_ARR_SIZE];
+uint32_t last_free_group_index = 0;
 
 static void reset_pages_allocated()
 {
-    for (uint32_t i = 0; i < sizeof(pages_allocated); i++)
+    for (uint32_t i = 0; i < PAGES_ARR_SIZE; i++)
     {
         pages_allocated[i] = 0;
     }
+
+    last_free_group_index = 0;
 }
 
-static void verify_flags(multiboot_info_t* mbd)
+static void verify_flags(const multiboot_info_t* mbd)
 {
     if (! (mbd->flags & (0b1 << 6)) )
     {
@@ -28,7 +30,7 @@ static void verify_flags(multiboot_info_t* mbd)
     }
 }
 
-static phys_memory_list_t get_available_memory_list(multiboot_info_t* mbd)
+static phys_memory_list_t get_available_memory_list(const multiboot_info_t* mbd)
 {
     phys_memory_list_t mem_list;
     mem_list.amount = 0;
@@ -42,11 +44,6 @@ static phys_memory_list_t get_available_memory_list(multiboot_info_t* mbd)
         if (mmap->type == MULTIBOOT_MEMORY_AVAILABLE)
         {   
             mem_list.mmmt[mem_list.amount++] = mmap;
-        }
-        else
-        {
-            debug_print(mmap->addr_low);
-            debug_print(mmap->len_low);
         }
 
         // Get next iteration
@@ -79,7 +76,7 @@ static void free_page_at(uint32_t addr)
     pages_allocated[page_chunk_index] |= bit;
 }
 
-static void free_memory_map(multiboot_memory_map_t* map)
+static void free_memory_map(const multiboot_memory_map_t* map)
 {
     uint32_t begin_addr = map->addr_low;
     uint32_t end_addr = map->addr_low + map->len_low;
@@ -103,21 +100,91 @@ static void free_memory_map(multiboot_memory_map_t* map)
     }
 }
 
-void setup_phys_allocator(multiboot_info_t* mbd)
+static void free_phys_mem_list(const phys_memory_list_t* mem_list)
 {
-    reset_pages_allocated();
-
-    verify_flags(mbd);
-
-    kernel_end = (uint32_t)&kernel_end_var;
-    
-    phys_memory_list_t mem_list = get_available_memory_list(mbd);
-
-    for (uint32_t i = 0; i < mem_list.amount; i++)
+    for (uint32_t i = 0; i < mem_list->amount; i++)
     {
-        if (mem_list.mmmt[i]->type == MULTIBOOT_MEMORY_AVAILABLE)
+        if (mem_list->mmmt[i]->type == MULTIBOOT_MEMORY_AVAILABLE)
         {
-            free_memory_map(mem_list.mmmt[i]);
+            free_memory_map(mem_list->mmmt[i]);
         }
     }
+}
+
+static void reserve_kernel_memory(const phys_memory_list_t* mem_list)
+{
+    // Get addresses of the kernel
+    extern uint8_t kernel_begin_var;
+    extern uint8_t kernel_end_var;
+    uint32_t kernel_begin = (uint32_t)&kernel_begin_var;
+    uint32_t kernel_end = (uint32_t)&kernel_end_var;
+
+    // Round addresses
+    uint32_t from_addr = kernel_begin & ~0xFFF;
+    uint32_t to_addr   = kernel_end | 0xFFF;
+
+    // Allocate each page
+    uint32_t addr = from_addr;
+    while (addr < to_addr)
+    {
+        alloc_page_at(addr);
+        
+        addr += PAGE_SIZE;
+    }
+}
+
+uint32_t alloc_phys_page()
+{
+    uint32_t page_group_index;
+    
+    // Find free page group
+    for (page_group_index = last_free_group_index; page_group_index < PAGES_ARR_SIZE; ++page_group_index)
+    {
+        if (pages_allocated[page_group_index])
+        {
+            break;
+        }
+    }
+    
+    if (page_group_index >= PAGES_ARR_SIZE)
+    {
+        debug_print_str("Failed to allocate page");
+        halt();
+    }
+
+    // Get page index (max 8 bits)
+    uint32_t page_index = 0;
+    while ((pages_allocated[page_group_index] >> page_index) & 0b1)
+    {
+        ++page_index;
+    }
+    page_index |= page_group_index << 3;
+    // Cache
+    last_free_group_index = page_group_index;
+
+    // Allocate page
+    uint32_t page_addr = page_index * PAGE_SIZE;
+    alloc_page_at(page_addr);
+
+    return page_addr;
+}
+
+void free_phys_page(uint32_t page_addr)
+{
+    free_page_at(page_addr);
+
+    // >> 12 (PAGE_SIZE) + >> 3 (8 pages per byte in bitmap)
+    last_free_group_index = page_addr >> 15;
+}
+
+void setup_phys_allocator(multiboot_info_t* mbd)
+{
+    verify_flags(mbd);
+
+    reset_pages_allocated();
+
+    phys_memory_list_t mem_list = get_available_memory_list(mbd);
+    free_phys_mem_list(&mem_list);
+
+    reserve_kernel_memory(&mem_list);
 }

@@ -10,6 +10,9 @@ SECTIONS
 	   loaded at by the bootloader. */
 	. = 1M;
 
+	/* Define kernel start */
+	kernel_begin_var = .;
+	
 	/* First put the multiboot header, as it is required to be put very early
 	   early in the image or the bootloader won't recognize the file format.
 	   Next we'll put the .text section. */
