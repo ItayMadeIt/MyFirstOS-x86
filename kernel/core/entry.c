@@ -4,6 +4,9 @@
 #include <drivers/isr.h>
 #include <core/idt.h>
 #include <core/gdt.h>
+#include <multiboot/multiboot.h>
+
+extern uint8_t kernel_end;
 
 void halt() 
 {
@@ -46,11 +49,22 @@ static inline int interrupts_enabled(void)
 
 
 
-void entry_main()
+void entry_main(uint32_t magic, multiboot_info_t* mbd)
 {
+    if (magic != MULTIBOOT_BOOTLOADER_MAGIC)
+    {
+        debug_print_str("Magic value wasn't present after boot.\n");
+        halt();
+    }
+
     // Critical setup
     setup_gdt();
     setup_idt();
+    
+    // Setup phys allocator
+    setup_phys_allocator(mbd);
+
+    // Setup safety net
     setup_paging();
     
     // Setup interrutp handlers
@@ -59,13 +73,13 @@ void entry_main()
     // Setup inputs using pic1, pic2
     setup_pic();
     
-    // Setup basic one-core timer
+    // Setup basic drivers
     setup_pit();
     setup_ps2();
 
     sti();
 
-    while(1);
+    while(true);
 
-    //virt_kernel_main();
+    virt_kernel_main();
 }

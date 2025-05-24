@@ -38,6 +38,10 @@ SECTIONS
 		*(.bss)
 	}
 
+	/* Create a variable kernel_end_var to be at the end of the elf file.
+		This let's the program know where it begins and ends.*/
+	kernel_end_var = .;
+
 	/* The compiler may produce other sections, put them in the proper place in
 	   in this file, if you'd like to include them in the final kernel. */
 }

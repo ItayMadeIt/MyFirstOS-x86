@@ -29,17 +29,19 @@ LIBS:=$(LIBS) $(KERNEL_ARCH_LIBS)
 
 KERNEL_OBJS=\
 $(KERNEL_ARCH_OBJS) \
-core/kernel.o \
 core/debug.o \
-core/paging.o \
+core/entry.o \
 core/gdt.o \
 core/idt.o \
 core/isr.o \
-core/timer.o \
-core/entry.o \
-drivers/tty.o \
+memory/phys_alloc.o \
+memory/virt_alloc.o \
+core/paging.o \
 drivers/pic.o \
-drivers/ps2_key.o 
+drivers/ps2_key.o \
+core/timer.o \
+core/kernel.o \
+drivers/tty.o 
 
 OBJS=\
 $(ARCHDIR)/boot/crti.o \

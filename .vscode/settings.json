@@ -4,6 +4,8 @@
         "*.embeddedhtml": "html",
         "debug.h": "c",
         "io.h": "c",
-        "stdint.h": "c"
+        "stdint.h": "c",
+        "multiboot.h": "c",
+        "phys_alloc.h": "c"
     },
 }

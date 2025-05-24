@@ -15,7 +15,7 @@
 .section .bss
 .align 16
 stack_bottom:
-.skip 0x004000 # 16 KiB
+.skip 0x010000 # 64 KiB
 stack_top:
 
 # Entry Point
@@ -32,11 +32,13 @@ _start:
 
     # Preserve the multiboot info pointer in %ebx
     pushl %ebx
+    pushl %eax
 
     # Call global constructors
     call _init
 
     call entry_main
+    addl $8, %esp
 
     # Hang if kernel_main returns
     cli

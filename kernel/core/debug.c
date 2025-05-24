@@ -79,3 +79,10 @@ void debug_print_int(int32_t value) {
     }
     put_char('\n');
 }
+
+void debug_print_binary(uint8_t value) {
+    for (int i = 7; i >= 0; --i) {
+        put_char((value & (1u << i)) ? '1' : '0');
+    }
+    put_char('\n');
+}

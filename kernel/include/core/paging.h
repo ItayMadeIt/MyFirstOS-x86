@@ -12,6 +12,7 @@ typedef uint32_t page_entry;
 typedef uint32_t page_table_entry;
 
 #define ENTRIES_AMOUNT 1024
+#define PAGE_SIZE 4096
 
 typedef struct page_table
 {
