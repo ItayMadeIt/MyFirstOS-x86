@@ -24,3 +24,13 @@ typedef struct page_directory
     page_table_entry entries[ENTRIES_AMOUNT];
 }  __attribute__((aligned(ENTRIES_AMOUNT * sizeof(page_table_entry)))) page_directory_t;
 
+
+void map_pages(
+    page_directory_t* dir,
+    page_table_t* table, 
+    uint32_t virt_addr, 
+    uint32_t phys_addr, 
+    uint32_t pages, 
+    uint16_t flags /*Assumes flags is valid*/);
+
+void setup_paging();

@@ -1,11 +1,10 @@
 {
     "C_Cpp.intelliSenseEngine": "default",
     "files.associations": {
-        "*.embeddedhtml": "html",
         "debug.h": "c",
         "io.h": "c",
-        "stdint.h": "c",
         "multiboot.h": "c",
-        "phys_alloc.h": "c"
+        "phys_alloc.h": "c",
+        "paging.h": "c"
     },
 }

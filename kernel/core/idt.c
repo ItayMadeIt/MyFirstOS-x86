@@ -7,19 +7,18 @@ void (*interrupt_callback_entries[IDT_ENTRIES]) (uint32_t error_code);
 
 void idt_c_handler(uint8_t interrupt_number, uint32_t error_code)
 {
-    return;
     
     if (interrupt_number >= 32)
     {
         debug_print_str("Interrupt number wasn't normal\n\n");
-        debug_print(interrupt_number);
+        debug_print_int(interrupt_number);
 
         // Sort of a halt
         interrupt_callback_entries[interrupt_number](error_code);
     }
 
     debug_print_str("Interrupt number is: ");
-    debug_print(interrupt_number);
+    debug_print_int(interrupt_number);
 
     interrupt_callback_entries[interrupt_number](error_code);
 }
