@@ -1,5 +1,5 @@
-#include <stdint.h>
-#include <stdint.h>
+
+#include <core/defs.h>
 
 void set_interrupt_c_callback(uint8_t entry_index, void (*callback) (uint32_t error_code));
 void set_idt_callback(uint16_t index, void (*handler_addr));

@@ -1,10 +1,19 @@
 {
     "C_Cpp.intelliSenseEngine": "default",
     "files.associations": {
+        "*.embeddedhtml": "html",
         "debug.h": "c",
         "io.h": "c",
         "multiboot.h": "c",
         "phys_alloc.h": "c",
-        "paging.h": "c"
+        "paging.h": "c",
+        "virt_alloc.h": "c",
+        "cstdlib": "c",
+        "defs.h": "c",
+        "stdint.h": "c",
+        "memory_manager.h": "c",
+        "heap.h": "c",
+        "cstdint": "c",
+        "random": "c"
     },
 }

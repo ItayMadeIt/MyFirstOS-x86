@@ -35,8 +35,11 @@ core/gdt.o \
 core/idt.o \
 core/isr.o \
 memory/phys_alloc.o \
-memory/virt_alloc.o \
 core/paging.o \
+memory/virt_alloc.o \
+memory/memory_manager.o \
+memory/heap.o \
+memory/tree_int.o \
 drivers/pic.o \
 drivers/ps2_key.o \
 core/timer.o \

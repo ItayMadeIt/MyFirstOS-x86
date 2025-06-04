@@ -1,15 +1,18 @@
+#include <core/defs.h>
 #include <memory/phys_alloc.h>
 #include <core/paging.h>
 
 // Max memory space 4GB:
 #define MAX_MEM_SPACE 4294967296
 
-#define BITS_IN_BIT 8
 
-#define PAGES_ARR_SIZE MAX_MEM_SPACE / PAGE_SIZE / BITS_IN_BIT
+#define PAGES_ARR_SIZE MAX_MEM_SPACE / PAGE_SIZE / BIT_TO_BYTE
 
 uint8_t pages_allocated[PAGES_ARR_SIZE];
 uint32_t last_free_group_index = 0;
+
+uint32_t max_memory;
+phys_memory_list_t mem_list;
 
 static void reset_pages_allocated()
 {
@@ -44,6 +47,7 @@ static phys_memory_list_t get_available_memory_list(const multiboot_info_t* mbd)
         if (mmap->type == MULTIBOOT_MEMORY_AVAILABLE)
         {   
             mem_list.mmmt[mem_list.amount++] = mmap;
+            max_memory = max(max_memory, mmap->addr_low + mmap->len_low); 
         }
 
         // Get next iteration
@@ -154,7 +158,7 @@ uint32_t alloc_phys_page()
 
     // Get page index (max 8 bits)
     uint32_t page_index = 0;
-    while ((pages_allocated[page_group_index] >> page_index) & 0b1)
+    while ((pages_allocated[page_group_index] & (1 << page_index)) == 0)
     {
         ++page_index;
     }
@@ -183,7 +187,7 @@ void setup_phys_allocator(multiboot_info_t* mbd)
 
     reset_pages_allocated();
 
-    phys_memory_list_t mem_list = get_available_memory_list(mbd);
+    mem_list = get_available_memory_list(mbd);
     free_phys_mem_list(&mem_list);
 
     reserve_kernel_memory(&mem_list);

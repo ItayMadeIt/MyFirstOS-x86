@@ -22,9 +22,6 @@ void virt_kernel_main()
     asm volatile (
         "mov $kernel_main, %%eax\n\t"
         "add $0xBFF00000, %%eax\n\t"
-        "push %%eax\n\t"
-        "call debug_print\n\t"
-        "add $4, %%esp\n\t"
         "call *%%eax\n\t"
         : 
         : 
@@ -46,22 +43,23 @@ void entry_main(uint32_t magic, multiboot_info_t* mbd)
         halt();
     }
 
-    // Critical setup
+    // Critical setup 
     setup_gdt();
     setup_idt();
     
-    // Setup phys allocator
     setup_phys_allocator(mbd);
 
-    // Setup safety net
     setup_paging();
 
-    // Setup interrutp handlers
+    // Setup interrupt handlers
     setup_isr();
 
-    // Setup inputs using pic1, pic2
+    setup_memory();
+
+    // inputs using pic1, pic2
     setup_pic();
-    // Setup basic drivers
+
+    // basic drivers
     setup_pit();
     setup_ps2();
 

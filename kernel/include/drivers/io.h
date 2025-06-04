@@ -1,3 +1,6 @@
+#ifndef __IO_H__
+#define __IO_H__
+
 #include <stdint.h>
 
 #define PIC1		0x20		/* IO base address for master PIC */
@@ -65,3 +68,4 @@ static inline void PIC_sendEOI(uint8_t irq)
 
 	outb(PIC1,PIC_EOI);
 }
+#endif // __IO_H__

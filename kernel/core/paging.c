@@ -46,7 +46,7 @@ void map_pages(
     }
 }
 
-static void zero_page_directory(page_directory_t* page_dir)
+void zero_page_directory(page_directory_t* page_dir)
 {
     for (uint32_t i = 0; i < ENTRIES_AMOUNT; ++i) 
     {
@@ -54,7 +54,7 @@ static void zero_page_directory(page_directory_t* page_dir)
     }
 }
 
-static void zero_page_table(page_table_t* page_table, uint32_t amount)
+void zero_page_table(page_table_t* page_table, uint32_t amount)
 {
     do
     {

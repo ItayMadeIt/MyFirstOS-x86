@@ -1,3 +1,6 @@
+#ifndef __GDT_H__
+#define __GDT_H__
+
 #include <stdint.h>
 
 // Each define here is for a specific flag in the descriptor.
@@ -60,3 +63,5 @@ typedef struct gdt_description
     uint16_t limit;
     uint32_t offset;
 } __attribute__((packed)) gdt_description_t ;
+
+#endif // __GDT_H__
