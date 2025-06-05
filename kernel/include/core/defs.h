@@ -11,7 +11,7 @@ typedef uint32_t addr_t;
 
 #define BIT_TO_BYTE 8
 
-#define STOR_Kib    0x00000400
+#define STOR_1Kib   0x00000400
 #define STOR_2Kib   0x00000800
 #define STOR_4Kib   0x00001000
 #define STOR_8Kib   0x00002000
@@ -21,7 +21,7 @@ typedef uint32_t addr_t;
 #define STOR_128Kib 0x00020000
 #define STOR_256Kib 0x00040000
 #define STOR_512Kib 0x00080000
-#define STOR_MiB    0x00100000
+#define STOR_1MiB   0x00100000
 #define STOR_2MiB   0x00200000
 #define STOR_4MiB   0x00400000
 #define STOR_8MiB   0x00800000
@@ -33,6 +33,8 @@ typedef uint32_t addr_t;
 #define STOR_512MiB 0x20000000
 #define STOR_GiB    0x40000000
 #define STOR_2GiB   0x80000000
+
+void halt();
 
 static inline uint32_t log2_u32(uint32_t x) 
 {

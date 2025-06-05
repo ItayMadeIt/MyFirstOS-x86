@@ -55,7 +55,7 @@ void debug_print(uint32_t value) {
     put_char('\n');
 }
 
-void debug_print_int(int32_t value) {
+void debug_print_int_nonewline(int32_t value) {
     char buffer[12];
     int i = 0;
 
@@ -77,6 +77,9 @@ void debug_print_int(int32_t value) {
     while (i--) {
         put_char(buffer[i]);
     }
+}
+void debug_print_int(int32_t value) {
+    debug_print_int_nonewline(value);
     put_char('\n');
 }
 

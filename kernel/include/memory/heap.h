@@ -6,9 +6,10 @@
 
 #define SLAB_MIN_SIZE 16
 
-#define BITS_PER_UINT32 32
 #define SLOTS_PER_PAGE (PAGE_SIZE / SLAB_MIN_SIZE)
-#define BITMAP_LEN (SLOTS_PER_PAGE / BITS_PER_UINT32)
+#define BITMAP_LEN (SLOTS_PER_PAGE / BIT_TO_BYTE)
+
+#define INVALID_MEMORY ~0
 
 typedef enum page_types
 {
@@ -31,13 +32,13 @@ typedef struct page {
 
 typedef struct slab_node
 {
-    uint32_t addr; // page aligned so first few bits are used
-    
-    uint32_t bitmap[BITMAP_LEN];
+    uint32_t addr;
+    uint16_t free_bits;    
+    uint8_t bitmap[BITMAP_LEN];
     
     struct slab_node* next;
 
-} slab_node_t __attribute__((aligned(sizeof(uint32_t))));
+} slab_node_t;
 
 typedef struct page_slab_metadata
 {
@@ -45,8 +46,15 @@ typedef struct page_slab_metadata
     uint16_t slab_size; 
     uint16_t unused; 
 
-} page_slab_metadata_t __attribute__((aligned(sizeof(uint32_t))));
+} page_slab_metadata_t;
 
+typedef struct slab_alloc_blocks
+{
+    uint32_t slab_size; // 2^n
+
+    slab_node_t* head;
+
+} slab_alloc_blocks_t;
 
 typedef struct buddy_node
 {
@@ -68,14 +76,6 @@ typedef struct buddy_alloc_blocks
     buddy_node_t* head;
 
 } buddy_alloc_blocks_t;
-
-typedef struct slab_alloc_blocks
-{
-    uint32_t slab_size; // 2^n
-
-    slab_node_t* head;
-
-} slab_alloc_blocks_t;
 
 typedef struct heap_metadata
 {

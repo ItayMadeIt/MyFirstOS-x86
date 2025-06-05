@@ -55,7 +55,7 @@ void entry_main(uint32_t magic, multiboot_info_t* mbd)
     setup_isr();
 
     setup_memory();
-
+    
     // inputs using pic1, pic2
     setup_pic();
 

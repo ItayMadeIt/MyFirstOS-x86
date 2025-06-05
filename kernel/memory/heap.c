@@ -12,8 +12,32 @@
 #define BUDDY_MIN_EXP 12 /*2^12*/
 #define BUDDY_MIN_CAPICTY (8 * sizeof(buddy_alloc_block_t))
 #define SLAB_SIZES_COUNT 8 /*2^4 to 2^11 (less than 4096 bytes and at least 16 bytes) */
-#define SLAB_MIN_INDEX 4 /*2^12*/
+#define SLAB_MIN_EXP 4 /*2^4*/
 #define SLAB_MIN_CAPICTY (8 * sizeof(slab_alloc_block_t))
+
+
+static uint32_t buddy_block_length(buddy_node_t* node)
+{
+    uint32_t size = 0;
+    while (node)
+    {
+        ++size;
+        node = node->next;
+    }
+    return size;
+}
+
+static inline uint32_t calc_slab_index_size(uint32_t size) 
+{
+    uint32_t aligned = align_pow2(size);
+    return align_pow2(size) <= (1ull << SLAB_MIN_EXP) ? 0 : log2_u32(aligned) - SLAB_MIN_EXP;
+};
+static inline uint32_t calc_buddy_index_size(size) 
+{
+    uint32_t aligned = align_pow2(size);
+    return align_pow2(size) <= (1ull << BUDDY_MIN_EXP) ? 0 : log2_u32(aligned) - BUDDY_MIN_EXP;
+}
+
 
 buddy_alloc_blocks_t buddy_blocks[BUDDY_SIZES_COUNT];
 slab_alloc_blocks_t slab_blocks[SLAB_SIZES_COUNT];
@@ -53,7 +77,7 @@ static void* early_alloc_align(const uint32_t size, const uint32_t alignment/*al
 
 static void* early_alloc(uint32_t size)
 {
-    return early_alloc_align(size, 1/*One byte alignment = no aligment*/);
+    return early_alloc_align(size, sizeof(uint32_t)/*Must be because some things depend*/);
 }
 
 static void init_buddy_alloc_arr()
@@ -95,10 +119,10 @@ static void insert_buddy(uint32_t addr, uint32_t buddy_size /*Must be 2^n*/)
         halt();
     }
 
-    uint32_t index = log2_u32(buddy_size) - BUDDY_MIN_EXP;
+    uint32_t buddy_index = calc_buddy_index_size(buddy_size);
 
-    buddy_node_t** link = &buddy_blocks[index].head;
-    buddy_node_t* lst = buddy_blocks[index].head;
+    buddy_node_t** link = &buddy_blocks[buddy_index].head;
+    buddy_node_t* lst = buddy_blocks[buddy_index].head;
     while (lst && lst->addr < addr)
     {
         link = &lst->next;
@@ -111,7 +135,6 @@ static void insert_buddy(uint32_t addr, uint32_t buddy_size /*Must be 2^n*/)
     new_buddy->next = *link;
     new_buddy->addr = addr;
     *link = new_buddy;
-    
 }
 
 
@@ -201,7 +224,7 @@ void set_phys_pages_struct_type(uint32_t from_virt, uint32_t to_virt /*non inclu
     }
 }
 
-uint32_t allocate_buddy_size(uint32_t size)
+uint32_t reserve_buddy_size(uint32_t size /*Must be 2^n*/, buddy_node_t** req_buddy_node)
 {
     if (size < PAGE_SIZE)
     {
@@ -209,9 +232,7 @@ uint32_t allocate_buddy_size(uint32_t size)
         halt();
     }
 
-    size = align_pow2(size);
-
-    uint32_t index = log2_u32(size) - BUDDY_MIN_EXP;
+    uint32_t index = calc_buddy_index_size(size) ;
 
     // Allocate buddy block of the fitting size
     if (buddy_blocks[index].head)
@@ -220,13 +241,11 @@ uint32_t allocate_buddy_size(uint32_t size)
         buddy_blocks[index].head = node->next;
         
         uint32_t addr = node->addr;
-
-        page_buddy_metadata_t* page_metadata = (page_buddy_metadata_t*)kmalloc(sizeof(page_buddy_metadata_t));
-        page_metadata->buddy_node = NULL;
-        page_metadata->buddy_size = buddy_blocks[index].buddy_size;
+        if (req_buddy_node)
+        {
+            *req_buddy_node = node;
+        }
         
-        set_phys_pages_struct_type(addr, addr+size, page_metadata, page_type_heap_buddy);
-
         return addr;
     }
 
@@ -262,11 +281,24 @@ uint32_t allocate_buddy_size(uint32_t size)
     buddy_node_t* node = buddy_blocks[index].head;
     buddy_blocks[index].head = node->next;
     
-    uint32_t addr = node->addr;
+    if (req_buddy_node)
+    {
+        *req_buddy_node = node;
+    }
+        
+    return node->addr;
+}
+
+uint32_t allocate_buddy_size(uint32_t size /*Must be 2^n*/)
+{
+    buddy_node_t* node;
+
+    uint32_t addr = reserve_buddy_size(size, &node);
 
     page_buddy_metadata_t* page_metadata = (page_buddy_metadata_t*)kmalloc(sizeof(page_buddy_metadata_t));
-    page_metadata->buddy_node = NULL;
-    page_metadata->buddy_size = buddy_blocks[index].buddy_size;
+
+    page_metadata->buddy_node = node;
+    page_metadata->buddy_size = size;
     
     set_phys_pages_struct_type(addr, addr+size, page_metadata, page_type_heap_buddy);
 
@@ -275,17 +307,11 @@ uint32_t allocate_buddy_size(uint32_t size)
 
 void free_buddy_alloc(uint32_t addr)
 {
-    uint32_t phys_addr = get_phys_addr(addr);
-    uint32_t phys_page_index = phys_addr>>12;
-
+    uint32_t phys_page_index =  get_phys_addr(addr)>>12;
 
     if (pages[phys_page_index].type != page_type_heap_buddy)
     {
         debug_print_str("Must be buddy\n");
-        debug_print(addr);
-        debug_print(phys_addr);
-        debug_print(phys_page_index);
-        debug_print(pages[phys_page_index].type);
         halt();
     }
     page_buddy_metadata_t* buddy_metadata = (page_buddy_metadata_t*)pages[phys_page_index].struct_addr;
@@ -302,16 +328,6 @@ void free_buddy_alloc(uint32_t addr)
     kfree(buddy_metadata);
 }
 
-uint32_t buddy_block_length(buddy_node_t* node)
-{
-    uint32_t size = 0;
-    while (node)
-    {
-        ++size;
-        node = node->next;
-    }
-    return size;
-}
 
 void init_early_heap()
 {
@@ -327,6 +343,11 @@ void init_heap()
     alloc_table(get_phys_addr(heap_table), HEAP_VIRT, PAGE_ENTRY_WRITE_KERNEL_FLAGS);    
 
     set_phys_pages_struct_type(HEAP_VIRT, HEAP_VIRT + STOR_4MiB, NULL, page_type_heap);
+
+    init_buddy_alloc_arr();
+    init_slab_alloc_arr();
+
+    insert_buddy(HEAP_VIRT, STOR_4MiB);
 }
 
 static void free_phys_pages_from_bitmap(uint8_t bitmap, uint32_t byte_index)
@@ -364,43 +385,468 @@ static void setup_phys_pages()
 
 void empty_free(uint32_t size){}
 
+static bool atleast_x_free_slabs(uint32_t index, uint32_t x)
+{
+    uint32_t count = 0;
+    slab_node_t* slab = slab_blocks[index].head;
+    
+    while (slab)
+    {
+        count += slab->free_bits;
+        if (count >= x)
+        {
+            return true;
+        }
+        slab = slab->next;
+    }
+
+    return false;
+}
+
+static void init_slab_node(slab_node_t* slab_node, uint32_t addr, uint32_t free_amount)
+{
+    slab_node->addr = addr;
+    slab_node->free_bits = free_amount;
+
+    // Fill ones
+    for (uint32_t i = 0; i < free_amount; i++)
+    {
+        slab_node->bitmap[i / BIT_TO_BYTE] |= (1 << (i % BIT_TO_BYTE));
+    }
+    // Fill zeros
+    for (uint32_t i = free_amount; i < sizeof(slab_node->bitmap) * BIT_TO_BYTE; i++)
+    {
+        slab_node->bitmap[i / BIT_TO_BYTE] &= ~(1 << (i % BIT_TO_BYTE));
+    }
+    
+}
+
+static uint32_t allocate_first_free_slab(uint32_t size_index, slab_node_t** used_slab)
+{
+    slab_node_t** link = &slab_blocks[size_index].head;
+    slab_node_t* node = slab_blocks[size_index].head;
+
+    bool found = false;
+    while(node)
+    {
+        if (node->free_bits)
+        {
+            found = true;
+            break;
+        }
+
+        link = &node->next;
+        node = node->next;
+    }
+
+    if (!found)
+    {
+        return INVALID_MEMORY;
+    }
+
+    uint32_t max_free_amount = PAGE_SIZE / slab_blocks[size_index].slab_size;
+
+    uint32_t bit;
+    for (bit = 0; bit < max_free_amount; bit++)
+    {
+        if (node->bitmap[bit / BIT_TO_BYTE] & (1 << (bit % BIT_TO_BYTE)))
+        {
+            break;
+        }
+    }
+
+    if (bit == max_free_amount)
+    {    
+        debug_print_str("It said there are free bits, there werent");
+        halt();
+    }
+
+    node->bitmap[bit / BIT_TO_BYTE] &= ~(1 << (bit % BIT_TO_BYTE));
+    node->free_bits--;
+
+    if (used_slab)
+    {
+        *used_slab = node;
+    }
+
+    if (node->free_bits == 0)
+    {
+        *link = node->next;
+    }
+    
+    return node->addr + bit * slab_blocks[size_index].slab_size;
+}
+
+// Ensures there are enough slab nodes and slab metadata that can be created
+// for at one object.
+static uint32_t reserve_slab_objects()
+{
+    /*
+    Can make 2 pages for both the slab_node_t and page_slab_metadata_t
+    If only slab_node_t has no way to allocate then only that
+    same with page_slab_metadata_t
+    */
+    const uint32_t slab_metadata_size = align_pow2(sizeof(page_slab_metadata_t));
+    const uint32_t slab_metadata_size_index = calc_slab_index_size( slab_metadata_size );
+    const uint32_t slab_node_size = align_pow2(sizeof(slab_node_t));
+    const uint32_t slab_node_size_index =  calc_slab_index_size(slab_node_size);
+
+    // page_slab_metadata_size if we have less than or equal 3, allocate
+    // slab_node_size if we have less than or equal 3, allocate
+    bool will_alloc_slab_metadata = atleast_x_free_slabs(slab_metadata_size_index, 3) == false;
+    bool will_alloc_slab_node     = atleast_x_free_slabs(slab_node_size_index, 3) == false;
+
+
+    if (will_alloc_slab_metadata && will_alloc_slab_node)
+    {
+        uint32_t slab_metadata_addr = reserve_buddy_size(PAGE_SIZE, NULL);
+        uint32_t slab_node_addr = reserve_buddy_size(PAGE_SIZE, NULL);
+
+        uint32_t slab_metadata_page_index = (get_phys_addr(slab_metadata_addr) >> 12);
+        uint32_t slab_node_page_index = (get_phys_addr(slab_node_addr) >> 12);
+
+        // Allocate 2 page metadata and 2 slab node
+        page_slab_metadata_t* slab_metadata_alloc_node = (page_slab_metadata_t*)slab_metadata_addr;
+        page_slab_metadata_t* slab_metadata_alloc_metadata = (page_slab_metadata_t*)(slab_metadata_addr + slab_metadata_size);
+
+        slab_node_t* slab_node_alloc_node = (slab_node_t*)slab_node_addr;
+        slab_node_t* slab_node_alloc_metadata = (slab_node_t*)(slab_node_addr + slab_node_size);
+
+        // Handle alloc_metadata first
+        slab_metadata_alloc_metadata->slab_node = slab_node_alloc_metadata;
+        slab_metadata_alloc_metadata->slab_size = slab_metadata_size;
+        
+        init_slab_node(slab_node_alloc_metadata, slab_metadata_addr, PAGE_SIZE / slab_metadata_size);
+
+        // Free 2 first bits in each node, used by this logic
+        slab_node_alloc_metadata->free_bits -= 2;
+        slab_node_alloc_metadata->bitmap[0] &= ~0b11;
+
+        pages[slab_metadata_page_index].extra = 0;
+        pages[slab_metadata_page_index].flags = 0;
+        pages[slab_metadata_page_index].type = page_type_heap_slab;
+        pages[slab_metadata_page_index].struct_addr = (uint32_t)&slab_metadata_alloc_metadata;
+
+
+        // Handle alloc_node second
+        slab_metadata_alloc_node->slab_node = slab_node_alloc_node;
+        slab_metadata_alloc_node->slab_size = slab_node_size;
+        
+        init_slab_node(slab_node_alloc_node, slab_node_addr, PAGE_SIZE / slab_node_size);
+        
+
+        // Free 2 first bits in each node, used by this logic
+        slab_node_alloc_node->free_bits -= 2;
+        slab_node_alloc_node->bitmap[0] &= ~0b11;
+
+        pages[slab_node_page_index].extra = 0;
+        pages[slab_node_page_index].flags = 0;
+        pages[slab_node_page_index].type = page_type_heap_slab;
+        pages[slab_node_page_index].struct_addr = (uint32_t)&slab_metadata_alloc_node;
+
+        // Add both nodes to the lists:
+        slab_node_alloc_metadata->next = slab_blocks[slab_metadata_size_index].head ? slab_blocks[slab_metadata_size_index].head->next : NULL;
+        slab_blocks[slab_metadata_size_index].head = slab_node_alloc_metadata;
+
+        slab_node_alloc_node->next = slab_blocks[slab_node_size_index].head ? slab_blocks[slab_node_size_index].head->next : NULL;
+        slab_blocks[slab_node_size_index].head = slab_node_alloc_node;        
+
+        return;
+    }
+    if (will_alloc_slab_metadata)
+    {
+        uint32_t slab_metadata_page_addr = reserve_buddy_size(PAGE_SIZE, NULL);
+        uint32_t slab_metadata_index = (get_phys_addr(slab_metadata_page_addr) >> 12);
+
+        // Allocate page metadata (using the new page) and slab node (using normal)
+        uint32_t slab_node_addr = allocate_first_free_slab(slab_node_size_index, NULL);
+        slab_node_t* slab_node = (slab_node_t*)(slab_node_addr);
+        init_slab_node(slab_node, slab_metadata_page_addr, PAGE_SIZE / slab_node_size);
+
+        // Remove one use of the metadata 
+        slab_node->free_bits--;
+        slab_node->bitmap[0] &= ~0b1;
+
+        page_slab_metadata_t* slab_metadata = (page_slab_metadata_t*)slab_metadata_page_addr;
+        slab_metadata->slab_node = slab_node;
+        slab_metadata->slab_size = slab_metadata_size;
+
+        pages[slab_metadata_index].extra = 0;
+        pages[slab_metadata_index].flags = 0;
+        pages[slab_metadata_index].type = page_type_heap_slab;
+        pages[slab_metadata_index].struct_addr = (uint32_t)&slab_metadata;
+
+        return;
+    }
+    if (will_alloc_slab_node)
+    {
+        uint32_t slab_node_page_addr = reserve_buddy_size(PAGE_SIZE, NULL);
+        uint32_t slab_node_page_index = (get_phys_addr(slab_node_page_addr) >> 12);
+
+        // Allocate page metadata (using normal) and slab node (using the new page)
+        slab_node_t* slab_node = (slab_node_t*)slab_node_page_addr;
+        init_slab_node(slab_node, slab_node_page_addr, PAGE_SIZE / slab_node_size);
+        // Remove one use of the metadata 
+        slab_node->free_bits--;
+        slab_node->bitmap[0] &= ~0b1;
+
+        uint32_t slab_metadata_addr = allocate_first_free_slab(slab_metadata_size_index, NULL);
+        page_slab_metadata_t* slab_metadata = (page_slab_metadata_t*)(slab_metadata_addr);
+        
+        slab_metadata->slab_node = slab_node;
+        slab_metadata->slab_size = slab_metadata_size;
+
+        pages[slab_node_page_index].extra = 0;
+        pages[slab_node_page_index].flags = 0;
+        pages[slab_node_page_index].type = page_type_heap_slab;
+        pages[slab_node_page_index].struct_addr = (uint32_t)&slab_metadata;
+
+        return;
+    }
+}
+
+static uint32_t allocate_slab_size(uint32_t obj_size)
+{
+    if (obj_size < SLAB_MIN_SIZE)
+    {
+        debug_print_str("slab size was not correct");
+        halt();
+    }
+
+    uint32_t obj_slab_index = calc_slab_index_size(obj_size); 
+
+    reserve_slab_objects();
+    
+    if (slab_blocks[obj_slab_index].head == NULL)
+    {
+        // Cant allocate a slab_node_t or page slab metadata for the allocation
+        uint32_t slabs_size_index = calc_slab_index_size( sizeof(slab_node_t) );
+        uint32_t page_metadata_size_index = calc_slab_index_size(sizeof(page_slab_metadata_t));
+
+        // MAYBE ADD THIS LATER
+        // MAYBE ADD THIS LATER
+        // MAYBE ADD THIS LATER  (check for whether the object has the same index as the page && slab metadata)
+        // if (slabs_size_index != obj_slab_index && page_metadata_size_index != obj_slab_index)
+        
+        uint32_t buddy_addr =  reserve_buddy_size(PAGE_SIZE, NULL);
+
+        slab_node_t* slab_node = kmalloc(sizeof(slab_node_t));
+        init_slab_node(slab_node, buddy_addr, PAGE_SIZE / obj_size);
+
+        slab_blocks[obj_slab_index].head = slab_node;
+        slab_blocks[obj_slab_index].slab_size = obj_size;
+
+        page_slab_metadata_t* slab_metadata = kmalloc(sizeof(page_slab_metadata_t));
+        slab_metadata->slab_node = slab_node;
+        slab_metadata->slab_size = obj_size;
+
+        uint32_t page_index = get_phys_addr(buddy_addr) >> 12;
+        pages[page_index].struct_addr = slab_metadata;
+        pages[page_index].type = page_type_heap_slab;
+        pages[page_index].flags = 0;
+        pages[page_index].extra = 0;
+
+        // Another reserve because 2 objects were used already
+        reserve_slab_objects();
+    }
+
+    slab_node_t* slab_node;
+    uint32_t obj_addr = allocate_first_free_slab(obj_slab_index, &slab_node);
+    
+    uint32_t page_index = get_phys_addr(obj_addr) >> 12;
+
+    page_slab_metadata_t* slab_metadata = kmalloc(sizeof(page_slab_metadata_t));
+    slab_metadata->slab_node = slab_node;
+    slab_metadata->slab_size = obj_size;
+
+    pages[page_index].struct_addr = slab_metadata;
+    pages[page_index].type = page_type_heap_slab;
+    pages[page_index].flags = 0;
+    pages[page_index].extra = 0;
+    
+    return obj_addr;
+}
+
+static void free_slab_alloc(uint32_t obj_addr)
+{
+    uint32_t phys_page_index = get_phys_addr(obj_addr)>>12;
+
+    page_slab_metadata_t* metadata = (page_slab_metadata_t*) pages[phys_page_index].struct_addr;
+
+    slab_node_t* node = metadata->slab_node;
+    
+    uint32_t size_index = calc_slab_index_size(metadata->slab_size); 
+
+    // Reinsert if needed
+    if (node->free_bits == 0)
+    {
+        slab_node_t** link_it = &slab_blocks[size_index].head;
+        slab_node_t* node_it = slab_blocks[size_index].head;
+
+        while (node_it && node_it->addr < obj_addr)
+        {
+            link_it = &node_it->next;
+            node_it = node_it->next;
+        }
+
+        (*link_it)->next = node;
+        node->next = node_it;
+    }
+    
+    uint32_t bit = (obj_addr - node->addr) / (metadata->slab_size); 
+    if (node->bitmap[bit / BIT_TO_BYTE] & (1 << (bit % BIT_TO_BYTE)))
+    {
+        debug_print_str("Bit for slab is already freed");
+        halt();
+    }
+
+    node->free_bits++;
+
+    node->bitmap[bit / BIT_TO_BYTE] |= 1 << (bit % BIT_TO_BYTE);
+}
+
+void* alloc(uint32_t size)
+{
+    if (size == 0)
+    {
+        debug_print_str("Invalid `alloc` size");
+        halt();
+    }
+    size = align_pow2(size);
+
+    if (size < PAGE_SIZE)
+    {
+        return allocate_slab_size(size);
+    }
+    else
+    {
+        return allocate_buddy_size(size);
+    }
+}
+
+void free(uint32_t addr)
+{
+    uint32_t phys_page_index = get_phys_addr(addr) >> 12;
+    if (pages[phys_page_index].type == page_type_heap_buddy)
+    {
+        free_buddy_alloc(addr);
+    }
+    else if (pages[phys_page_index].type == page_type_heap_slab)
+    {
+        free_slab_alloc(addr);
+    }
+    else
+    {
+        debug_print_str("Invalid address to free!");
+    }
+}
+
+page_buddy_metadata_t* virt_addr_to_buddy_struct(uint32_t addr)
+{
+    return (page_buddy_metadata_t*)pages[get_phys_addr(addr) >> 12].struct_addr;
+}
+page_slab_metadata_t* virt_addr_to_slab_struct(uint32_t addr)
+{
+    return (page_slab_metadata_t*)pages[get_phys_addr(addr) >> 12].struct_addr;
+}
+
+
+static void debug_buddy_blocks()
+{
+    debug_print_str("4KiB:");
+    debug_print_int_nonewline(buddy_block_length(buddy_blocks[calc_buddy_index_size(STOR_4Kib)].head ));
+    debug_print_str(" | ");
+    debug_print_str("8KiB:");
+    debug_print_int_nonewline(buddy_block_length(buddy_blocks[calc_buddy_index_size(STOR_8Kib)].head ));
+    debug_print_str(" | ");
+    debug_print_str("16KiB:");
+    debug_print_int_nonewline(buddy_block_length(buddy_blocks[calc_buddy_index_size(STOR_16Kib)].head));
+    debug_print_str(" | ");
+    debug_print_str("32KiB:");
+    debug_print_int_nonewline(buddy_block_length(buddy_blocks[calc_buddy_index_size(STOR_32Kib)].head ));
+    debug_print_str("\n");
+    debug_print_str("64KiB:");
+    debug_print_int_nonewline(buddy_block_length(buddy_blocks[calc_buddy_index_size(STOR_64Kib)].head ));
+    debug_print_str(" | ");
+    debug_print_str("128KiB:");
+    debug_print_int_nonewline(buddy_block_length(buddy_blocks[calc_buddy_index_size(STOR_128Kib)].head ));
+    debug_print_str(" | ");
+    debug_print_str("256KiB:");
+    debug_print_int_nonewline(buddy_block_length(buddy_blocks[calc_buddy_index_size(STOR_256Kib)].head ));
+    debug_print_str(" | ");
+    debug_print_str("512KiB:");
+    debug_print_int_nonewline(buddy_block_length(buddy_blocks[calc_buddy_index_size(STOR_512Kib)].head ));
+    debug_print_str("\n");
+    debug_print_str("1MiB:");
+    debug_print_int_nonewline(buddy_block_length(buddy_blocks[calc_buddy_index_size(STOR_1MiB)].head ));
+    debug_print_str(" | ");
+    debug_print_str("2MiB:");
+    debug_print_int_nonewline(buddy_block_length(buddy_blocks[calc_buddy_index_size(STOR_2MiB)].head ));
+    debug_print_str(" | ");
+    debug_print_str("4MiB:");
+    debug_print_int(buddy_block_length(buddy_blocks[calc_buddy_index_size(STOR_4MiB)].head ));
+}
+
+void run_heap_stress_test()
+{
+    debug_buddy_blocks(); // snapshot before frees
+    // Slab allocations
+    void* a1 = alloc(32);    debug_print((uint32_t)a1);
+    void* a2 = alloc(60);    debug_print((uint32_t)a2);
+    void* a3 = alloc(128);   debug_print((uint32_t)a3);
+    void* a4 = alloc(256);   debug_print((uint32_t)a4);
+
+    // Slab overflow → goes to buddy
+    void* a5 = alloc(300);   debug_print((uint32_t)a5);
+
+    // Buddy allocations
+    void* b1 = alloc(4096);      debug_print((uint32_t)b1);
+    void* b2 = alloc(8192);      debug_print((uint32_t)b2);
+    void* b3 = alloc(16384);     debug_print((uint32_t)b3);
+    void* b4 = alloc(32768);     debug_print((uint32_t)b4);
+    void* b5 = alloc(1 << 20);   debug_print((uint32_t)b5); // 1MiB
+
+    // Misaligned size → buddy waste
+    void* b6 = alloc(4097);      debug_print((uint32_t)b6);
+
+    // Mixed slab
+    void* d = alloc(128);        debug_print((uint32_t)d);
+
+    // Slab free order stress test
+    void* p1 = alloc(64);        debug_print((uint32_t)p1);
+    void* p2 = alloc(64);        debug_print((uint32_t)p2);
+    void* p3 = alloc(64);        debug_print((uint32_t)p3);
+
+    debug_buddy_blocks(); // snapshot before frees
+
+    // Free in non-linear order
+    free(p2);
+    free(p1);
+    free(p3);
+
+    free(d);
+
+    // Free everything else
+    free(a1); free(a2); free(a3); free(a4); free(a5);
+    free(b1); free(b2); free(b3); free(b4); free(b5); free(b6);
+
+    debug_buddy_blocks(); // snapshot after frees
+}
+
 void setup_heap()
 {
     pages = NULL;
+
     init_early_heap();
-    setup_phys_pages();
-
-    init_heap();
-
-    init_buddy_alloc_arr();
-    init_slab_alloc_arr();
 
     kmalloc = early_alloc;
     kfree = empty_free;
 
-    insert_buddy(HEAP_VIRT, STOR_4MiB);
+    setup_phys_pages();
 
-    uint32_t new_addr = allocate_buddy_size(4096);
-    uint32_t new_addr3 = allocate_buddy_size(8128);
-    uint32_t new_addr2 = allocate_buddy_size(4096);
-    debug_print(new_addr);
-    debug_print(new_addr2);
-    debug_print(new_addr3);
+    init_heap();
 
-    free_buddy_alloc(new_addr);
-    free_buddy_alloc(new_addr2);
-    free_buddy_alloc(new_addr3);
+    run_heap_stress_test();
 
-
-    new_addr2 = allocate_buddy_size(8128);
-    debug_print(new_addr2);
-
-    new_addr3 = allocate_buddy_size(8128);
-    debug_print(new_addr3);
-
-    free_buddy_alloc(new_addr2);
-    free_buddy_alloc(new_addr3);
-    
     halt();
-    
 }
