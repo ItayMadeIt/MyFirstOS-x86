@@ -50,9 +50,9 @@ libc.a: $(OBJS)
 	$(CC) -MD -c $< -o $@ $(CFLAGS) $(CPPFLAGS)
 
 clean:
+	find . -name '*.o' -delete
+	find . -name '*.d' -delete
 	rm -f libc.a
-	rm -f $(OBJS) */*.o */*/*.o
-	rm -f $(OBJS:.o=.d) */*.d */*/*.d
 
 install: install-headers install-libs
 
@@ -64,4 +64,4 @@ install-libs: libc.a
 	mkdir -p $(DESTDIR)$(LIBDIR)
 	cp libc.a $(DESTDIR)$(LIBDIR)
 
--include $(OBJS:.o=.d)
+-include $(wildcard $(OBJS:.o=.d))

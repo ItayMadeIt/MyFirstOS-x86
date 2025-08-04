@@ -11,4 +11,6 @@ void kernel_main(void)
 #endif
 
 	printf("Some random written data!");
+
+	while(1);
 }

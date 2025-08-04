@@ -1,0 +1,90 @@
+.PHONY: all clean install install-headers iso run debug qemu-debug
+
+all: install
+
+$(info >>> Makefile is being read!)
+
+# Core config
+HOST     := $(shell ./default-host.sh)
+ARCH     := $(shell ./target-triplet-to-arch.sh $(HOST))
+
+SYSROOT  := $(shell pwd)/sysroot
+ISODIR   := $(shell pwd)/isodir
+ISO      := waddleos.iso
+
+PREFIX        := /usr
+EXEC_PREFIX   := $(PREFIX)
+LIBDIR        := $(EXEC_PREFIX)/lib
+BOOTDIR       := $(SYSROOT)/boot
+INCLUDEDIR    := $(PREFIX)/include
+
+CFLAGS        := -O2 -g
+CPPFLAGS      :=
+LDFLAGS       :=
+CC            := $(HOST)-gcc --sysroot=$(SYSROOT)
+AR            := $(HOST)-ar
+AS            := $(HOST)-as
+
+# Workaround for -elf cross toolchains
+ifeq ($(findstring -elf,$(HOST)),-elf)
+  CC += -isystem=$(INCLUDEDIR)
+endif
+
+export HOST      := $(HOST)
+export ARCH      := $(ARCH)
+export SYSROOT   := $(SYSROOT)
+export DESTDIR   := $(SYSROOT)
+export PREFIX    := $(PREFIX)
+export EXEC_PREFIX := $(EXEC_PREFIX)
+export BOOTDIR   := $(BOOTDIR)
+export LIBDIR    := $(LIBDIR)
+export INCLUDEDIR := $(INCLUDEDIR)
+export CC        := $(CC)
+export CFLAGS    := $(CFLAGS)
+export CPPFLAGS  := $(CPPFLAGS)
+export LDFLAGS   := $(LDFLAGS)
+export AR        := $(AR)
+export AS        := $(AS)
+
+
+SYSTEM_HEADER_PROJECTS := libc
+PROJECTS := libk libc kernel
+
+install-headers:
+	@mkdir -p "$(SYSROOT)"
+	@for PROJECT in $(SYSTEM_HEADER_PROJECTS); do \
+		$(MAKE) -C $$PROJECT install-headers; \
+	done
+
+install: install-headers
+	@for PROJECT in $(PROJECTS); do \
+		$(MAKE) -C $$PROJECT install; \
+	done
+
+clean:
+	$(MAKE) -C libk clean
+	@for PROJECT in $(PROJECTS); do \
+		echo "→ cleaning $$PROJECT"; \
+		$(MAKE) -C $$PROJECT clean || exit 1; \
+	done
+	@rm -rf sysroot isodir WaddleOS.iso
+
+
+iso: install
+	@mkdir -p "$(ISODIR)/boot/grub"
+	cp "$(SYSROOT)/boot/waddleos.kernel" "$(ISODIR)/boot/waddleos.kernel"
+	echo 'menuentry "waddleos" { multiboot /boot/waddleos.kernel }' > "$(ISODIR)/boot/grub/grub.cfg"
+	grub-mkrescue -o "$(ISO)" "$(ISODIR)"
+
+run: iso
+	qemu-system-$(ARCH) -m 256M -cdrom "$(ISO)"
+
+debug: iso
+	sudo -E /home/itaymadeit/opt/cross/bin/$(HOST)-gdb \
+	  "$(SYSROOT)/boot/waddleos.kernel" \
+	  -ex "target remote localhost:1234" \
+	  -ex "break entry_main" \
+	  -ex "continue"
+
+qemu-debug: iso
+	qemu-system-$(ARCH) -cdrom "$(ISO)" -s

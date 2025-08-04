@@ -65,11 +65,11 @@ $(ARCHDIR)/boot/crtn.o \
 .PHONY: all clean install install-headers install-kernel
 .SUFFIXES: .o .c .S
 
-all: myos.kernel
+all: waddleos.kernel
 
-myos.kernel: $(OBJS) $(ARCHDIR)/linker.ld
+waddleos.kernel: $(OBJS) $(ARCHDIR)/linker.ld
 	$(CC) -T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS) $(LINK_LIST)
-	grub-file --is-x86-multiboot myos.kernel
+	grub-file --is-x86-multiboot waddleos.kernel
 
 $(ARCHDIR)/boot/crtbegin.o $(ARCHDIR)/boot/crtend.o:
 	OBJ=`$(CC) $(CFLAGS) $(LDFLAGS) -print-file-name=$(@F)` && cp "$$OBJ" $@
@@ -81,17 +81,17 @@ $(ARCHDIR)/boot/crtbegin.o $(ARCHDIR)/boot/crtend.o:
 	$(CC) -MD -c $< -o $@ $(CFLAGS) $(CPPFLAGS)
 
 clean:
-	rm -f myos.kernel
-	rm -f $(OBJS) *.o */*.o */*/*.o
-	rm -f $(OBJS:.o=.d) *.d */*.d */*/*.d
+	find . -name '*.o' -delete
+	find . -name '*.d' -delete
+	rm -f waddleos.kernel
 
 install: install-headers install-kernel
 
 install-headers:
 	@echo "No public headers to install for kernel."
 
-install-kernel: myos.kernel
-	mkdir -p $(DESTDIR)$(BOOTDIR)
-	cp myos.kernel $(DESTDIR)$(BOOTDIR)
+install-kernel: waddleos.kernel
+	mkdir -p $(BOOTDIR)
+	cp waddleos.kernel $(BOOTDIR)
 
--include $(OBJS:.o=.d)
+-include $(wildcard $(OBJS:.o=.d))

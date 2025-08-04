@@ -1,7 +1,3 @@
-DEFAULT_HOST != ../default-host.sh
-HOST ?= $(DEFAULT_HOST)
-HOSTARCH != ../target-triplet-to-arch.sh $(HOST)
-
 CFLAGS ?= -O2 -g
 CPPFLAGS ?=
 LDFLAGS ?=
@@ -16,9 +12,9 @@ LIBDIR ?= $(EXEC_PREFIX)/lib
 CFLAGS := $(CFLAGS) -ffreestanding -Wall -Wextra
 CPPFLAGS := $(CPPFLAGS) -Iinclude -I../kernel/include -D__is_libk
 
-ARCHDIR = arch/$(HOSTARCH)
+ARCHDIR := arch/$(HOSTARCH)
 
-include $(ARCHDIR)/make.config
+-include $(ARCHDIR)/make.config
 
 CFLAGS := $(CFLAGS) $(KERNEL_ARCH_CFLAGS)
 CPPFLAGS := $(CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS)
@@ -50,9 +46,15 @@ libk.a: $(OBJS)
 	$(CC) -MD -c $< -o $@ $(CFLAGS) $(CPPFLAGS)
 
 clean:
-	rm -f libk.a
-	rm -f $(OBJS) */*.o */*/*.o
-	rm -f $(OBJS:.o=.d) */*.d */*/*.d
+	@echo "=== CLEAN TARGET TRIGGERED in $(notdir $(CURDIR)) ==="
+	@echo "→ cleaning libk from $(PWD)"
+	@echo "→ found:"
+	@find . -name '*.o' -print
+	@find . -name '*.d' -print
+	@echo "→ deleting:"
+	@find . -name '*.o' -delete -print
+	@find . -name '*.d' -delete -print
+	@rm -v -f libk.a
 
 install: install-headers install-libs
 
@@ -63,4 +65,4 @@ install-libs: libk.a
 	mkdir -p $(DESTDIR)$(LIBDIR)
 	cp libk.a $(DESTDIR)$(LIBDIR)
 
--include $(OBJS:.o=.d)
+-include $(wildcard $(OBJS:.o=.d))
