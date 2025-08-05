@@ -8,9 +8,11 @@ $(info >>> Makefile is being read!)
 HOST     := $(shell ./default-host.sh)
 ARCH     := $(shell ./target-triplet-to-arch.sh $(HOST))
 
-SYSROOT  := $(shell pwd)/sysroot
-ISODIR   := $(shell pwd)/isodir
-ISO      := waddleos.iso
+SYSROOT   := $(shell pwd)/isodir
+DESTDIR   := $(shell pwd)/isodir
+ISODIR    := $(shell pwd)/isodir
+ISO       := waddleos.iso
+BUILDDIR  := $(shell pwd)/build
 
 PREFIX        := /usr
 EXEC_PREFIX   := $(PREFIX)
@@ -24,27 +26,30 @@ LDFLAGS       :=
 CC            := $(HOST)-gcc --sysroot=$(SYSROOT)
 AR            := $(HOST)-ar
 AS            := $(HOST)-as
+NASM          := nasm
+NASMFLAGS     := -f elf32
 
 # Workaround for -elf cross toolchains
 ifeq ($(findstring -elf,$(HOST)),-elf)
   CC += -isystem=$(INCLUDEDIR)
 endif
 
-export HOST      := $(HOST)
-export ARCH      := $(ARCH)
-export SYSROOT   := $(SYSROOT)
-export DESTDIR   := $(SYSROOT)
-export PREFIX    := $(PREFIX)
+export HOST        := $(HOST)
+export ARCH        := $(ARCH)
+export SYSROOT     := $(SYSROOT)
+export DESTDIR     := $(DESTDIR)
+export BUILDDIR    := $(BUILDDIR)
+export PREFIX      := $(PREFIX)
 export EXEC_PREFIX := $(EXEC_PREFIX)
-export BOOTDIR   := $(BOOTDIR)
-export LIBDIR    := $(LIBDIR)
-export INCLUDEDIR := $(INCLUDEDIR)
-export CC        := $(CC)
-export CFLAGS    := $(CFLAGS)
-export CPPFLAGS  := $(CPPFLAGS)
-export LDFLAGS   := $(LDFLAGS)
-export AR        := $(AR)
-export AS        := $(AS)
+export BOOTDIR     := $(BOOTDIR)
+export LIBDIR      := $(LIBDIR)
+export INCLUDEDIR  := $(INCLUDEDIR)
+export CC          := $(CC)
+export CFLAGS      := $(CFLAGS)
+export CPPFLAGS    := $(CPPFLAGS)
+export LDFLAGS     := $(LDFLAGS)
+export AR          := $(AR)
+export AS          := $(AS)
 
 
 SYSTEM_HEADER_PROJECTS := libc
@@ -71,9 +76,10 @@ clean:
 
 
 iso: install
-	@mkdir -p "$(ISODIR)/boot/grub"
-	cp "$(SYSROOT)/boot/waddleos.kernel" "$(ISODIR)/boot/waddleos.kernel"
-	echo 'menuentry "waddleos" { multiboot /boot/waddleos.kernel }' > "$(ISODIR)/boot/grub/grub.cfg"
+	@mkdir -p "$(BOOTDIR)/grub"
+	@if [ ! -f "$(ISODIR)/boot/grub/grub.cfg" ]; then \
+		echo 'menuentry "waddleos" { multiboot /boot/waddleos.kernel }' > "$(ISODIR)/boot/grub/grub.cfg"; \
+	fi
 	grub-mkrescue -o "$(ISO)" "$(ISODIR)"
 
 run: iso

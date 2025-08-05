@@ -1,11 +1,8 @@
-DEFAULT_HOST != ../default-host.sh
-HOST ?= $(DEFAULT_HOST)
-HOSTARCH != ../target-triplet-to-arch.sh $(HOST)
-
 CFLAGS ?= -O2 -g
 CPPFLAGS ?=
 LDFLAGS ?=
 LIBS ?=
+BUILDDIR := $(BUILDDIR)/libc
 
 DESTDIR ?=
 PREFIX ?= /usr/local
@@ -16,43 +13,42 @@ LIBDIR ?= $(EXEC_PREFIX)/lib
 CFLAGS := $(CFLAGS) -ffreestanding -Wall -Wextra
 CPPFLAGS := $(CPPFLAGS) -Iinclude -D__is_libc
 
-ARCHDIR = arch/$(HOSTARCH)
+ARCHDIR = arch/$(ARCH)
 
-include $(ARCHDIR)/make.config
+SRC_C   := $(shell find . -name "*.c" -path "./$(ARCHDIR)/*" -o -name "*.c" ! -path "./arch/*/*")
+SRC_S   := $(shell find . -name "*.S" -path "./$(ARCHDIR)/*" -o -name "*.S" ! -path "./arch/*/*")
+SRC_ASM := $(shell find . -name "*.asm" -path "./$(ARCHDIR)/*" -o -name "*.asm" ! -path "./arch/*/*")
 
-CFLAGS := $(CFLAGS) $(ARCH_CFLAGS)
-CPPFLAGS := $(CPPFLAGS) $(ARCH_CPPFLAGS)
+SRC := $(SRC_C) $(SRC_S) $(SRC_ASM)
+SRC := $(patsubst ./%, %, $(SRC))
 
-OBJS = \
-  stdio/printf.o \
-  stdio/putchar.o \
-  stdio/puts.o \
-  stdlib/abort.o \
-  string/memcmp.o \
-  string/memcpy.o \
-  string/memmove.o \
-  string/memset.o \
-  string/strlen.o \
-  $(ARCH_HOSTEDOBJS)
+OBJS := $(patsubst %, $(BUILDDIR)/%.o, $(basename $(SRC)))
+
+-include $(OBJS:.o=.d)
 
 .PHONY: all clean install install-headers install-libs
-.SUFFIXES: .o .c .S
+.SUFFIXES: .o .c .S .asm
 
-all: libc.a
+all: $(BUILDDIR)/libc.a
 
-libc.a: $(OBJS)
+$(BUILDDIR)/libc.a: $(OBJS)
 	$(AR) rcs $@ $^
 
-%.o: %.c
+$(BUILDDIR)/%.o: %.c
+	@mkdir -p $(dir $@)
 	$(CC) -MD -c $< -o $@ -std=gnu11 $(CFLAGS) $(CPPFLAGS)
 
-%.o: %.S
+$(BUILDDIR)/%.o: %.S
+	@mkdir -p $(dir $@)
 	$(CC) -MD -c $< -o $@ $(CFLAGS) $(CPPFLAGS)
 
+$(BUILDDIR)/%.o: %.asm
+	@mkdir -p $(dir $@)
+	$(NASM) $(NASMFLAGS) $< -o $@
+
+
 clean:
-	find . -name '*.o' -delete
-	find . -name '*.d' -delete
-	rm -f libc.a
+	rm -rf $(BUILDDIR)
 
 install: install-headers install-libs
 
@@ -60,8 +56,8 @@ install-headers:
 	mkdir -p $(DESTDIR)$(INCLUDEDIR)
 	cp -R --preserve=timestamps include/. $(DESTDIR)$(INCLUDEDIR)/.
 
-install-libs: libc.a
+install-libs: $(BUILDDIR)/libc.a
 	mkdir -p $(DESTDIR)$(LIBDIR)
-	cp libc.a $(DESTDIR)$(LIBDIR)
+	cp $(BUILDDIR)/libc.a $(DESTDIR)$(LIBDIR)
 
 -include $(wildcard $(OBJS:.o=.d))

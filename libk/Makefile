@@ -2,6 +2,7 @@ CFLAGS ?= -O2 -g
 CPPFLAGS ?=
 LDFLAGS ?=
 LIBS ?=
+BUILDDIR := $(BUILDDIR)/libk
 
 DESTDIR ?=
 PREFIX ?= /usr/local
@@ -14,55 +15,45 @@ CPPFLAGS := $(CPPFLAGS) -Iinclude -I../kernel/include -D__is_libk
 
 ARCHDIR := arch/$(HOSTARCH)
 
--include $(ARCHDIR)/make.config
+SRC_C   := $(shell find . -name "*.c" -path "./$(ARCHDIR)/*" -o -name "*.c" ! -path "./arch/*/*")
+SRC_S   := $(shell find . -name "*.S" -path "./$(ARCHDIR)/*" -o -name "*.S" ! -path "./arch/*/*")
+SRC_ASM := $(shell find . -name "*.asm" -path "./$(ARCHDIR)/*" -o -name "*.asm" ! -path "./arch/*/*")
 
-CFLAGS := $(CFLAGS) $(KERNEL_ARCH_CFLAGS)
-CPPFLAGS := $(CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS)
+SRC := $(SRC_C) $(SRC_S) $(SRC_ASM)
+SRC := $(patsubst ./%, %, $(SRC))
 
-OBJS = \
-  stdio/printf.o \
-  stdio/putchar.o \
-  stdio/puts.o \
-  stdlib/abort.o \
-  string/memcmp.o \
-  string/memcpy.o \
-  string/memmove.o \
-  string/memset.o \
-  string/strlen.o \
-  $(ARCH_KLIB_OBJS)
+OBJS := $(patsubst %, $(BUILDDIR)/%.o, $(basename $(SRC)))
+
+-include $(OBJS:.o=.d)
 
 .PHONY: all clean install install-headers install-libs
-.SUFFIXES: .o .c .S
+.SUFFIXES: .o .c .S .asm
 
-all: libk.a
+all: $(BUILDDIR)/libk.a
 
-libk.a: $(OBJS)
+$(BUILDDIR)/libk.a: $(OBJS)
 	$(AR) rcs $@ $^
 
-%.o: %.c
+$(BUILDDIR)/%.o: %.c
+	@mkdir -p $(dir $@)
 	$(CC) -MD -c $< -o $@ -std=gnu11 $(CFLAGS) $(CPPFLAGS)
 
-%.o: %.S
+$(BUILDDIR)/%.o: %.S
+	@mkdir -p $(dir $@)
 	$(CC) -MD -c $< -o $@ $(CFLAGS) $(CPPFLAGS)
 
+$(BUILDDIR)/%.o: %.asm
+	@mkdir -p $(dir $@)
+	$(NASM) $(NASMFLAGS) $< -o $@
+
 clean:
-	@echo "=== CLEAN TARGET TRIGGERED in $(notdir $(CURDIR)) ==="
-	@echo "→ cleaning libk from $(PWD)"
-	@echo "→ found:"
-	@find . -name '*.o' -print
-	@find . -name '*.d' -print
-	@echo "→ deleting:"
-	@find . -name '*.o' -delete -print
-	@find . -name '*.d' -delete -print
-	@rm -v -f libk.a
+	@rm -rf $(BUILDDIR)
 
 install: install-headers install-libs
 
 install-headers:
-	@echo "No public headers to install for kernel."
+	@echo "No public headers to install for libk."
 
-install-libs: libk.a
+install-libs: $(BUILDDIR)/libk.a
 	mkdir -p $(DESTDIR)$(LIBDIR)
-	cp libk.a $(DESTDIR)$(LIBDIR)
-
--include $(wildcard $(OBJS:.o=.d))
+	cp $(BUILDDIR)/libk.a $(DESTDIR)$(LIBDIR)

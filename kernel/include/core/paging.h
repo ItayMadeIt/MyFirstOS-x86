@@ -1,6 +1,7 @@
 #ifndef __PAGING_H__
 #define __PAGING_H__
 
+#include <stdint.h>
 #define PAGE_ENTRY_FLAG(x) (1 << x)
 
 #define PAGE_ENTRY_FLAG_PRESENT   PAGE_ENTRY_FLAG(0)
@@ -13,7 +14,7 @@
 
 #define PAGE_ENTRY_WRITE_KERNEL_FLAGS (PAGE_ENTRY_FLAG_PRESENT | PAGE_ENTRY_FLAG_WRITE)
 
-#define INVALID_PAGE_MEMORY ~0
+#define INVALID_PAGE_MEMORY (addr_t)(~0)
 typedef uint32_t page_entry;
 typedef uint32_t page_table_entry;
 

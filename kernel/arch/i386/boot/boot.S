@@ -34,9 +34,6 @@ _start:
     pushl %ebx
     pushl %eax
 
-    # Call global constructors
-    call _init
-
     call entry_main
     addl $8, %esp
 

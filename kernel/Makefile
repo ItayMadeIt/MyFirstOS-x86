@@ -1,7 +1,3 @@
-DEFAULT_HOST!=../default-host.sh
-HOST?=DEFAULT_HOST
-HOSTARCH!=../target-triplet-to-arch.sh $(HOST)
-
 CFLAGS?=-O2 -g
 CPPFLAGS?=
 LDFLAGS?=
@@ -12,86 +8,62 @@ PREFIX?=/usr/local
 EXEC_PREFIX?=$(PREFIX)
 BOOTDIR?=$(EXEC_PREFIX)/boot
 INCLUDEDIR?=$(PREFIX)/include
+BUILDDIR := $(BUILDDIR)/kernel
 
 CFLAGS:=$(CFLAGS) -ffreestanding -Wall -Wextra
 CPPFLAGS:=$(CPPFLAGS) -D__is_kernel -Iinclude -I../libk/include
 LDFLAGS:=$(LDFLAGS)
 LIBS:=$(LIBS) -nostdlib -lk -lgcc
 
-ARCHDIR=arch/$(HOSTARCH)
-
-include $(ARCHDIR)/make.config
+ARCHDIR=arch/$(ARCH)
 
 CFLAGS:=$(CFLAGS) $(KERNEL_ARCH_CFLAGS)
 CPPFLAGS:=$(CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS)
 LDFLAGS:=$(LDFLAGS) $(KERNEL_ARCH_LDFLAGS)
 LIBS:=$(LIBS) $(KERNEL_ARCH_LIBS)
 
-KERNEL_OBJS=\
-$(KERNEL_ARCH_OBJS) \
-core/debug.o \
-core/entry.o \
-core/gdt.o \
-core/idt.o \
-core/isr.o \
-memory/phys_alloc.o \
-core/paging.o \
-memory/virt_alloc.o \
-memory/memory_manager.o \
-memory/heap.o \
-memory/tree_int.o \
-drivers/pic.o \
-drivers/ps2_key.o \
-core/timer.o \
-core/kernel.o \
-drivers/tty.o 
+BARE_CC := $(firstword $(CC))
 
-OBJS=\
-$(ARCHDIR)/boot/crti.o \
-$(ARCHDIR)/boot/crtbegin.o \
-$(KERNEL_OBJS) \
-$(ARCHDIR)/boot/crtend.o \
-$(ARCHDIR)/boot/crtn.o \
+SRC_C   := $(shell find . -name "*.c" -path "./$(ARCHDIR)/*" -o -name "*.c" ! -path "./arch/*/*")
+SRC_S   := $(shell find . -name "*.S" -path "./$(ARCHDIR)/*" -o -name "*.S" ! -path "./arch/*/*")
+SRC_ASM := $(shell find . -name "*.ASM" -path "./$(ARCHDIR)/*" -o -name "*.ASM" ! -path "./arch/*/*")
 
-LINK_LIST=\
-$(LDFLAGS) \
-$(ARCHDIR)/boot/crti.o \
-$(ARCHDIR)/boot/crtbegin.o \
-$(KERNEL_OBJS) \
-$(LIBS) \
-$(ARCHDIR)/boot/crtend.o \
-$(ARCHDIR)/boot/crtn.o \
+SRC := $(SRC_C) $(SRC_S) $(SRC_ASM)
+SRC := $(patsubst ./%, %, $(SRC))
+
+KERNEL_OBJS := $(patsubst %, $(BUILDDIR)/%.o, $(basename $(SRC)))
+
+OBJS = $(KERNEL_OBJS) 
+
+LINK_LIST = $(OBJS) $(LIBS) 
 
 .PHONY: all clean install install-headers install-kernel
-.SUFFIXES: .o .c .S
+.SUFFIXES: .o .c .S .asm
 
-all: waddleos.kernel
+all: $(BUILDDIR)/waddleos.kernel
 
-waddleos.kernel: $(OBJS) $(ARCHDIR)/linker.ld
-	$(CC) -T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS) $(LINK_LIST)
-	grub-file --is-x86-multiboot waddleos.kernel
+$(BUILDDIR)/waddleos.kernel: $(OBJS) $(ARCHDIR)/linker.ld
+	$(CC) -T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS) $(LDFLAGS) $(LINK_LIST)
+	grub-file --is-x86-multiboot $(BUILDDIR)/waddleos.kernel
 
-$(ARCHDIR)/boot/crtbegin.o $(ARCHDIR)/boot/crtend.o:
-	OBJ=`$(CC) $(CFLAGS) $(LDFLAGS) -print-file-name=$(@F)` && cp "$$OBJ" $@
-
-.c.o:
+$(BUILDDIR)/%.o: %.c
+	@mkdir -p $(dir $@)
 	$(CC) -MD -c $< -o $@ -std=gnu11 $(CFLAGS) $(CPPFLAGS)
 
-.S.o:
+$(BUILDDIR)/%.o: %.Sd
+	@mkdir -p $(dir $@)
 	$(CC) -MD -c $< -o $@ $(CFLAGS) $(CPPFLAGS)
 
 clean:
-	find . -name '*.o' -delete
-	find . -name '*.d' -delete
-	rm -f waddleos.kernel
+	rm -rf $(BUILDDIR).
 
 install: install-headers install-kernel
 
 install-headers:
 	@echo "No public headers to install for kernel."
 
-install-kernel: waddleos.kernel
+install-kernel: $(BUILDDIR)/waddleos.kernel
 	mkdir -p $(BOOTDIR)
-	cp waddleos.kernel $(BOOTDIR)
+	cp $(BUILDDIR)/waddleos.kernel $(BOOTDIR)
 
 -include $(wildcard $(OBJS:.o=.d))
