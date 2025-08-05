@@ -26,7 +26,7 @@ BARE_CC := $(firstword $(CC))
 
 SRC_C   := $(shell find . -name "*.c" -path "./$(ARCHDIR)/*" -o -name "*.c" ! -path "./arch/*/*")
 SRC_S   := $(shell find . -name "*.S" -path "./$(ARCHDIR)/*" -o -name "*.S" ! -path "./arch/*/*")
-SRC_ASM := $(shell find . -name "*.ASM" -path "./$(ARCHDIR)/*" -o -name "*.ASM" ! -path "./arch/*/*")
+SRC_ASM := $(shell find . -name "*.asm" -path "./$(ARCHDIR)/*" -o -name "*.asm" ! -path "./arch/*/*")
 
 SRC := $(SRC_C) $(SRC_S) $(SRC_ASM)
 SRC := $(patsubst ./%, %, $(SRC))
@@ -50,12 +50,16 @@ $(BUILDDIR)/%.o: %.c
 	@mkdir -p $(dir $@)
 	$(CC) -MD -c $< -o $@ -std=gnu11 $(CFLAGS) $(CPPFLAGS)
 
-$(BUILDDIR)/%.o: %.Sd
+$(BUILDDIR)/%.o: %.S
 	@mkdir -p $(dir $@)
 	$(CC) -MD -c $< -o $@ $(CFLAGS) $(CPPFLAGS)
 
+$(BUILDDIR)/%.o: %.asm
+	@mkdir -p $(dir $@)
+	$(NASM) $< -o $@ $(NASMFLAGS) 
+
 clean:
-	rm -rf $(BUILDDIR).
+	rm -rf $(BUILDDIR)
 
 install: install-headers install-kernel
 

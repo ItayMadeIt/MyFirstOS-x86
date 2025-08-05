@@ -44,7 +44,7 @@ $(BUILDDIR)/%.o: %.S
 
 $(BUILDDIR)/%.o: %.asm
 	@mkdir -p $(dir $@)
-	$(NASM) $(NASMFLAGS) $< -o $@
+	$(NASM) $< -o $@ $(NASMFLAGS) 
 
 
 clean:

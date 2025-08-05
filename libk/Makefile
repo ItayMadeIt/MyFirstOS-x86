@@ -1,5 +1,4 @@
 CFLAGS ?= -O2 -g
-CPPFLAGS ?=
 LDFLAGS ?=
 LIBS ?=
 BUILDDIR := $(BUILDDIR)/libk
@@ -10,8 +9,7 @@ EXEC_PREFIX ?= $(PREFIX)
 INCLUDEDIR ?= $(PREFIX)/include
 LIBDIR ?= $(EXEC_PREFIX)/lib
 
-CFLAGS := $(CFLAGS) -ffreestanding -Wall -Wextra
-CPPFLAGS := $(CPPFLAGS) -Iinclude -I../kernel/include -D__is_libk
+CFLAGS := $(CFLAGS) -ffreestanding -Wall -Wextra -Iinclude -I../kernel/include -D__is_libk
 
 ARCHDIR := arch/$(HOSTARCH)
 
@@ -36,15 +34,15 @@ $(BUILDDIR)/libk.a: $(OBJS)
 
 $(BUILDDIR)/%.o: %.c
 	@mkdir -p $(dir $@)
-	$(CC) -MD -c $< -o $@ -std=gnu11 $(CFLAGS) $(CPPFLAGS)
+	$(CC) -MD -c $< -o $@ -std=gnu11 $(CFLAGS) 
 
 $(BUILDDIR)/%.o: %.S
 	@mkdir -p $(dir $@)
-	$(CC) -MD -c $< -o $@ $(CFLAGS) $(CPPFLAGS)
+	$(CC) -MD -c $< -o $@ $(CFLAGS) 
 
 $(BUILDDIR)/%.o: %.asm
 	@mkdir -p $(dir $@)
-	$(NASM) $(NASMFLAGS) $< -o $@
+	$(NASM) $< -o $@ $(NASMFLAGS) 
 
 clean:
 	@rm -rf $(BUILDDIR)

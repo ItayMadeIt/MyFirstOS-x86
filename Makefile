@@ -11,8 +11,8 @@ ARCH     := $(shell ./target-triplet-to-arch.sh $(HOST))
 SYSROOT   := $(shell pwd)/isodir
 DESTDIR   := $(shell pwd)/isodir
 ISODIR    := $(shell pwd)/isodir
-ISO       := waddleos.iso
 BUILDDIR  := $(shell pwd)/build
+ISO       := $(BUILDDIR)/waddleos.iso
 
 PREFIX        := /usr
 EXEC_PREFIX   := $(PREFIX)
@@ -50,6 +50,8 @@ export CPPFLAGS    := $(CPPFLAGS)
 export LDFLAGS     := $(LDFLAGS)
 export AR          := $(AR)
 export AS          := $(AS)
+export NASM        := $(NASM)
+export NASMFLAGS   := $(NASMFLAGS)
 
 
 SYSTEM_HEADER_PROJECTS := libc
@@ -72,13 +74,14 @@ clean:
 		echo "→ cleaning $$PROJECT"; \
 		$(MAKE) -C $$PROJECT clean || exit 1; \
 	done
-	@rm -rf sysroot isodir WaddleOS.iso
-
+	@rm -rf $(ISO) 
 
 iso: install
 	@mkdir -p "$(BOOTDIR)/grub"
 	@if [ ! -f "$(ISODIR)/boot/grub/grub.cfg" ]; then \
-		echo 'menuentry "waddleos" { multiboot /boot/waddleos.kernel }' > "$(ISODIR)/boot/grub/grub.cfg"; \
+		echo 'menuentry "Waddle-OS" {' > "$(ISODIR)/boot/grub/grub.cfg"; \
+		echo '  multiboot /boot/waddleos.kernel' >> "$(ISODIR)/boot/grub/grub.cfg"; \
+		echo '}' >> "$(ISODIR)/boot/grub/grub.cfg"; \
 	fi
 	grub-mkrescue -o "$(ISO)" "$(ISODIR)"
 
