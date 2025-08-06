@@ -38,8 +38,6 @@ typedef struct idt_descriptor
 
 #define IDT_ENTRIES 256
 
-
-
 extern void isr0();
 extern void isr1();
 extern void isr2();
@@ -72,3 +70,5 @@ extern void isr28();
 extern void isr29();
 extern void isr30();
 extern void isr31();
+
+void set_idt_entry(uint32_t entry_index, void (*handler_addr), uint16_t selector, uint8_t type_attr);

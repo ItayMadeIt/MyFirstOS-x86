@@ -1,3 +1,4 @@
+#include "core/paging.h"
 #include <stdint.h>
 #include <stdbool.h>
 #include <drivers/io.h>
@@ -5,6 +6,8 @@
 #include <core/idt.h>
 #include <core/gdt.h>
 #include <multiboot/multiboot.h>
+
+#include <core/debug.h>
 
 extern uint8_t kernel_end;
 
@@ -34,6 +37,15 @@ static inline void sti()
     asm volatile("sti");
 }
 
+
+void setup_gdt();
+void setup_idt();
+void setup_phys_allocator(multiboot_info_t* mbd);
+void setup_paging();
+void setup_isr();
+void setup_pic();
+void setup_pit();
+void setup_ps2();
 
 void entry_main(uint32_t magic, multiboot_info_t* mbd)
 {

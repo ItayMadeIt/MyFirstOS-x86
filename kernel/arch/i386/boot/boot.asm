@@ -1,3 +1,5 @@
+[BITS 32]
+
 ; Multiboot Header
 %define MB_ALIGN    (1<<0)
 %define MB_MEMINFO  (1<<1)

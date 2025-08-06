@@ -13,6 +13,7 @@
         "memory_manager.h": "c",
         "heap.h": "c",
         "cstdint": "c",
-        "random": "c"
+        "random": "c",
+        "idt.h": "c"
     },
 }

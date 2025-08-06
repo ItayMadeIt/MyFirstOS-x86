@@ -10,12 +10,14 @@ BOOTDIR?=$(EXEC_PREFIX)/boot
 INCLUDEDIR?=$(PREFIX)/include
 BUILDDIR := $(BUILDDIR)/kernel
 
+ARCHDIR=arch/$(ARCH)
+ARCHINCLUDE=arch/$(ARCH)/include
+
 CFLAGS:=$(CFLAGS) -ffreestanding -Wall -Wextra
 CPPFLAGS:=$(CPPFLAGS) -D__is_kernel -Iinclude -I../libk/include
 LDFLAGS:=$(LDFLAGS)
 LIBS:=$(LIBS) -nostdlib -lk -lgcc
-
-ARCHDIR=arch/$(ARCH)
+NASMFLAGS := $(NASMFLAGS) -I$(ARCHINCLUDE)
 
 CFLAGS:=$(CFLAGS) $(KERNEL_ARCH_CFLAGS)
 CPPFLAGS:=$(CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS)

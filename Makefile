@@ -20,7 +20,7 @@ LIBDIR        := $(EXEC_PREFIX)/lib
 BOOTDIR       := $(SYSROOT)/boot
 INCLUDEDIR    := $(PREFIX)/include
 
-CFLAGS        := -O2 -g
+CFLAGS        := 
 CPPFLAGS      :=
 LDFLAGS       :=
 CC            := $(HOST)-gcc --sysroot=$(SYSROOT)
@@ -28,6 +28,13 @@ AR            := $(HOST)-ar
 AS            := $(HOST)-as
 NASM          := nasm
 NASMFLAGS     := -f elf32
+
+ifeq ($(DEBUG),1)
+CFLAGS   += -g -O0 -DDEBUG
+CPPFLAGS += -DDEBUG
+else
+CFLAGS   += -O2
+endif
 
 # Workaround for -elf cross toolchains
 ifeq ($(findstring -elf,$(HOST)),-elf)
@@ -88,12 +95,14 @@ iso: install
 run: iso
 	qemu-system-$(ARCH) -m 256M -cdrom "$(ISO)"
 
-debug: iso
+debug: 
+	$(MAKE) DEBUG=1 iso
 	sudo -E /home/itaymadeit/opt/cross/bin/$(HOST)-gdb \
 	  "$(SYSROOT)/boot/waddleos.kernel" \
 	  -ex "target remote localhost:1234" \
 	  -ex "break entry_main" \
 	  -ex "continue"
 
-qemu-debug: iso
+qemu-debug: 
+	$(MAKE) DEBUG=1 iso
 	qemu-system-$(ARCH) -cdrom "$(ISO)" -s

@@ -1,6 +1,7 @@
-#include <drivers/io.h>
-#include <core/idt.h>
 #include <stdbool.h>
+#include <drivers/io.h>
+#include <core/debug.h>
+#include <core/idt.h>
 
 #define PS2_DATA 0x60
 #define PS2_CMD 0x64
@@ -68,6 +69,8 @@ void setup_ps2()
 void key_callback()
 {
     bool extended = false;
+    (void)extended; // not used currently
+
     uint16_t key = inb(PS2_DATA);
 
     // Extended key

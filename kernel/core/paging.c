@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <core/paging.h>
+#include <core/defs.h>
 
 #define KERNEL_TABLES 2
 #define BOOT_TABLES 1
@@ -101,7 +102,7 @@ void setup_paging()
     map_pages(&kernel_directory, kernel_tables, 0xC0000000, 0x00100000, 2048, 0x3);
     map_pages(&kernel_directory, boot_tables, 0x00000000, 0x00000000, 1024, 0x3);
 
-    map_pages(&kernel_directory, (page_table_t*)&kernel_directory, 0xFFFFF000, (page_table_t*)&kernel_directory, 1, 0x3);
+    map_pages(&kernel_directory, (page_table_t*)&kernel_directory, 0xFFFFF000, (addr_t)&kernel_directory, 1, 0x3);
 
     set_page_directory(&kernel_directory);
 

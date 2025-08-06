@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <core/idt.h>
+#include <core/debug.h>
 
 idt_entry_t idt_entries[IDT_ENTRIES] __attribute__((aligned(16)));
 void (*interrupt_callback_entries[IDT_ENTRIES]) (uint32_t error_code);
