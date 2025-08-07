@@ -1,6 +1,7 @@
 #include <core/defs.h>
 #include <memory/phys_alloc.h>
 #include <core/paging.h>
+#include <core/debug.h>
 
 // Max memory space 4GB:
 #define MAX_MEM_SPACE 4294967296
@@ -137,7 +138,7 @@ static void reserve_kernel_memory(const phys_memory_list_t* mem_list)
     }
 }
 
-uint32_t alloc_phys_page()
+void* alloc_phys_page()
 {
     uint32_t page_group_index;
     
@@ -170,7 +171,7 @@ uint32_t alloc_phys_page()
     uint32_t page_addr = page_index * PAGE_SIZE;
     alloc_page_at(page_addr);
 
-    return page_addr;
+    return (void*)page_addr;
 }
 
 void free_phys_page(uint32_t page_addr)

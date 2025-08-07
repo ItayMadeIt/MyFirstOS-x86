@@ -23,7 +23,7 @@ typedef enum page_types
 } page_types_t;
 
 typedef struct page {
-    uint32_t struct_addr;    
+    void* struct_addr;    
     uint8_t type;   
     uint8_t flags;  
     uint16_t extra; 
@@ -81,5 +81,7 @@ typedef struct heap_metadata
 {
     uint32_t size;
 } heap_metadata_t;
+
+void setup_heap();
 
 #endif // __HEAP_H__

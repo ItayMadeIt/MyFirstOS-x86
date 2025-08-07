@@ -22,8 +22,6 @@ SRC := $(patsubst ./%, %, $(SRC))
 
 OBJS := $(patsubst %, $(BUILDDIR)/%.o, $(basename $(SRC)))
 
--include $(OBJS:.o=.d)
-
 .PHONY: all clean install install-headers install-libs
 .SUFFIXES: .o .c .S .asm
 

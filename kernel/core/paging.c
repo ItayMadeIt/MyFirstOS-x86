@@ -13,11 +13,14 @@ page_table_t boot_tables[KERNEL_TABLES];
 void map_pages(
     page_directory_t* dir,
     page_table_t* table, 
-    uint32_t virt_addr, 
-    uint32_t phys_addr, 
+    void* virt_addr_ptr, 
+    void* phys_addr_ptr, 
     uint32_t pages, 
     uint16_t flags)
 {
+    uint32_t virt_addr = (uint32_t)virt_addr_ptr;
+    uint32_t phys_addr = (uint32_t)phys_addr_ptr;
+
     uint32_t dir_entry = virt_addr >> 22;
     uint32_t table_index = (virt_addr >> 12) & 0x3FF;
 
@@ -99,10 +102,10 @@ void setup_paging()
     zero_page_table(kernel_tables, 2);
     zero_page_table(boot_tables, 1);
 
-    map_pages(&kernel_directory, kernel_tables, 0xC0000000, 0x00100000, 2048, 0x3);
-    map_pages(&kernel_directory, boot_tables, 0x00000000, 0x00000000, 1024, 0x3);
+    map_pages(&kernel_directory, kernel_tables, (void*)0xC0000000, (void*)0x00100000, 2048, 0x3);
+    map_pages(&kernel_directory, boot_tables, (void*)0x00000000, (void*)0x00000000, 1024, 0x3);
 
-    map_pages(&kernel_directory, (page_table_t*)&kernel_directory, 0xFFFFF000, (addr_t)&kernel_directory, 1, 0x3);
+    map_pages(&kernel_directory, (page_table_t*)&kernel_directory, (void*)0xFFFFF000, &kernel_directory, 1, 0x3);
 
     set_page_directory(&kernel_directory);
 

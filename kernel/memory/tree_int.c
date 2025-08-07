@@ -25,22 +25,22 @@ static inline void set_black(node_t* node)
 }
 static node_t* get_parent(const node_t* node)
 {
-	addr_t parent_addr = node->parent_color & (addr_t)(~RB_FLAGS);
+	uint32_t parent_addr = node->parent_color & (uint32_t)(~RB_FLAGS);
 
 	return (node_t*)( parent_addr );
 }
 
 static inline void set_parent(node_t* node, const node_t* new_parent)
 {
-	node->parent_color = (node->parent_color & RB_FLAGS) | (addr_t)new_parent;
+	node->parent_color = (node->parent_color & RB_FLAGS) | (uint32_t)new_parent;
 }
 
 static inline void set_color_to_other(node_t* left, node_t* right)
 {
-	left->parent_color = (addr_t)get_parent(left) | (right->parent_color & RB_COLOR);
+	left->parent_color = (uint32_t)get_parent(left) | (right->parent_color & RB_COLOR);
 }
 
-static inline void set_color_parent(node_t* node, const addr_t new_parent_color)
+static inline void set_color_parent(node_t* node, const uint32_t new_parent_color)
 {
 	node->parent_color = new_parent_color;
 }
@@ -595,7 +595,7 @@ node_t* rb_int_search(node_t** root, data_t data)
 	return *link;
 }
 
-bool rb_int_overlap(node_t** root, addr_t addr)
+bool rb_int_overlap(node_t** root, uint32_t addr)
 {
 	node_t* parent = NULL;
 

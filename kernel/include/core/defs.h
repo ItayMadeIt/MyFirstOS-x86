@@ -6,8 +6,8 @@
 
 #define max(a, b) (a > b ? a : b)
 #define min(a, b) (a < b ? a : b)
-typedef uint32_t addr_t;
-#define NULL 0
+
+#define NULL ((void*)0)
 
 #define BIT_TO_BYTE 8
 

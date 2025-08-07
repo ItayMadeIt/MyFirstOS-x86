@@ -13,11 +13,11 @@ BUILDDIR := $(BUILDDIR)/kernel
 ARCHDIR=arch/$(ARCH)
 ARCHINCLUDE=arch/$(ARCH)/include
 
-CFLAGS:=$(CFLAGS) -ffreestanding -Wall -Wextra
-CPPFLAGS:=$(CPPFLAGS) -D__is_kernel -Iinclude -I../libk/include
+CFLAGS+= -ffreestanding -Wall -Wextra
+CPPFLAGS+= -D__is_kernel -Iinclude -I../libk/include
 LDFLAGS:=$(LDFLAGS)
 LIBS:=$(LIBS) -nostdlib -lk -lgcc
-NASMFLAGS := $(NASMFLAGS) -I$(ARCHINCLUDE)
+NASMFLAGS += -I$(ARCHINCLUDE)
 
 CFLAGS:=$(CFLAGS) $(KERNEL_ARCH_CFLAGS)
 CPPFLAGS:=$(CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS)

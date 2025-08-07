@@ -1,8 +1,13 @@
 #include <stdint.h>
 #include <drivers/isr.h>
+#include <core/idt.h>
+
+#include <core/debug.h>
 
 void interrupt_div0(uint32_t _unused_)
 {
+    (void)_unused_;
+    
     debug_print_str("Divide by 0 error\n");
 
     halt();

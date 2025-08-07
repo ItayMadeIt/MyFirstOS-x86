@@ -55,5 +55,5 @@ void setup_gdt()
     gdtr.limit = sizeof(gdt_entries) - 1; 
 
     // Load the GDT to the CPU
-    load_gdt((uint32_t)&gdtr);
+    load_gdt(&gdtr);
 }

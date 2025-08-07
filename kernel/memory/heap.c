@@ -64,7 +64,7 @@ static void* early_alloc_align(const uint32_t size, const uint32_t alignment/*al
         uint32_t aligned_table_addr = (early_alloc_addr + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
         page_table_t* new_table = (page_table_t*)(aligned_table_addr);
 
-        alloc_table(get_phys_addr((addr_t)new_table), early_heap_max_addr, PAGE_ENTRY_WRITE_KERNEL_FLAGS);
+        alloc_table(get_phys_addr(new_table), (void*)early_heap_max_addr, PAGE_ENTRY_WRITE_KERNEL_FLAGS);
 
         early_heap_max_addr += STOR_4MiB;
         early_alloc_addr = aligned_table_addr + PAGE_SIZE;
@@ -109,7 +109,7 @@ static void init_slab_alloc_arr()
 }
 
 static void* (*kmalloc)(const uint32_t size);
-static void (*kfree)(const addr_t addr);
+static void (*kfree)(const uint32_t addr);
 
 // insert_buddy doesn't merge, just sorted insert
 static void insert_buddy(void* addr, uint32_t buddy_size /*Must be 2^n*/)
@@ -125,7 +125,7 @@ static void insert_buddy(void* addr, uint32_t buddy_size /*Must be 2^n*/)
 
     buddy_node_t** link = &buddy_blocks[buddy_index].head;
     buddy_node_t* lst = buddy_blocks[buddy_index].head;
-    while (lst && lst->addr < (addr_t)addr)
+    while (lst && lst->addr < (uint32_t)addr)
     {
         link = &lst->next;
         lst = lst->next;
@@ -135,7 +135,7 @@ static void insert_buddy(void* addr, uint32_t buddy_size /*Must be 2^n*/)
         (buddy_node_t*)kmalloc(sizeof(buddy_node_t));
 
     new_buddy->next = *link;
-    new_buddy->addr = (addr_t)addr;
+    new_buddy->addr = (uint32_t)addr;
     *link = new_buddy;
 }
 
@@ -181,8 +181,8 @@ static bool merge_iteration(uint32_t size_index, uint32_t max_addr)
         buddy_node_t* prev = *prev_link;
         *prev_link = cur->next;
 
-        kfree((addr_t)prev);
-        kfree((addr_t)cur);
+        kfree((uint32_t)prev);
+        kfree((uint32_t)cur);
 
         insert_buddy((void*)prev_addr, buddy_blocks[size_index].buddy_size * 2);
 
@@ -214,7 +214,8 @@ void set_phys_pages_struct_type(uint32_t from_virt, uint32_t to_virt /*non inclu
 
     for (uint32_t virt = from_virt & ~0xFFF; virt < to_virt; virt += PAGE_SIZE)
     {
-        uint32_t phys = get_phys_addr(virt);
+        uint32_t phys =(uint32_t)get_phys_addr((void*)virt);
+        
         if (phys == INVALID_PAGE_MEMORY)
         { 
             continue;
@@ -222,7 +223,7 @@ void set_phys_pages_struct_type(uint32_t from_virt, uint32_t to_virt /*non inclu
 
         uint32_t phys_index = phys >> 12;
         pages[phys_index].type = type;
-        pages[phys_index].struct_addr = struct_addr;
+        pages[phys_index].struct_addr = (void*)struct_addr;
     }
 }
 
@@ -302,14 +303,14 @@ uint32_t allocate_buddy_size(uint32_t size /*Must be 2^n*/)
     page_metadata->buddy_node = node;
     page_metadata->buddy_size = size;
     
-    set_phys_pages_struct_type(addr, addr+size, (addr_t)page_metadata, page_type_heap_buddy);
+    set_phys_pages_struct_type(addr, addr+size, (uint32_t)page_metadata, page_type_heap_buddy);
 
     return addr;
 }
 
 void free_buddy_alloc(uint32_t addr)
 {
-    uint32_t phys_page_index =  get_phys_addr(addr)>>12;
+    uint32_t phys_page_index = (uint32_t)get_phys_addr((void*)addr)>>12;
 
     if (pages[phys_page_index].type != page_type_heap_buddy)
     {
@@ -327,14 +328,14 @@ void free_buddy_alloc(uint32_t addr)
 
     merge_buddies(buddy_blocks_index, addr);
 
-    kfree((addr_t)buddy_metadata);
+    kfree((uint32_t)buddy_metadata);
 }
 
 
 void init_early_heap()
 {
     // Alloc 4mb for early heap
-    alloc_table(get_phys_addr((addr_t)&early_heap_table), EARLY_HEAP_VIRT, PAGE_ENTRY_WRITE_KERNEL_FLAGS);
+    alloc_table(get_phys_addr(&early_heap_table), (void*)EARLY_HEAP_VIRT, PAGE_ENTRY_WRITE_KERNEL_FLAGS);
     early_heap_max_addr = EARLY_HEAP_VIRT + STOR_4MiB;
 }
 
@@ -342,9 +343,9 @@ void init_heap()
 {
     // Alloc 4mb for actual heap
     page_table_t* heap_table = early_alloc_align(sizeof(page_table_t),  PAGE_SIZE);
-    alloc_table(get_phys_addr((addr_t)heap_table), HEAP_VIRT, PAGE_ENTRY_WRITE_KERNEL_FLAGS);    
+    alloc_table(get_phys_addr((void*)heap_table), (void*)HEAP_VIRT, PAGE_ENTRY_WRITE_KERNEL_FLAGS);    
 
-    set_phys_pages_struct_type(HEAP_VIRT, HEAP_VIRT + STOR_4MiB, NULL, page_type_heap);
+    set_phys_pages_struct_type(HEAP_VIRT, HEAP_VIRT + STOR_4MiB, (uint32_t)NULL, page_type_heap);
 
     init_buddy_alloc_arr();
     init_slab_alloc_arr();
@@ -504,8 +505,8 @@ static void reserve_slab_objects()
         uint32_t slab_metadata_addr = reserve_buddy_size(PAGE_SIZE, NULL);
         uint32_t slab_node_addr = reserve_buddy_size(PAGE_SIZE, NULL);
 
-        uint32_t slab_metadata_page_index = (get_phys_addr(slab_metadata_addr) >> 12);
-        uint32_t slab_node_page_index = (get_phys_addr(slab_node_addr) >> 12);
+        uint32_t slab_metadata_page_index = ((uint32_t)get_phys_addr((void*)slab_metadata_addr) >> 12);
+        uint32_t slab_node_page_index = ((uint32_t)get_phys_addr((void*)slab_node_addr) >> 12);
 
         // Allocate 2 page metadata and 2 slab node
         page_slab_metadata_t* slab_metadata_alloc_node = (page_slab_metadata_t*)slab_metadata_addr;
@@ -527,7 +528,7 @@ static void reserve_slab_objects()
         pages[slab_metadata_page_index].extra = 0;
         pages[slab_metadata_page_index].flags = 0;
         pages[slab_metadata_page_index].type = page_type_heap_slab;
-        pages[slab_metadata_page_index].struct_addr = (uint32_t)&slab_metadata_alloc_metadata;
+        pages[slab_metadata_page_index].struct_addr = &slab_metadata_alloc_metadata;
 
 
         // Handle alloc_node second
@@ -544,7 +545,7 @@ static void reserve_slab_objects()
         pages[slab_node_page_index].extra = 0;
         pages[slab_node_page_index].flags = 0;
         pages[slab_node_page_index].type = page_type_heap_slab;
-        pages[slab_node_page_index].struct_addr = (uint32_t)&slab_metadata_alloc_node;
+        pages[slab_node_page_index].struct_addr = &slab_metadata_alloc_node;
 
         // Add both nodes to the lists:
         slab_node_alloc_metadata->next = slab_blocks[slab_metadata_size_index].head ? slab_blocks[slab_metadata_size_index].head->next : NULL;
@@ -558,7 +559,7 @@ static void reserve_slab_objects()
     if (will_alloc_slab_metadata)
     {
         uint32_t slab_metadata_page_addr = reserve_buddy_size(PAGE_SIZE, NULL);
-        uint32_t slab_metadata_index = (get_phys_addr(slab_metadata_page_addr) >> 12);
+        uint32_t slab_metadata_index = ((uint32_t)get_phys_addr((void*)slab_metadata_page_addr) >> 12);
 
         // Allocate page metadata (using the new page) and slab node (using normal)
         uint32_t slab_node_addr = allocate_first_free_slab(slab_node_size_index, NULL);
@@ -576,14 +577,14 @@ static void reserve_slab_objects()
         pages[slab_metadata_index].extra = 0;
         pages[slab_metadata_index].flags = 0;
         pages[slab_metadata_index].type = page_type_heap_slab;
-        pages[slab_metadata_index].struct_addr = (uint32_t)&slab_metadata;
+        pages[slab_metadata_index].struct_addr = &slab_metadata;
 
         return;
     }
     if (will_alloc_slab_node)
     {
         uint32_t slab_node_page_addr = reserve_buddy_size(PAGE_SIZE, NULL);
-        uint32_t slab_node_page_index = (get_phys_addr(slab_node_page_addr) >> 12);
+        uint32_t slab_node_page_index = ((uint32_t)get_phys_addr((void*)slab_node_page_addr) >> 12);
 
         // Allocate page metadata (using normal) and slab node (using the new page)
         slab_node_t* slab_node = (slab_node_t*)slab_node_page_addr;
@@ -601,7 +602,7 @@ static void reserve_slab_objects()
         pages[slab_node_page_index].extra = 0;
         pages[slab_node_page_index].flags = 0;
         pages[slab_node_page_index].type = page_type_heap_slab;
-        pages[slab_node_page_index].struct_addr = (uint32_t)&slab_metadata;
+        pages[slab_node_page_index].struct_addr = &slab_metadata;
 
         return;
     }
@@ -642,8 +643,8 @@ static uint32_t allocate_slab_size(uint32_t obj_size)
         slab_metadata->slab_node = slab_node;
         slab_metadata->slab_size = obj_size;
 
-        uint32_t page_index = get_phys_addr(buddy_addr) >> 12;
-        pages[page_index].struct_addr = (addr_t)slab_metadata;
+        uint32_t page_index = (uint32_t)get_phys_addr((void*)buddy_addr) >> 12;
+        pages[page_index].struct_addr = slab_metadata;
         pages[page_index].type = page_type_heap_slab;
         pages[page_index].flags = 0;
         pages[page_index].extra = 0;
@@ -655,13 +656,13 @@ static uint32_t allocate_slab_size(uint32_t obj_size)
     slab_node_t* slab_node;
     uint32_t obj_addr = allocate_first_free_slab(obj_slab_index, &slab_node);
     
-    uint32_t page_index = get_phys_addr(obj_addr) >> 12;
+    uint32_t page_index = (uint32_t)get_phys_addr((void*)obj_addr) >> 12;
 
     page_slab_metadata_t* slab_metadata = kmalloc(sizeof(page_slab_metadata_t));
     slab_metadata->slab_node = slab_node;
     slab_metadata->slab_size = obj_size;
 
-    pages[page_index].struct_addr = (addr_t)slab_metadata;
+    pages[page_index].struct_addr = slab_metadata;
     pages[page_index].type = page_type_heap_slab;
     pages[page_index].flags = 0;
     pages[page_index].extra = 0;
@@ -671,7 +672,7 @@ static uint32_t allocate_slab_size(uint32_t obj_size)
 
 static void free_slab_alloc(uint32_t obj_addr)
 {
-    uint32_t phys_page_index = get_phys_addr(obj_addr)>>12;
+    uint32_t phys_page_index = (uint32_t)get_phys_addr((void*)obj_addr)>>12;
 
     page_slab_metadata_t* metadata = (page_slab_metadata_t*) pages[phys_page_index].struct_addr;
 
@@ -728,14 +729,14 @@ void* alloc(uint32_t size)
 
 void free(void* addr)
 {
-    uint32_t phys_page_index = get_phys_addr((addr_t)addr) >> 12;
+    uint32_t phys_page_index = (uint32_t)get_phys_addr(addr) >> 12;
     if (pages[phys_page_index].type == page_type_heap_buddy)
     {
-        free_buddy_alloc((addr_t)addr);
+        free_buddy_alloc((uint32_t)addr);
     }
     else if (pages[phys_page_index].type == page_type_heap_slab)
     {
-        free_slab_alloc((addr_t)addr);
+        free_slab_alloc((uint32_t)addr);
     }
     else
     {
@@ -745,11 +746,11 @@ void free(void* addr)
 
 page_buddy_metadata_t* virt_addr_to_buddy_struct(uint32_t addr)
 {
-    return (page_buddy_metadata_t*)pages[get_phys_addr(addr) >> 12].struct_addr;
+    return (page_buddy_metadata_t*)pages[(uint32_t)get_phys_addr((void*)addr) >> 12].struct_addr;
 }
 page_slab_metadata_t* virt_addr_to_slab_struct(uint32_t addr)
 {
-    return (page_slab_metadata_t*)pages[get_phys_addr(addr) >> 12].struct_addr;
+    return (page_slab_metadata_t*)pages[(uint32_t)get_phys_addr((void*)addr) >> 12].struct_addr;
 }
 
 

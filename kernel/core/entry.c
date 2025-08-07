@@ -42,6 +42,7 @@ void setup_gdt();
 void setup_idt();
 void setup_phys_allocator(multiboot_info_t* mbd);
 void setup_paging();
+void setup_memory();
 void setup_isr();
 void setup_pic();
 void setup_pit();
@@ -66,8 +67,8 @@ void entry_main(uint32_t magic, multiboot_info_t* mbd)
     // Setup interrupt handlers
     setup_isr();
 
-    //setup_memory();
-    
+    setup_memory();
+
     // inputs using pic1, pic2
     setup_pic();
 

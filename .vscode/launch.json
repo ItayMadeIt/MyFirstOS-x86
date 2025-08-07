@@ -1,0 +1,37 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug WaddleOS Kernel",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/isodir/boot/waddleos.kernel",
+      "miDebuggerPath": "i686-elf-gdb",
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}",
+      "targetArchitecture": "x86",
+      "externalConsole": false,
+      "preLaunchTask": "build-and-run-debug-qemu",
+      "customLaunchSetupCommands": [
+        {
+          "text": "file ${workspaceFolder}/isodir/boot/waddleos.kernel"
+        },
+        {
+          "text": "break entry_main"
+        },
+        {
+          "text": "target remote localhost:1234"
+        }      ],
+      "setupCommands": [
+        {
+          "description": "Enable pretty printing",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
+        }
+      ],
+      "logging": {
+        "engineLogging": true
+      }
+    }
+  ]
+}

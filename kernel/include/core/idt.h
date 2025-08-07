@@ -1,9 +1,6 @@
 
 #include <core/defs.h>
 
-void set_interrupt_c_callback(uint8_t entry_index, void (*callback) (uint32_t error_code));
-void set_idt_callback(uint16_t index, void (*handler_addr));
-
 typedef struct idt_entry {
     uint16_t offset_low;            // Lower 16 bits of the handler function address
     uint16_t segment_selector;      // Segment selector (usually code segment)
@@ -37,6 +34,7 @@ typedef struct idt_descriptor
 #define SEGMENT_SELECTOR_CODE_DPL0 IDT_SELECTOR(0x08)
 
 #define IDT_ENTRIES 256
+#define BASE_INTERRUPTS_ENTRIES 0x20
 
 extern void isr0();
 extern void isr1();
@@ -71,4 +69,6 @@ extern void isr29();
 extern void isr30();
 extern void isr31();
 
+void set_interrupt_c_callback(uint8_t entry_index, void (*callback) (uint32_t error_code));
+void set_idt_callback(uint16_t index, void (*handler_addr));
 void set_idt_entry(uint32_t entry_index, void (*handler_addr), uint16_t selector, uint8_t type_attr);

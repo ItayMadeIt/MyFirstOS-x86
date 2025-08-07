@@ -31,7 +31,6 @@ NASMFLAGS     := -f elf32
 
 ifeq ($(DEBUG),1)
 CFLAGS   += -g -O0 -DDEBUG
-CPPFLAGS += -DDEBUG
 else
 CFLAGS   += -O2
 endif
@@ -97,12 +96,15 @@ run: iso
 
 debug: 
 	$(MAKE) DEBUG=1 iso
+
+debug-run: 
+	$(MAKE) DEBUG=1 iso
+	qemu-system-$(ARCH) -cdrom "$(ISO)" -s -S
+
+debug-gdb: 
+	$(MAKE) DEBUG=1 iso
 	sudo -E /home/itaymadeit/opt/cross/bin/$(HOST)-gdb \
 	  "$(SYSROOT)/boot/waddleos.kernel" \
 	  -ex "target remote localhost:1234" \
 	  -ex "break entry_main" \
 	  -ex "continue"
-
-qemu-debug: 
-	$(MAKE) DEBUG=1 iso
-	qemu-system-$(ARCH) -cdrom "$(ISO)" -s

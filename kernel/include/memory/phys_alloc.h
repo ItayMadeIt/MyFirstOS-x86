@@ -16,7 +16,7 @@ typedef struct phys_memory_list
 } phys_memory_list_t;
 
 
-uint32_t alloc_phys_page();
+void* alloc_phys_page();
 
 void free_phys_page(uint32_t page_addr);
 

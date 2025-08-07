@@ -10,8 +10,8 @@ EXEC_PREFIX ?= $(PREFIX)
 INCLUDEDIR ?= $(PREFIX)/include
 LIBDIR ?= $(EXEC_PREFIX)/lib
 
-CFLAGS := $(CFLAGS) -ffreestanding -Wall -Wextra
-CPPFLAGS := $(CPPFLAGS) -Iinclude -D__is_libc
+CFLAGS += -ffreestanding -Wall -Wextra
+CPPFLAGS += -Iinclude -D__is_libc
 
 ARCHDIR = arch/$(ARCH)
 

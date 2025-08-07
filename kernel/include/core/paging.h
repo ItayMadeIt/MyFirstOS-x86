@@ -14,7 +14,7 @@
 
 #define PAGE_ENTRY_WRITE_KERNEL_FLAGS (PAGE_ENTRY_FLAG_PRESENT | PAGE_ENTRY_FLAG_WRITE)
 
-#define INVALID_PAGE_MEMORY (addr_t)(~0)
+#define INVALID_PAGE_MEMORY (uint32_t)(~0)
 typedef uint32_t page_entry;
 typedef uint32_t page_table_entry;
 
@@ -35,8 +35,8 @@ typedef struct page_directory
 void map_pages(
     page_directory_t* dir,
     page_table_t* table, 
-    uint32_t virt_addr, 
-    uint32_t phys_addr, 
+    void* virt_addr, 
+    void* phys_addr, 
     uint32_t pages, 
     uint16_t flags /*Assumes flags is valid*/);
 
