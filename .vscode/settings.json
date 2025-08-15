@@ -1,5 +1,7 @@
 {
     "files.associations": {
+        "*.qh": "c",
+        "*.qc": "c",
         "paging.h": "c",
         "phys_alloc.h": "c",
         "defs.h": "c",
@@ -7,6 +9,11 @@
         "memory_manager.h": "c",
         "heap.h": "c",
         "virt_alloc.h": "c",
-        "tree_int.h": "c"
+        "tree_int.h": "c",
+        "page_frame.h": "c",
+        "multiboot.h": "c",
+        "stdint.h": "c",
+        "tty.h": "c",
+        "gdt.h": "c"
     }
 }

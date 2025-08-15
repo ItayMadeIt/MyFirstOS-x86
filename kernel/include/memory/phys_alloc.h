@@ -15,10 +15,16 @@ typedef struct phys_memory_list
     uint16_t amount;
 } phys_memory_list_t;
 
+extern uint32_t max_memory;
 
-void* alloc_phys_page();
+extern uint8_t linker_kernel_begin;
+extern uint8_t linker_kernel_end;
 
-void free_phys_page(uint32_t page_addr);
+extern uint32_t kernel_begin_pa;
+extern uint32_t kernel_end_pa;
+
+void* alloc_phys_page_bitmap(uint32_t page_type);
+void free_phys_page_bitmap(uint32_t page_addr);
 
 void setup_phys_allocator(multiboot_info_t* mbd);
 #endif // __PHYS_ALLOC_H__

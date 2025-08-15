@@ -1,7 +1,7 @@
 #include <core/defs.h>
-#include <memory/phys_alloc.h>
 #include <core/paging.h>
 #include <core/debug.h>
+#include <memory/phys_alloc.h>
 
 // Max memory space 4GB:
 #define MAX_MEM_SPACE 4294967296
@@ -9,15 +9,18 @@
 
 #define PAGES_ARR_SIZE MAX_MEM_SPACE / PAGE_SIZE / BIT_TO_BYTE
 
-uint8_t pages_allocated[PAGES_ARR_SIZE];
-uint32_t last_free_group_index = 0;
+static uint8_t pages_allocated[PAGES_ARR_SIZE];
+static uint32_t last_free_group_index = 0;
 
 uint32_t max_memory;
-phys_memory_list_t mem_list;
+
+uint32_t kernel_begin_pa;
+uint32_t kernel_end_pa;
 
 static void reset_pages_allocated()
 {
-    for (uint32_t i = 0; i < PAGES_ARR_SIZE; i++)
+    uint32_t pages_amount = max_memory>>12;
+    for (uint32_t i = 0; i < pages_amount; i++)
     {
         pages_allocated[i] = 0;
     }
@@ -44,6 +47,12 @@ static phys_memory_list_t get_available_memory_list(const multiboot_info_t* mbd)
 
     while ((uint32_t) mmap < mmap_end)
     {
+        if (mem_list.amount == MAX_MEMORY_ENTRIES)
+        {
+            debug_print_str("Memory list is more than %u entries");
+            debug_print_int_nonewline(MAX_MEMORY_ENTRIES);
+            halt();
+        }
         // Save into the list
         if (mmap->type == MULTIBOOT_MEMORY_AVAILABLE)
         {   
@@ -80,6 +89,29 @@ static void free_page_at(uint32_t addr)
 
     pages_allocated[page_chunk_index] |= bit;
 }
+
+static void alloc_page_region(uint32_t from_addr, uint32_t to_addr)
+{
+    uint32_t addr = from_addr;
+
+    while (addr < to_addr)
+    {
+        alloc_page_at(addr);
+        
+        addr += PAGE_SIZE;
+    }
+}
+
+// static void free_page_region(uint32_t from_addr, uint32_t to_addr)
+// {
+//     uint32_t addr = from_addr;
+//     while (addr < to_addr)
+//     {
+//         free_page_at(addr);
+        
+//         addr += PAGE_SIZE;
+//     }
+// }
 
 static void free_memory_map(const multiboot_memory_map_t* map)
 {
@@ -118,37 +150,30 @@ static void free_phys_mem_list(const phys_memory_list_t* mem_list)
 
 static void reserve_kernel_memory(const phys_memory_list_t* mem_list)
 {
-    // Get addresses of the kernel
-    extern uint8_t kernel_begin_var;
-    extern uint8_t kernel_end_var;
-    uint32_t kernel_begin = (uint32_t)&kernel_begin_var;
-    uint32_t kernel_end = (uint32_t)&kernel_end_var;
-
     // Round addresses
-    uint32_t from_addr = kernel_begin & ~0xFFF;
-    uint32_t to_addr   = kernel_end | 0xFFF;
+    alloc_page_region(kernel_begin_pa & ~0xFFF, (kernel_end_pa | 0xFFF) + 1);
 
-    // Allocate each page
-    uint32_t addr = from_addr;
-    while (addr < to_addr)
+    for (uint16_t i = 0; i < mem_list->amount; i++)
     {
-        alloc_page_at(addr);
-        
-        addr += PAGE_SIZE;
+        alloc_page_region(mem_list->mmmt[i]->addr_low & ~0xFFF, (mem_list->mmmt[i]->addr_high | 0xFFF) + 1);
     }
 }
 
-void* alloc_phys_page()
+void* alloc_phys_page_bitmap(uint32_t page_type)
 {
-    uint32_t page_group_index;
+    (void)page_type;
+
+    uint32_t page_group_index = last_free_group_index;
     
     // Find free page group
-    for (page_group_index = last_free_group_index; page_group_index < PAGES_ARR_SIZE; ++page_group_index)
+    while (page_group_index < PAGES_ARR_SIZE)
     {
         if (pages_allocated[page_group_index])
         {
             break;
         }
+
+        ++page_group_index;
     }
     
     if (page_group_index >= PAGES_ARR_SIZE)
@@ -174,7 +199,7 @@ void* alloc_phys_page()
     return (void*)page_addr;
 }
 
-void free_phys_page(uint32_t page_addr)
+void free_phys_page_bitmap(uint32_t page_addr)
 {
     free_page_at(page_addr);
 
@@ -184,12 +209,17 @@ void free_phys_page(uint32_t page_addr)
 
 void setup_phys_allocator(multiboot_info_t* mbd)
 {
+    kernel_begin_pa = (uint32_t)&linker_kernel_begin;
+    kernel_end_pa = (uint32_t)&linker_kernel_end;
+
     verify_flags(mbd);
 
     reset_pages_allocated();
 
-    mem_list = get_available_memory_list(mbd);
+    phys_memory_list_t mem_list = get_available_memory_list(mbd);
     free_phys_mem_list(&mem_list);
+
+    alloc_page_region(0, STOR_1MiB);
 
     reserve_kernel_memory(&mem_list);
 }

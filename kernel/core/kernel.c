@@ -10,7 +10,5 @@ void kernel_main(void)
 	printf("[ERROR] LIBC IS DEFINED/USED\n\n");	
 #endif
 
-	printf("Gunny is amazing!\n");
-
 	while(1);
 }

@@ -17,9 +17,6 @@
           "text": "file ${workspaceFolder}/isodir/boot/waddleos.kernel"
         },
         {
-          "text": "break entry_main"
-        },
-        {
           "text": "target remote localhost:1234"
         }      ],
       "setupCommands": [

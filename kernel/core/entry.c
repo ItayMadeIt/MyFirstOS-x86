@@ -1,4 +1,5 @@
-#include "core/paging.h"
+#include <core/defs.h>
+#include <core/paging.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <drivers/io.h>
@@ -9,8 +10,6 @@
 
 #include <core/debug.h>
 
-extern uint8_t kernel_end;
-
 void halt() 
 {
     asm volatile (
@@ -19,7 +18,13 @@ void halt()
     );
 }
 
-
+void assert(bool must_be_true)
+{
+    if (! must_be_true) 
+    {   
+        halt();
+    }
+}
 void virt_kernel_main()
 {
     asm volatile (
@@ -40,9 +45,8 @@ static inline void sti()
 
 void setup_gdt();
 void setup_idt();
-void setup_phys_allocator(multiboot_info_t* mbd);
 void setup_paging();
-void setup_memory();
+void setup_memory(multiboot_info_t* mbd);
 void setup_isr();
 void setup_pic();
 void setup_pit();
@@ -60,14 +64,12 @@ void entry_main(uint32_t magic, multiboot_info_t* mbd)
     setup_gdt();
     setup_idt();
     
-    setup_phys_allocator(mbd);
-
     setup_paging();
 
     // Setup interrupt handlers
     setup_isr();
 
-    setup_memory();
+    setup_memory(mbd);
 
     // inputs using pic1, pic2
     setup_pic();

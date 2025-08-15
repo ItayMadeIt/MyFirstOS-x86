@@ -11,7 +11,7 @@ SECTIONS
 	. = 1M;
 
 	/* Define kernel start */
-	kernel_begin_var = .;
+	linker_kernel_begin = .;
 	
 	/* First put the multiboot header, as it is required to be put very early
 	   early in the image or the bootloader won't recognize the file format.
@@ -43,7 +43,7 @@ SECTIONS
 
 	/* Create a variable kernel_end_var to be at the end of the elf file.
 		This let's the program know where it begins and ends.*/
-	kernel_end_var = .;
+	linker_kernel_end = .;
 
 	/* The compiler may produce other sections, put them in the proper place in
 	   in this file, if you'd like to include them in the final kernel. */

@@ -13,7 +13,7 @@
 
 #define STOR_1Kib   0x00000400
 #define STOR_2Kib   0x00000800
-#define STOR_4Kib   0x00001000
+#define STOR_4KiB   0x00001000
 #define STOR_8Kib   0x00002000
 #define STOR_16Kib  0x00004000
 #define STOR_32Kib  0x00008000
@@ -35,6 +35,8 @@
 #define STOR_2GiB   0x80000000
 
 void halt();
+
+void assert(bool must_be_true);
 
 static inline uint32_t log2_u32(uint32_t x) 
 {
