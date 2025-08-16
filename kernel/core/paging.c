@@ -6,7 +6,7 @@
 #define KERNEL_TABLES 2
 #define BOOT_TABLES 1
 
-page_directory_t kernel_page_directory; 
+page_directory_t page_directory; 
 static page_table_t kernel_tables[KERNEL_TABLES];
 static page_table_t boot_tables[KERNEL_TABLES];
 
@@ -96,16 +96,16 @@ static inline void enable_paging()
 
 void setup_paging()
 {
-    zero_page_directory(&kernel_page_directory);
+    zero_page_directory(&page_directory);
     zero_page_table(kernel_tables, 2);
     zero_page_table(boot_tables, 1);
 
-    map_pages(&kernel_page_directory, kernel_tables, (void*)0xC0000000, (void*)0x00100000, 2048, 0x3);
-    map_pages(&kernel_page_directory, boot_tables, (void*)0x00000000, (void*)0x00000000, 1024, 0x3);
+    map_pages(&page_directory, kernel_tables, (void*)0xC0000000, (void*)0x00100000, 2048, 0x3);
+    map_pages(&page_directory, boot_tables, (void*)0x00000000, (void*)0x00000000, 1024, 0x3);
 
-    map_pages(&kernel_page_directory, (page_table_t*)&kernel_page_directory, (void*)0xFFFFF000, &kernel_page_directory, 1, 0x3);
+    map_pages(&page_directory, (page_table_t*)&page_directory, (void*)0xFFFFF000, &page_directory, 1, 0x3);
 
-    set_page_directory(&kernel_page_directory);
+    set_page_directory(&page_directory);
 
     enable_paging();
 }

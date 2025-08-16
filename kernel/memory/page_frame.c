@@ -78,7 +78,6 @@ uint32_t multiboot_data_end_pa(const multiboot_info_t* mbd)
 
 typedef struct bump_vars
 {
-    page_table_t init_table;
     uint32_t max_addr;
     uint32_t alloc_addr;
     uint32_t begin_addr;
@@ -106,10 +105,10 @@ static void* bump_alloc_align(const uint32_t size, uint32_t alignment)
     if (needed_end > bump.max_addr) 
     {
         uint32_t new_max = round_page_up(needed_end); 
-        uint32_t delta   = new_max - bump.max_addr;   
+        uint32_t delta   = (new_max - bump.max_addr);
 
         assert( 
-            map_pages((void*)bump.max_addr, delta/PAGE_SIZE, PAGE_PHYS_PAGES, PAGE_ENTRY_WRITE_KERNEL_FLAGS)
+            map_pages((void*)bump.max_addr, delta/PAGE_SIZE, PAGE_ENTRY_WRITE_KERNEL_FLAGS, PAGE_PHYS_PAGES)
         );
 
         bump.max_addr = new_max;
@@ -123,7 +122,7 @@ static void* bump_alloc_align(const uint32_t size, uint32_t alignment)
 static void init_bump(uint32_t begin_addr)
 {
     uint32_t pages_count = round_page_up(INIT_SIZE)/PAGE_SIZE;
-    map_pages((void*)begin_addr, pages_count, PAGE_PHYS_PAGES, PAGE_ENTRY_WRITE_KERNEL_FLAGS);
+    map_pages((void*)begin_addr, pages_count, PAGE_ENTRY_WRITE_KERNEL_FLAGS, PAGE_PHYS_PAGES);
 
     bump.alloc_addr = begin_addr;
     bump.begin_addr = begin_addr;
@@ -232,7 +231,7 @@ static void mark_paging_structures(phys_page_descriptor_t* phys_pages)
 {
     // 1) Mark the page directory frame
     uint32_t pd_phys = (uint32_t)get_phys_addr(&page_directory);
-    uint32_t page_index = pd_phys>>12;
+    uint32_t page_index = pd_phys/PAGE_SIZE;
     
     phys_pages[page_index].type = PAGE_DIRECTORY;
     
@@ -494,6 +493,9 @@ uint32_t setup_page_descriptors(uint32_t alloc_addr, multiboot_info_t* mbd)
         pages_count * sizeof(phys_page_descriptor_t), 
         0
     );
+
+    volatile uint32_t table_entry = get_table_entry(phys_page_descs);
+    volatile uint32_t page_entry = get_page_entry(phys_page_descs);
 
     memset(phys_page_descs, 0, pages_count * sizeof(phys_page_descriptor_t));
 

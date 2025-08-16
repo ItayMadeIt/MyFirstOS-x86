@@ -81,7 +81,7 @@ static bool commit_map_pages(void* va_ptr, uint32_t count, uint32_t flags, enum 
     return true;
 }
 
-bool map_pages(void* va_ptr, uint32_t count, uint16_t flags, enum phys_page_type type)
+bool map_pages(void* va_ptr, uint32_t count, uint32_t flags, enum phys_page_type type)
 {
     assert(((uintptr_t)va_ptr % PAGE_SIZE) == 0);
     assert(count > 0);
