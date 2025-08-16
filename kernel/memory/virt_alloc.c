@@ -1,110 +1,96 @@
-#include <memory/phys_alloc.h>
+#include "core/paging.h"
+#include "memory/page_frame.h"
+#include "memory/paging_utils.h"
+#include <memory/memory_manager.h>
 #include <memory/virt_alloc.h>
-#include <core/paging.h>
+#include <string.h>
 
-void* get_phys_addr(void* virt_addr_ptr)
+static bool can_map_pages(void* va_ptr, uint32_t count)
 {
-    uint32_t virt_addr = (uint32_t)virt_addr_ptr;
+    uint32_t va = (uint32_t)va_ptr;
 
-    // Calculate indices
-    uint32_t page_dir_index = (virt_addr) >> 22;
-    uint32_t page_table_index = ((virt_addr) >> 12) & 0x3FF;
-
-    // Get page directory, ensure it's valid
-    page_directory_t* page_directory = (void*)0xFFFFF000;    
-    if ((page_directory->entries[page_dir_index] & PAGE_ENTRY_FLAG_PRESENT) == 0)
+    while (count) 
     {
-        return (void*) INVALID_PAGE_MEMORY;
+        uint32_t dir_index = va >> 22;
+        uint32_t table_index = (va >> 12) & 0x3FF;
+        uint32_t pages_in_table = ENTRIES_AMOUNT - table_index;
+
+        // If table exists, check each entry
+        uint32_t table_entry = get_table_entry((void*)va);
+        if ((table_entry & PAGE_ENTRY_FLAG_PRESENT) == false) 
+        {
+            // Skip over whole table worth of pages
+            uint32_t skip = (pages_in_table < count) ? pages_in_table : count;
+            va += skip * PAGE_SIZE;
+            count -= skip;
+            continue;
+        } 
+
+        page_table_t* table = get_page_table(dir_index);
+        while (pages_in_table && count) 
+        {
+            if (table->entries[table_index] & PAGE_ENTRY_FLAG_PRESENT)
+                return false;
+
+            va += PAGE_SIZE;
+            table_index++;
+            pages_in_table--;
+            count--;
+        }
     }
-
-    // Get page table, ensure it's valid
-    page_table_t* page_table = (page_table_t*)(0xFFC00000 + (page_dir_index * 0x1000));
-    if ((page_table->entries[page_table_index] & PAGE_ENTRY_FLAG_PRESENT) == 0)
-    {
-        return (void*) INVALID_PAGE_MEMORY;
-    }
-
-    return (void*) (
-        (page_table->entries[page_table_index] & ~0xFFF) | (virt_addr & 0xFFF) 
-    );
-}
-
-uint32_t get_table_entry(void* virt_addr_ptr)
-{
-    uint32_t virt_addr = (uint32_t)virt_addr_ptr;
-
-    // Calculate indices
-    uint32_t page_dir_index = virt_addr >> 22;
-
-    page_directory_t* page_directory = (page_directory_t*)0xFFFFF000;
-    return page_directory->entries[page_dir_index];
-}
-
-uint32_t get_page_entry(void* virt_addr_ptr)
-{
-    uint32_t virt_addr = (uint32_t)virt_addr_ptr;
-    // Calculate indices
-    uint32_t page_dir_index = (virt_addr) >> 22;
-    uint32_t page_table_index = ((virt_addr) >> 12) & 0x3FF;
-
-    // Get page directory, ensure it's valid
-    page_directory_t* page_directory = (void*)0xFFFFF000;    
-    if ((page_directory->entries[page_dir_index] & PAGE_ENTRY_FLAG_PRESENT) == 0)
-    {
-        return (uint32_t)NULL;
-    }
-
-    // Get page table, ensure it's valid
-    page_table_t* page_table = (page_table_t*)(0xFFC00000 + (page_dir_index * 0x1000));
-    return page_table->entries[page_table_index];
-}
-
-bool map_table_entry(void* phys_addr_ptr, void* virt_addr_ptr, uint32_t flags)
-{
-    uint32_t virt_addr = (uint32_t)virt_addr_ptr;
-    uint32_t phys_addr = (uint32_t)phys_addr_ptr;
-
-    // Calculate indices
-    uint32_t page_dir_index = virt_addr >> 22;
-
-    page_directory_t* page_directory = (page_directory_t*)0xFFFFF000;
-    page_directory->entries[page_dir_index] = (phys_addr & ~0xFFF) | flags;
 
     return true;
 }
 
-bool map_page_entry(void* phys_addr_ptr, void* virt_addr_ptr, uint32_t flags)
+static bool commit_map_pages(void* va_ptr, uint32_t count, uint32_t flags, enum phys_page_type type)
 {
-    uint32_t phys_addr = (uint32_t)phys_addr_ptr;
-    uint32_t virt_addr = (uint32_t)virt_addr_ptr;
+    uint32_t va = (uint32_t)va_ptr;
+    while (count) 
+    {
+        uint32_t dir_index = va >> 22;
+        uint32_t table_index = (va >> 12) & 0x3FF;
+        uint32_t pages_in_table = ENTRIES_AMOUNT - table_index;
 
-    // Calculate indices
-    uint32_t page_dir_index = (virt_addr) >> 22;
-    uint32_t page_table_index = ((virt_addr) >> 12) & 0x3FF;
+        uint32_t table_entry = get_table_entry((void*)va);
+        
+        if ((table_entry & PAGE_ENTRY_FLAG_PRESENT) == false)
+        {
+            // Allocate a new table
+            void* new_table_phys = alloc_phys_page(PAGE_TABLE);
+            if (new_table_phys == NULL) 
+                return false;
 
-    // Get page directory, ensure it's valid
-    page_directory_t* page_directory = (void*)0xFFFFF000;    
-    if ((page_directory->entries[page_dir_index] & PAGE_ENTRY_FLAG_PRESENT) == 0)
+            map_table_entry(new_table_phys, (void*)va, PAGE_ENTRY_FLAG_PRESENT | PAGE_ENTRY_FLAG_WRITE);
+            
+            memset((void*)(0xFFC00000 + dir_index * PAGE_SIZE), 0, PAGE_SIZE);
+        }
+
+        while (pages_in_table && count)
+        {
+            map_page_entry(alloc_phys_page(type), (void*)va, flags);
+
+            // Advance
+            va += PAGE_SIZE;
+
+            table_index++;
+            pages_in_table--;
+            count--;
+        }
+    }
+
+    return true;
+}
+
+bool map_pages(void* va_ptr, uint32_t count, uint16_t flags, enum phys_page_type type)
+{
+    assert(((uintptr_t)va_ptr % PAGE_SIZE) == 0);
+    assert(count > 0);
+    assert(alloc_phys_page);
+
+    if (!can_map_pages(va_ptr, count))
     {
         return false;
     }
 
-    // Get page table, ensure it's valid
-    page_table_t* page_table = (page_table_t*)(0xFFC00000 + (page_dir_index * 0x1000));
-    page_table->entries[page_table_index] = (phys_addr & 0xFFFFF000) | (flags & 0x00000FFF);
-
-    return true;
-}
-
-void alloc_table(void* phys_table_addr_ptr, void* virt_addr_ptr, uint32_t flags)
-{
-    uint32_t virt_addr = (uint32_t)virt_addr_ptr;
-
-    map_table_entry(phys_table_addr_ptr, virt_addr_ptr, flags);
-
-    for (uint32_t i = 0; i < ENTRIES_AMOUNT; i++)
-    {
-        uint32_t cur_virt_addr = virt_addr + i * PAGE_SIZE;
-        map_page_entry(alloc_phys_page(), (void*)cur_virt_addr, flags);
-    }
+    return commit_map_pages(va_ptr, count, flags, type);
 }

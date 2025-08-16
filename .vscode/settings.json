@@ -14,6 +14,10 @@
         "multiboot.h": "c",
         "stdint.h": "c",
         "tty.h": "c",
-        "gdt.h": "c"
+        "gdt.h": "c",
+        "raw_virt_alloc.h": "c",
+        "isr.h": "c",
+        "string.h": "c",
+        "paging_utils.h": "c"
     }
 }

@@ -34,6 +34,6 @@ typedef struct phys_page_list {
 } phys_page_list_t;
 
 
-void setup_heap(uint32_t heap_addr);
+void setup_heap(void* heap_addr, uint32_t init_size);
 
 #endif // __HEAP_H__

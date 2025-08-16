@@ -1,21 +1,15 @@
 #include "core/debug.h"
 #include "memory/phys_alloc.h"
 #include <memory/page_frame.h>
-#include <memory/virt_alloc.h>
+#include <memory/paging_utils.h>
 #include <core/paging.h>
 #include <core/defs.h>
+#include <memory/virt_alloc.h>
 
 #include <stdint.h>
 #include <string.h>
 
-static inline uint32_t round_page_up(uint32_t x)   
-{ 
-    return (x + 0xFFF) & ~0xFFF;
-}
-static inline uint32_t round_page_down(uint32_t x) 
-{ 
-    return x & ~0xFFF;
-}
+#define INIT_SIZE STOR_16Kib
 
 uint32_t multiboot_data_end_pa(const multiboot_info_t* mbd)
 {
@@ -105,27 +99,20 @@ static void* bump_alloc_align(const uint32_t size, uint32_t alignment)
     { 
         debug_print_str("bump: overflow\n"); halt(); 
     }
-    uint32_t end = aligned_addr + size;
-    // Allocate more pages
-    while (end > bump.max_addr - STOR_4KiB)
-    {
-        uint32_t table_addr = (bump.alloc_addr + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
-        page_table_t* new_table = (page_table_t*)(table_addr);
-
-        aligned_addr = (table_addr + PAGE_SIZE + alignment - 1) & ~(alignment - 1);
-        if (aligned_addr > UINT32_MAX - size) 
-        {
-            debug_print_str("bump: overflow\n"); 
-            halt(); 
-        }
-
-        alloc_table(get_phys_addr(new_table), (void*)bump.max_addr, PAGE_ENTRY_WRITE_KERNEL_FLAGS);
-
-        bump.max_addr += STOR_4MiB;
-        bump.alloc_addr = table_addr + PAGE_SIZE;
     
-        aligned_addr = (bump.alloc_addr + alignment - 1) & ~(alignment - 1);
-        end = aligned_addr + size;
+    uint32_t needed_end = aligned_addr + size;
+
+    // Allocate more pages
+    if (needed_end > bump.max_addr) 
+    {
+        uint32_t new_max = round_page_up(needed_end); 
+        uint32_t delta   = new_max - bump.max_addr;   
+
+        assert( 
+            map_pages((void*)bump.max_addr, delta/PAGE_SIZE, PAGE_PHYS_PAGES, PAGE_ENTRY_WRITE_KERNEL_FLAGS)
+        );
+
+        bump.max_addr = new_max;
     }
 
     bump.alloc_addr = aligned_addr + size;
@@ -135,16 +122,12 @@ static void* bump_alloc_align(const uint32_t size, uint32_t alignment)
 
 static void init_bump(uint32_t begin_addr)
 {
-    // Alloc 4mb for early heap
-    alloc_table(
-        get_phys_addr(&bump.init_table), 
-        (void*)begin_addr, 
-        PAGE_ENTRY_WRITE_KERNEL_FLAGS
-    );
+    uint32_t pages_count = round_page_up(INIT_SIZE)/PAGE_SIZE;
+    map_pages((void*)begin_addr, pages_count, PAGE_PHYS_PAGES, PAGE_ENTRY_WRITE_KERNEL_FLAGS);
 
     bump.alloc_addr = begin_addr;
     bump.begin_addr = begin_addr;
-    bump.max_addr = begin_addr + STOR_4MiB;
+    bump.max_addr = begin_addr + pages_count*PAGE_SIZE;
 }
 
 phys_page_descriptor_t* phys_page_descs;
@@ -245,6 +228,29 @@ static void free_page_desc_region(uint32_t start, uint32_t end)
     }
 }
 
+static void mark_paging_structures(phys_page_descriptor_t* phys_pages)
+{
+    // 1) Mark the page directory frame
+    uint32_t pd_phys = (uint32_t)get_phys_addr(&page_directory);
+    uint32_t page_index = pd_phys>>12;
+    
+    phys_pages[page_index].type = PAGE_DIRECTORY;
+    
+    for (uint32_t pdi = 0; pdi < ENTRIES_AMOUNT; ++pdi) 
+    {
+        page_table_t* page_table = get_page_table(pdi);
+        if (!page_table)
+        {
+            continue;
+        }
+
+        uint32_t phys_addr = (uint32_t)get_phys_addr(page_table);
+        uint32_t page_index = phys_addr>>12;
+        
+        phys_pages[page_index].type = PAGE_TABLE;
+    }
+}
+
 static void init_phys_pages(multiboot_info_t* mbd,
                      phys_page_descriptor_t* phys_pages,
                      uint32_t pages_count)
@@ -310,6 +316,8 @@ static void init_phys_pages(multiboot_info_t* mbd,
 
         mmap = (multiboot_memory_map_t*)((uint32_t)mmap + mmap->size + sizeof(mmap->size));
     }
+
+    mark_paging_structures(phys_pages);
 }
 
 void* alloc_phys_page_pfn(enum phys_page_type type)
@@ -491,5 +499,5 @@ uint32_t setup_page_descriptors(uint32_t alloc_addr, multiboot_info_t* mbd)
 
     init_phys_pages(mbd, phys_page_descs, pages_count);
 
-    return round_page_up(bump.alloc_addr);
+    return bump.alloc_addr;
 }

@@ -15,30 +15,25 @@
 #define PAGE_ENTRY_WRITE_KERNEL_FLAGS (PAGE_ENTRY_FLAG_PRESENT | PAGE_ENTRY_FLAG_WRITE)
 
 #define INVALID_PAGE_MEMORY (uint32_t)(~0)
-typedef uint32_t page_entry;
-typedef uint32_t page_table_entry;
 
 #define ENTRIES_AMOUNT 1024
 #define PAGE_SIZE STOR_4KiB
 
 typedef struct page_table
 {
-    page_entry entries[ENTRIES_AMOUNT];
-}  __attribute__((aligned(ENTRIES_AMOUNT * sizeof(page_entry)))) page_table_t;
+    uint32_t entries[ENTRIES_AMOUNT];
+}  __attribute__((aligned(ENTRIES_AMOUNT * sizeof(uint32_t)))) page_table_t;
 
 typedef struct page_directory
 {
-    page_table_entry entries[ENTRIES_AMOUNT];
-}  __attribute__((aligned(ENTRIES_AMOUNT * sizeof(page_table_entry)))) page_directory_t;
+    uint32_t entries[ENTRIES_AMOUNT];
+}  __attribute__((aligned(ENTRIES_AMOUNT * sizeof(uint32_t)))) page_directory_t;
 
 
-void map_pages(
-    page_directory_t* dir,
-    page_table_t* table, 
-    void* virt_addr, 
-    void* phys_addr, 
-    uint32_t pages, 
-    uint16_t flags /*Assumes flags is valid*/);
+#define round_page_up(x)   (((uint32_t)x + 0xFFFu) & ~0xFFFu)
+#define round_page_down(x) ((uint32_t)x & ~0xFFFu)
+
+extern page_directory_t page_directory; 
 
 void setup_paging();
 

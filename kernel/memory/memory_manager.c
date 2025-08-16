@@ -1,3 +1,4 @@
+#include <core/paging.h>
 #include <memory/memory_manager.h>
 #include <memory/heap.h>
 #include <memory/phys_alloc.h>
@@ -7,16 +8,19 @@
 #define KERNEL_ADDR 0x00100000
 
 void* (*alloc_phys_page)(enum phys_page_type type);
+bool (*map_page )(void* pa, void* va, uint16_t flags, enum phys_page_type type);
 
 void setup_memory(multiboot_info_t* mbd)
 {
     setup_phys_allocator(mbd);
     alloc_phys_page = alloc_phys_page_bitmap;
 
-    uint32_t heap_begin = setup_page_descriptors(HEAP_VIRT, mbd);
+    uint32_t page_desc_end_mem = setup_page_descriptors(HEAP_VIRT, mbd);
     alloc_phys_page = alloc_phys_page_pfn;
-
-    setup_heap(heap_begin);
+    // after setting up a proper alloc_phys_page we can now use `map_pages` for the heap
+    
+    uint32_t heap_start = round_page_up(page_desc_end_mem);
+    setup_heap((void*)heap_start, STOR_8MiB);
 
     //setup_vma();
 }

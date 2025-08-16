@@ -5,7 +5,10 @@
 #include <memory/phys_alloc.h>
 
 enum phys_page_type {
+    PAGE_NONE = 0,
     PAGE_1MiB,
+    PAGE_DIRECTORY,
+    PAGE_TABLE,
     PAGE_RESERVED,
     PAGE_FREE,
     PAGE_KERNEL,

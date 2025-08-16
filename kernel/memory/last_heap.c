@@ -1,6 +1,6 @@
 // #include <core/defs.h>
 // #include <core/paging.h>
-// #include <memory/virt_alloc.h>
+// #include <memory/raw_virt_alloc.h>
 // #include <memory/phys_alloc.h>
 #include <memory/heap.h>
 
@@ -116,7 +116,7 @@ typedef struct heap_metadata
 //         uint32_t aligned_table_addr = (early_alloc_addr + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
 //         page_table_t* new_table = (page_table_t*)(aligned_table_addr);
 
-//         alloc_table(get_phys_addr(new_table), (void*)early_heap_max_addr, PAGE_ENTRY_WRITE_KERNEL_FLAGS);
+//         alloc_full_table(get_phys_addr(new_table), (void*)early_heap_max_addr, PAGE_ENTRY_WRITE_KERNEL_FLAGS);
 
 //         early_heap_max_addr += STOR_4MiB;
 //         early_alloc_addr = aligned_table_addr + PAGE_SIZE;
@@ -387,7 +387,7 @@ typedef struct heap_metadata
 // void init_early_heap()
 // {
 //     // Alloc 4mb for early heap
-//     alloc_table(get_phys_addr(&early_heap_table), (void*)EARLY_HEAP_VIRT, PAGE_ENTRY_WRITE_KERNEL_FLAGS);
+//     alloc_full_table(get_phys_addr(&early_heap_table), (void*)EARLY_HEAP_VIRT, PAGE_ENTRY_WRITE_KERNEL_FLAGS);
 //     early_heap_max_addr = EARLY_HEAP_VIRT + STOR_4MiB;
 // }
 
@@ -395,7 +395,7 @@ typedef struct heap_metadata
 // {
 //     // Alloc 4mb for actual heap
 //     page_table_t* heap_table = early_alloc_align(sizeof(page_table_t),  PAGE_SIZE);
-//     alloc_table(get_phys_addr((void*)heap_table), (void*)HEAP_VIRT, PAGE_ENTRY_WRITE_KERNEL_FLAGS);    
+//     alloc_full_table(get_phys_addr((void*)heap_table), (void*)HEAP_VIRT, PAGE_ENTRY_WRITE_KERNEL_FLAGS);    
 
 //     set_phys_pages_struct_type(HEAP_VIRT, HEAP_VIRT + STOR_4MiB, (uint32_t)NULL, page_type_heap);
 

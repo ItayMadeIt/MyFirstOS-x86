@@ -14,7 +14,7 @@ ARCHDIR=arch/$(ARCH)
 ARCHINCLUDE=arch/$(ARCH)/include
 
 CFLAGS+= -ffreestanding -Wall -Wextra
-CPPFLAGS+= -D__is_kernel -Iinclude -I../libk/include
+CPPFLAGS+= -D__is_kernel -Iinclude -I../libk/include 
 LDFLAGS:=$(LDFLAGS)
 LIBS:=$(LIBS) -nostdlib -lk -lgcc
 NASMFLAGS += -I$(ARCHINCLUDE)
