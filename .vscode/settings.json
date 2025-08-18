@@ -18,6 +18,7 @@
         "raw_virt_alloc.h": "c",
         "isr.h": "c",
         "string.h": "c",
-        "paging_utils.h": "c"
+        "paging_utils.h": "c",
+        "heap_structs.h": "c"
     }
 }

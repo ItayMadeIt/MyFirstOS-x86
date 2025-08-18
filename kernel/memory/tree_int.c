@@ -144,7 +144,7 @@ static node_t** find_node_link(node_t** root, int_data_t data, node_t** link_par
 	{
         *link_parent = *link;
 
-        if (data.begin < (*link)->data.begin)
+		if (data.begin < (*link)->data.begin)
 		{
             link = &(*link)->left;
 		}
@@ -278,7 +278,7 @@ static void transplant(node_t** root, node_t* old_node, node_t* new_node)
 {
 	node_t* parent = get_parent(old_node);
 
-    if (parent == NULL) 
+	if (parent == NULL) 
 	{
         *root = new_node;
     }
@@ -305,20 +305,20 @@ void delete_configure_nuclear_node(node_t** root, node_t* delete_node, bool* del
 	*node_to_fix = successor_node->right;
 
 	//         delete               delete/successor
-	//         /    \                  /     \ 
+	//         /    \                  /     \
 	//        A    successor  ==>     A      right
-	//               /  \                     / \ 
+	//               /  \                     / \
 	//             NIL  right               ... ...
 	if (get_parent(successor_node) == delete_node)
 	{
 		*node_to_fix_parent = successor_node;
 	}
 	//         delete             delete/succesor
-	//              \                 \ 
+	//              \                 \
 	//             node               node
 	//              /       ===>      / 
 	//          successor           right
- 	//           /      \            / \  
+ 	//           /      \            / \
 	//         NIL   right        ... ...
 	else
 	{
@@ -599,7 +599,7 @@ bool rb_int_overlap(node_t** root, uint32_t addr)
 {
 	node_t* parent = NULL;
 
-	node_t** link = find_node_link(root, (int_data_t){addr, addr, 0}, &parent);
+	node_t** link = find_node_link(root, (int_data_t){addr, addr, 0, 0}, &parent);
 
 	return *link != NULL;
 }

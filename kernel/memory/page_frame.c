@@ -108,7 +108,7 @@ static void* bump_alloc_align(const uint32_t size, uint32_t alignment)
         uint32_t delta   = (new_max - bump.max_addr);
 
         assert( 
-            map_pages((void*)bump.max_addr, delta/PAGE_SIZE, PAGE_ENTRY_WRITE_KERNEL_FLAGS, PAGE_PHYS_PAGES)
+            map_pages((void*)bump.max_addr, delta/PAGE_SIZE, PAGE_ENTRY_WRITE_KERNEL_FLAGS, PAGETYPE_PHYS_PAGES, PAGEFLAG_KERNEL)
         );
 
         bump.max_addr = new_max;
@@ -122,7 +122,9 @@ static void* bump_alloc_align(const uint32_t size, uint32_t alignment)
 static void init_bump(uint32_t begin_addr)
 {
     uint32_t pages_count = round_page_up(INIT_SIZE)/PAGE_SIZE;
-    map_pages((void*)begin_addr, pages_count, PAGE_ENTRY_WRITE_KERNEL_FLAGS, PAGE_PHYS_PAGES);
+    map_pages(
+        (void*)begin_addr, pages_count, PAGE_ENTRY_WRITE_KERNEL_FLAGS, PAGETYPE_PHYS_PAGES, PAGEFLAG_KERNEL
+    );
 
     bump.alloc_addr = begin_addr;
     bump.begin_addr = begin_addr;
@@ -135,6 +137,9 @@ uint32_t pages_count;
 phys_page_descriptor_t *virt_to_pfn(void *addr)
 {
     uint32_t page_index = (uint32_t)get_phys_addr(addr)/PAGE_SIZE;
+
+    assert(page_index < pages_count);
+
     return &phys_page_descs[page_index];
 }
 
@@ -188,7 +193,7 @@ static void free_page_desc_region(uint32_t start, uint32_t end)
 
     while (page_index < page_index_end)
     {
-        while (page_index < page_index_end && phys_page_descs[page_index].type != PAGE_FREE)
+        while (page_index < page_index_end && phys_page_descs[page_index].type != PAGETYPE_UNUSED)
         {
             page_index++;
         }
@@ -201,7 +206,7 @@ static void free_page_desc_region(uint32_t start, uint32_t end)
         uint32_t from_index = page_index;
         phys_page_descriptor_t* head = &phys_page_descs[from_index];
 
-        while (page_index < page_index_end && phys_page_descs[page_index].type == PAGE_FREE)
+        while (page_index < page_index_end && phys_page_descs[page_index].type == PAGETYPE_UNUSED)
         {
             phys_page_descs[page_index].u.free_page.count = 0;
             phys_page_descs[page_index].u.free_page.prev_desc = head;
@@ -233,7 +238,7 @@ static void mark_paging_structures(phys_page_descriptor_t* phys_pages)
     uint32_t pd_phys = (uint32_t)get_phys_addr(&page_directory);
     uint32_t page_index = pd_phys/PAGE_SIZE;
     
-    phys_pages[page_index].type = PAGE_DIRECTORY;
+    phys_pages[page_index].type = PAGETYPE_DIRECTORY;
     
     for (uint32_t pdi = 0; pdi < ENTRIES_AMOUNT; ++pdi) 
     {
@@ -246,7 +251,7 @@ static void mark_paging_structures(phys_page_descriptor_t* phys_pages)
         uint32_t phys_addr = (uint32_t)get_phys_addr(page_table);
         uint32_t page_index = phys_addr>>12;
         
-        phys_pages[page_index].type = PAGE_TABLE;
+        phys_pages[page_index].type = PAGETYPE_TABLE;
     }
 }
 
@@ -257,7 +262,7 @@ static void init_phys_pages(multiboot_info_t* mbd,
     // Mark everything as RESERVERD
     mark_range(0, pages_count * PAGE_SIZE,
                phys_pages, pages_count, 
-               PAGE_RESERVED, 1, 0);
+               PAGETYPE_RESERVED, 1, 0);
 
 
     multiboot_memory_map_t* mmap = (multiboot_memory_map_t*)mbd->mmap_addr;
@@ -275,7 +280,8 @@ static void init_phys_pages(multiboot_info_t* mbd,
                 round_page_up(base), 
                 round_page_down(base + len), 
                 phys_pages, pages_count,
-                PAGE_FREE, 0, 0
+                PAGETYPE_UNUSED, 0,
+                PAGEFLAG_KERNEL | PAGEFLAG_VFREE
             );
         }
 
@@ -286,19 +292,19 @@ static void init_phys_pages(multiboot_info_t* mbd,
     mark_range(round_page_down(kernel_begin_pa),
                round_page_up(kernel_end_pa),
                phys_pages, pages_count, 
-               PAGE_KERNEL, 1, 0);
+               PAGETYPE_KERNEL, 1, 0);
 
     // Multiboot info + modules if any
     mark_range(round_page_down((uint32_t)mbd),
                round_page_up((uint32_t)multiboot_data_end_pa(mbd)),
                phys_pages, pages_count, 
-               PAGE_RESERVED, 1, 0);
+               PAGETYPE_RESERVED, 1, 0);
 
     // Phys page descriptors backing storage
     mark_range(round_page_down((uint32_t)get_phys_addr((void*)bump.begin_addr)),
                round_page_up((uint32_t)get_phys_addr((void*)bump.alloc_addr)),
                phys_pages, pages_count, 
-               PAGE_KERNEL, 1, 0);
+               PAGETYPE_KERNEL, 1, 0);
 
     // Make the free descriptor list
     page_desc_free_ll = NULL;
@@ -319,14 +325,14 @@ static void init_phys_pages(multiboot_info_t* mbd,
     mark_paging_structures(phys_pages);
 }
 
-void* alloc_phys_page_pfn(enum phys_page_type type)
+void* alloc_phys_page_pfn(enum phys_page_type page_type, uint32_t page_flags)
 {
     if (!page_desc_free_ll)
     {
         return NULL;
     }
 
-    if (type == PAGE_FREE)
+    if (page_type == PAGETYPE_UNUSED)
     {
         return NULL;
     }
@@ -338,7 +344,8 @@ void* alloc_phys_page_pfn(enum phys_page_type type)
         uint32_t end_page_index = page_index + page_desc_free_ll->u.free_page.count - 1;
 
         phys_page_descriptor_t* res_page_desc = &phys_page_descs[end_page_index];
-        res_page_desc->type = type;
+        res_page_desc->type = page_type;
+        res_page_desc->flags = page_flags;
         res_page_desc->ref_count = 1;
 
         page_desc_free_ll->u.free_page.count--;
@@ -358,7 +365,8 @@ void* alloc_phys_page_pfn(enum phys_page_type type)
     }
 
     phys_page_descriptor_t* res_page_desc =&phys_page_descs[page_index];
-    res_page_desc->type = type;
+    res_page_desc->type = page_type;
+    res_page_desc->flags = page_flags;
     res_page_desc->ref_count = 1;
 
     return (void*)(page_index * PAGE_SIZE);
@@ -374,22 +382,22 @@ void free_phys_page_pfn(void* addr_ptr)
     uint32_t page_index = addr>>12;
     phys_page_descriptor_t* cur_desc = &phys_page_descs[page_index];
     
-    assert(cur_desc->type != PAGE_FREE);
+    assert(cur_desc->type != PAGETYPE_UNUSED);
     assert(cur_desc->ref_count > 0);
 
     if (--cur_desc->ref_count > 0) 
         return; 
 
-    cur_desc->type = PAGE_FREE;
+    cur_desc->type = PAGETYPE_UNUSED;
 
     phys_page_descriptor_t* old_foot = (page_index > 0) ? 
             &phys_page_descs[page_index-1] : NULL;
-    if (old_foot && old_foot->type != PAGE_FREE)
+    if (old_foot && old_foot->type != PAGETYPE_UNUSED)
         old_foot = NULL;
 
     phys_page_descriptor_t* old_head = (page_index + 1 < pages_count) ? 
             &phys_page_descs[page_index+1] : NULL;
-    if (old_head && old_head->type != PAGE_FREE)
+    if (old_head && old_head->type != PAGETYPE_UNUSED)
         old_head = NULL;
 
     // back desc is foot
@@ -493,9 +501,6 @@ uint32_t setup_page_descriptors(uint32_t alloc_addr, multiboot_info_t* mbd)
         pages_count * sizeof(phys_page_descriptor_t), 
         0
     );
-
-    volatile uint32_t table_entry = get_table_entry(phys_page_descs);
-    volatile uint32_t page_entry = get_page_entry(phys_page_descs);
 
     memset(phys_page_descs, 0, pages_count * sizeof(phys_page_descriptor_t));
 

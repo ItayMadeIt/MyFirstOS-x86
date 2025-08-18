@@ -42,7 +42,7 @@ static bool can_map_pages(void* va_ptr, uint32_t count)
     return true;
 }
 
-static bool commit_map_pages(void* va_ptr, uint32_t count, uint32_t flags, enum phys_page_type type)
+static bool commit_map_pages(void* va_ptr, uint32_t count, uint32_t flags, enum phys_page_type page_type, uint32_t page_flags)
 {
     uint32_t va = (uint32_t)va_ptr;
     while (count) 
@@ -56,7 +56,7 @@ static bool commit_map_pages(void* va_ptr, uint32_t count, uint32_t flags, enum 
         if ((table_entry & PAGE_ENTRY_FLAG_PRESENT) == false)
         {
             // Allocate a new table
-            void* new_table_phys = alloc_phys_page(PAGE_TABLE);
+            void* new_table_phys = alloc_phys_page(PAGETYPE_TABLE, PAGEFLAG_KERNEL);
             if (new_table_phys == NULL) 
                 return false;
 
@@ -67,7 +67,7 @@ static bool commit_map_pages(void* va_ptr, uint32_t count, uint32_t flags, enum 
 
         while (pages_in_table && count)
         {
-            map_page_entry(alloc_phys_page(type), (void*)va, flags);
+            map_page_entry(alloc_phys_page(page_type, page_flags), (void*)va, flags);
 
             // Advance
             va += PAGE_SIZE;
@@ -81,7 +81,7 @@ static bool commit_map_pages(void* va_ptr, uint32_t count, uint32_t flags, enum 
     return true;
 }
 
-bool map_pages(void* va_ptr, uint32_t count, uint32_t flags, enum phys_page_type type)
+bool map_pages(void* va_ptr, uint32_t count, uint32_t flags, enum phys_page_type page_type, uint32_t page_flags)
 {
     assert(((uintptr_t)va_ptr % PAGE_SIZE) == 0);
     assert(count > 0);
@@ -92,5 +92,5 @@ bool map_pages(void* va_ptr, uint32_t count, uint32_t flags, enum phys_page_type
         return false;
     }
 
-    return commit_map_pages(va_ptr, count, flags, type);
+    return commit_map_pages(va_ptr, count, flags, page_type, page_flags);
 }

@@ -18,6 +18,7 @@
 // #define SLAB_ORDER_MAX 11 /*2^11*/
 // #define SLAB_BLOCK_CAPACITY_MIN (8 * sizeof(slab_alloc_block_t))
 
+/*
 typedef struct slab_node
 {
     uint32_t addr;
@@ -69,7 +70,7 @@ typedef struct heap_metadata
 {
     uint32_t size;
 } heap_metadata_t;
-
+*/
 // phys_page_t* pages;
 
 // buddy_alloc_blocks_t buddy_blocks[BUDDY_ORDER_COUNT];

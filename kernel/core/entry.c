@@ -17,11 +17,17 @@ void halt()
         "hlt\n\t"   // halt the CPU
     );
 }
+void abort()
+{
+    // for now
+    halt();
+}
 
 void assert(bool must_be_true)
 {
     if (! must_be_true) 
     {   
+        debug_print_str("ABORTED\n");
         halt();
     }
 }

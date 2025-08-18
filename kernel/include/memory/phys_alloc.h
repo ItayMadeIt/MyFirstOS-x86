@@ -23,7 +23,7 @@ extern uint8_t linker_kernel_end;
 extern uint32_t kernel_begin_pa;
 extern uint32_t kernel_end_pa;
 
-void* alloc_phys_page_bitmap(uint32_t page_type);
+void* alloc_phys_page_bitmap(uint32_t page_type, uint32_t page_flags);
 void free_phys_page_bitmap(uint32_t page_addr);
 
 void setup_phys_allocator(multiboot_info_t* mbd);

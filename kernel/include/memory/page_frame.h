@@ -4,37 +4,42 @@
 #include <stdint.h>
 #include <memory/phys_alloc.h>
 
+#include <memory/heap_structs.h>
+
 enum phys_page_type {
-    PAGE_NONE = 0,
-    PAGE_1MiB,
-    PAGE_DIRECTORY,
-    PAGE_TABLE,
-    PAGE_RESERVED,
-    PAGE_FREE,
-    PAGE_KERNEL,
-    PAGE_HEAP,
-    PAGE_PHYS_PAGES,
+    PAGETYPE_NONE = 0,
+    PAGETYPE_1MiB,
+    PAGETYPE_DIRECTORY,
+    PAGETYPE_TABLE,
+    PAGETYPE_RESERVED,
+    PAGETYPE_UNUSED, // not physically allocated
+    PAGETYPE_KERNEL,
+    PAGETYPE_HEAP,
+    PAGETYPE_PHYS_PAGES,
 };
+
+
+enum phys_page_flag {
+    PAGEFLAG_VFREE  = 1 << 0, // Virtually free (Anything uses this memory, that's not heap)
+    PAGEFLAG_BUDDY  = 1 << 1, // Buddy(1) OR Slab(0)
+    PAGEFLAG_HEAD   = 1 << 2, // Is the head in contiguous virtual allocation
+    PAGEFLAG_DRIVER = 1 << 3, // Driver related page
+    PAGEFLAG_KERNEL = 1 << 4, // KERNEL or USER
+};
+
+#define PAGEFLAG_HEAP_MASK (PAGEFLAG_VFREE | PAGEFLAG_BUDDY | PAGEFLAG_HEAD)
 
 typedef struct phys_page_descriptor {
      
     uint32_t ref_count;
-    uint32_t flags;
+    uint16_t flags;
+    uint16_t type; 
+    uint32_t num_pages; // if PAGEFLAG_HEAD, means the amount of pages that are contiguous virtual allocation
 
     union {
-        // Buddy allocator info
-        struct {
-            void* prev;
-            void* next;
-        } buddy;
-
-        // Slab allocator info
-        struct {
-            void* free_head;
-            uint16_t in_use;
-            uint16_t objects;
-            void* slab_cache;
-        } slab;
+        // Heap objects
+        heap_slab_page_metadata_t  slab;
+        heap_buddy_page_metadata_t buddy;
 
         // Free page info
         struct {
@@ -46,11 +51,10 @@ typedef struct phys_page_descriptor {
         } free_page;
     } u;
     
-    uint16_t type; 
 } phys_page_descriptor_t;
 
 extern phys_page_descriptor_t* phys_page_descs;
-void* alloc_phys_page_pfn(enum phys_page_type type);
+void* alloc_phys_page_pfn(enum phys_page_type page_type, uint32_t page_flags);
 
 uint32_t setup_page_descriptors(uint32_t alloc_addr, multiboot_info_t* mbd);
 phys_page_descriptor_t* virt_to_pfn(void* addr);

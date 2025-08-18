@@ -159,9 +159,9 @@ static void reserve_kernel_memory(const phys_memory_list_t* mem_list)
     }
 }
 
-void* alloc_phys_page_bitmap(uint32_t page_type)
+void* alloc_phys_page_bitmap(uint32_t page_type, uint32_t page_flags)
 {
-    (void)page_type;
+    (void)page_type; (void)page_flags;
 
     uint32_t page_group_index = last_free_group_index;
     

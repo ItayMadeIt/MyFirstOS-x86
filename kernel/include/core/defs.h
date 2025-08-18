@@ -35,7 +35,7 @@
 #define STOR_2GiB   0x80000000
 
 void halt();
-
+void abort();
 void assert(bool must_be_true);
 
 static inline uint32_t log2_u32(uint32_t x) 
