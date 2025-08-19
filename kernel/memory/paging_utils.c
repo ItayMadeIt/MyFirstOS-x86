@@ -122,3 +122,22 @@ uint32_t get_page_entry(void* virt_addr_ptr)
     page_table_t* page_table = (page_table_t*)(0xFFC00000 + (page_dir_index * 0x1000));
     return page_table->entries[page_table_index];
 }
+
+uint32_t pfn_flags_to_hw_flags(uint32_t flags)
+{
+    uint32_t result = PAGE_ENTRY_FLAG_PRESENT;
+    if ((flags & PAGEFLAG_KERNEL) == false)
+    {
+        result |= PAGE_ENTRY_FLAG_USER;
+    }
+    if ((flags & PAGEFLAG_READONLY) == false)
+    {
+        result |= PAGE_ENTRY_FLAG_WRITE;
+    }
+    if ((flags & PAGEFLAG_NOEXEC) == false)
+    {
+        // No NX bit in 32 bit flags...
+    }
+    
+    return result;
+}

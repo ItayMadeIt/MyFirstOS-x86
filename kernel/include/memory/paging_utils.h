@@ -21,4 +21,6 @@ bool map_table_entry(void* phys_addr, void* virt_addr, uint32_t flags);
 
 bool map_page_entry(void* phys_addr, void* virt_addr, uint32_t flags);
 
+uint32_t pfn_flags_to_hw_flags(uint32_t flags);
+
 #endif // __RAW_VIRT_ALLOC_H__

@@ -107,9 +107,11 @@ static void* bump_alloc_align(const uint32_t size, uint32_t alignment)
         uint32_t new_max = round_page_up(needed_end); 
         uint32_t delta   = (new_max - bump.max_addr);
 
-        assert( 
-            map_pages((void*)bump.max_addr, delta/PAGE_SIZE, PAGE_ENTRY_WRITE_KERNEL_FLAGS, PAGETYPE_PHYS_PAGES, PAGEFLAG_KERNEL)
-        );
+        assert(map_pages(
+            (void*)bump.max_addr, delta/PAGE_SIZE, 
+            PAGETYPE_PHYS_PAGES, 
+            PAGEFLAG_KERNEL
+        ));
 
         bump.max_addr = new_max;
     }
@@ -123,7 +125,9 @@ static void init_bump(uint32_t begin_addr)
 {
     uint32_t pages_count = round_page_up(INIT_SIZE)/PAGE_SIZE;
     map_pages(
-        (void*)begin_addr, pages_count, PAGE_ENTRY_WRITE_KERNEL_FLAGS, PAGETYPE_PHYS_PAGES, PAGEFLAG_KERNEL
+        (void*)begin_addr, pages_count, 
+        PAGETYPE_PHYS_PAGES, 
+        PAGEFLAG_KERNEL
     );
 
     bump.alloc_addr = begin_addr;

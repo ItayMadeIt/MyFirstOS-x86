@@ -1,4 +1,5 @@
 #include <core/defs.h>
+#include "core/debug.h"
 #include "memory/heap_structs.h"
 #include "memory/page_frame.h"
 #include <memory/heap.h>
@@ -159,7 +160,6 @@ static void add_heap_region(uint32_t new_size)
     
     assert(map_pages(
         heap.max_addr, add_size/PAGE_SIZE, 
-        PAGE_ENTRY_WRITE_KERNEL_FLAGS, 
         PAGETYPE_HEAP, 
         PAGEFLAG_VFREE | PAGEFLAG_BUDDY | PAGEFLAG_KERNEL
     ));
@@ -188,7 +188,7 @@ void init_heap(uint32_t size, uint32_t start_va)
 }
 
 
-void* alloc_buddy_size(uint32_t size)
+void* alloc_buddy(uint32_t size)
 {
     assert(size && size % PAGE_SIZE == 0);
     assert((size & (size-1)) == 0);
@@ -208,8 +208,13 @@ void* alloc_buddy_size(uint32_t size)
     {
         if (order > BUDDY_ORDER_MAX)
         {
-            add_heap_region(size);
-            return alloc_buddy_size(size);
+            // Currently I want to make sure no more allocations than the init size are used 
+            // (if so I just want to see and fix overusaged)
+            debug_print_str("Heap allocated more (INIT_SIZE wasn't sufficient) [buddy allocator]\n");
+            abort();
+
+            add_heap_region(size * 2);
+            return alloc_buddy(size);
         } 
 
         return NULL;
@@ -329,22 +334,22 @@ void setup_heap(void* heap_addr, uint32_t init_size)
 
     assert(map_pages(
         heap_addr, 
-        init_size/PAGE_SIZE, 
-        PAGE_ENTRY_WRITE_KERNEL_FLAGS,
-        PAGETYPE_HEAP, PAGEFLAG_VFREE|PAGEFLAG_BUDDY|PAGEFLAG_KERNEL)
-    );
+        init_size/PAGE_SIZE,
+        PAGETYPE_HEAP, 
+        PAGEFLAG_VFREE|PAGEFLAG_BUDDY|PAGEFLAG_KERNEL
+    ));
     heap.max_addr = heap_addr + init_size;
 
     add_buddies((uint32_t)heap_addr, init_size, true);
 
-    void* p1 = alloc_buddy_size(PAGE_SIZE * 2);
-    void* p4 = alloc_buddy_size(PAGE_SIZE * 2);
-    void* p3 = alloc_buddy_size(PAGE_SIZE * 4);
-    void* p2 = alloc_buddy_size(PAGE_SIZE);
+    void* p1 = alloc_buddy(PAGE_SIZE * 2);
+    void* p4 = alloc_buddy(PAGE_SIZE * 2);
     free_buddy(p4); 
+    void* p3 = alloc_buddy(PAGE_SIZE * 4);
+    void* p2 = alloc_buddy(PAGE_SIZE);
     free_buddy(p1); 
-    free_buddy(p3); 
     free_buddy(p2); 
+    free_buddy(p3); 
 
     /*
     Still does nothing.

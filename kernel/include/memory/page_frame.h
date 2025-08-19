@@ -20,11 +20,13 @@ enum phys_page_type {
 
 
 enum phys_page_flag {
-    PAGEFLAG_VFREE  = 1 << 0, // Virtually free (Anything uses this memory, that's not heap)
-    PAGEFLAG_BUDDY  = 1 << 1, // Buddy(1) OR Slab(0)
-    PAGEFLAG_HEAD   = 1 << 2, // Is the head in contiguous virtual allocation
-    PAGEFLAG_DRIVER = 1 << 3, // Driver related page
-    PAGEFLAG_KERNEL = 1 << 4, // KERNEL or USER
+    PAGEFLAG_VFREE    = 1 << 0, // Virtually free (Anything uses this memory, that's not heap)
+    PAGEFLAG_BUDDY    = 1 << 1, // Buddy(1) OR Slab(0)
+    PAGEFLAG_HEAD     = 1 << 2, // Is the head in contiguous virtual allocation
+    PAGEFLAG_DRIVER   = 1 << 3, // Driver related page
+    PAGEFLAG_KERNEL   = 1 << 4, // KERNEL or USER
+    PAGEFLAG_READONLY = 1 << 5, // Readonly 
+    PAGEFLAG_NOEXEC   = 1 << 6, // No Execute  
 };
 
 #define PAGEFLAG_HEAP_MASK (PAGEFLAG_VFREE | PAGEFLAG_BUDDY | PAGEFLAG_HEAD)
@@ -58,4 +60,5 @@ void* alloc_phys_page_pfn(enum phys_page_type page_type, uint32_t page_flags);
 
 uint32_t setup_page_descriptors(uint32_t alloc_addr, multiboot_info_t* mbd);
 phys_page_descriptor_t* virt_to_pfn(void* addr);
+
 #endif // __PAGE_FRAME_H__

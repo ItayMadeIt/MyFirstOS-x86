@@ -20,7 +20,7 @@ void setup_memory(multiboot_info_t* mbd)
     // after setting up a proper alloc_phys_page we can now use `map_pages` for the heap
     
     uint32_t heap_start = round_page_up(page_desc_end_mem);
-    setup_heap((void*)heap_start, STOR_4KiB);
+    setup_heap((void*)heap_start, STOR_2MiB);
 
     //setup_vma();
 }

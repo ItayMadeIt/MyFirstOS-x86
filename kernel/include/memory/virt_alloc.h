@@ -2,4 +2,4 @@
 #include <core/paging.h>
 #include <memory/page_frame.h>
 
-bool map_pages(void* va, uint32_t count, uint32_t flags, enum phys_page_type page_type, uint32_t page_flags);
+bool map_pages(void* va_ptr, uint32_t count, enum phys_page_type page_type, uint32_t page_flags);
