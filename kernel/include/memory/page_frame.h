@@ -20,7 +20,7 @@ enum phys_page_type {
 
 
 enum phys_page_flag {
-    PAGEFLAG_VFREE    = 1 << 0, // Virtually free (Anything uses this memory, that's not heap)
+    PAGEFLAG_VFREE    = 1 << 0, // Virtually free (Anything uses this memory, that's not heap's buddy)
     PAGEFLAG_BUDDY    = 1 << 1, // Buddy(1) OR Slab(0)
     PAGEFLAG_HEAD     = 1 << 2, // Is the head in contiguous virtual allocation
     PAGEFLAG_DRIVER   = 1 << 3, // Driver related page
@@ -36,11 +36,11 @@ typedef struct phys_page_descriptor {
     uint32_t ref_count;
     uint16_t flags;
     uint16_t type; 
-    uint32_t num_pages; // if PAGEFLAG_HEAD, means the amount of pages that are contiguous virtual allocation
 
     union {
         // Heap objects
         heap_slab_page_metadata_t  slab;
+        struct phys_page_descriptor* slab_head;
         heap_buddy_page_metadata_t buddy;
 
         // Free page info

@@ -1,7 +1,5 @@
 {
     "files.associations": {
-        "*.qh": "c",
-        "*.qc": "c",
         "paging.h": "c",
         "phys_alloc.h": "c",
         "defs.h": "c",
