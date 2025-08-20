@@ -13,12 +13,12 @@
 #define BUDDY_ORDER_MAX (BUDDY_EXPON_MAX - BUDDY_EXPON_MIN)/*31-12=19*/
 #define BUDDY_ORDER_COUNT (BUDDY_EXPON_MAX - BUDDY_EXPON_MIN + 1) 
 
-#define SLAB_ORDER_MAX 15 /*2^15*/ 
-#define SLAB_ORDER_MIN 4  /*2^4*/
-#define SLAB_INDEX_ORDER_MAX (SLAB_ORDER_MAX - SLAB_ORDER_MIN)/*15-4=11*/
-#define SLAB_ORDER_COUNT (SLAB_ORDER_MAX - SLAB_ORDER_MIN + 1) 
+#define SLAB_EXPON_MAX 16 // 2^16
+#define SLAB_EXPON_MIN 4  // 2^4
+#define SLAB_INDEX_ORDER_MAX (SLAB_EXPON_MAX - SLAB_EXPON_MIN) // 16-4=12
+#define SLAB_ORDER_COUNT (SLAB_EXPON_MAX - SLAB_EXPON_MIN + 1) // 12+1=13
 
-#define MIN_SLAB_OBJ_AMOUNT 33 // 32 + 1 so it must be more than 32
+#define MIN_SLAB_OBJ_AMOUNT 32 // At least 32 objects per slab 
 #define MAX_SLAB_PAGE_AMOUNT 64 // Max of 64 pages (64 * 4KiB = 256KiB)
 
 typedef struct heap_vars
@@ -36,13 +36,10 @@ typedef struct heap_vars
 heap_vars_t heap;
 
 
-void* (*kalloc)(uint32_t size);
-void* (*krealloc)(uint32_t new_size);
-
+void* (*kalloc      )(uint32_t size);
 void* (*kalloc_pages)(uint32_t pages);
-void* (*krealloc_pages)(uint32_t pages);
-
-void  (*kfree)(void* ptr);
+void* (*krealloc    )(void* addr, uint32_t new_size);
+void  (*kfree       )(void* addr);
 
 
 static phys_page_descriptor_t* resolve_merge(phys_page_descriptor_t* cur_desc, uint32_t order)
@@ -193,7 +190,7 @@ static void add_heap_region(uint32_t add_size)
 
 static uint32_t pages_for_order(uint32_t order)
 {
-    uint32_t expon = order + SLAB_ORDER_MIN;
+    uint32_t expon = order + SLAB_EXPON_MIN;
     uint32_t obj_size = 1 << expon;
 
     uint32_t min_total_bytes = obj_size * MIN_SLAB_OBJ_AMOUNT;
@@ -391,7 +388,7 @@ void* alloc_slab(uint32_t size)
     assert((size & (size-1)) == 0);
     
     uint32_t expon = log2_u32(size);
-    uint32_t order = expon - SLAB_ORDER_MIN;
+    uint32_t order = expon - SLAB_EXPON_MIN;
 
     if (heap.free_slabs[order].free_slab)
     {
@@ -432,15 +429,13 @@ void* alloc_slab(uint32_t size)
     slab_metadata->obj_count = obj_count;
     slab_metadata->num_pages = cur_desc->u.buddy.num_pages;
 
+    uint32_t base = (uint32_t)buddy_addr;
     uint32_t bytes = slab_metadata->num_pages * PAGE_SIZE;
-    uint32_t slab_tail_va = (uint32_t)PAGE_SIZE;
-    while (slab_tail_va < bytes)
+    for (uint32_t off = PAGE_SIZE; off < bytes; off += PAGE_SIZE) 
     {
-        phys_page_descriptor_t* tail_desc = virt_to_pfn((void*)(slab_tail_va + buddy_addr));
-        tail_desc->flags &= ~(PAGEFLAG_BUDDY | PAGEFLAG_HEAD);
-        tail_desc->u.slab_head = cur_desc;
-
-        slab_tail_va+=PAGE_SIZE;
+        phys_page_descriptor_t* tail = virt_to_pfn((void*)(base + off));
+        tail->flags &= ~(PAGEFLAG_BUDDY | PAGEFLAG_HEAD);
+        tail->u.slab_head = cur_desc;
     }
 
     // Set up memory linked list free 
@@ -541,18 +536,118 @@ void free_slab(void* addr)
     free_buddy((void*)slab_start_addr);
 }
 
+// Allocate abstraction for slab
+static void* alloc(uint32_t size)
+{
+    size = align_pow2(size);
+    if (size < (1 << SLAB_EXPON_MIN))
+    {
+        size = 1 << SLAB_EXPON_MIN;
+    }
+
+    assert(log2_u32(size) <= SLAB_EXPON_MAX);
+
+    return alloc_slab(size);
+}
+
+static void* alloc_pages(uint32_t pages)
+{
+    uint32_t size = pages * PAGE_SIZE;
+
+    size = align_pow2(size);
+
+    assert(log2_u32(size) <= BUDDY_EXPON_MAX);
+
+    return alloc_buddy(size);
+}
+
+static uint32_t get_slab_size(void* obj_addr)
+{
+    phys_page_descriptor_t* desc = virt_to_pfn(obj_addr);
+    if ((desc->flags & PAGEFLAG_HEAD) == 0)
+        desc = desc->u.slab_head;
+    
+    uint32_t expon = desc->u.slab.order_cache->slab_order + SLAB_EXPON_MIN;
+
+    return 1 << expon;
+}
+
+static uint32_t get_buddy_size(void* buddy_addr)
+{
+    phys_page_descriptor_t* desc = virt_to_pfn(buddy_addr);
+
+    assert(desc->flags & PAGEFLAG_HEAD);
+    
+    uint32_t expon = desc->u.buddy.order.buddy_order + BUDDY_EXPON_MIN;
+    
+    return 1 << expon;
+}
+
+static void* realloc(void* addr, uint32_t new_size)
+{
+    phys_page_descriptor_t* desc = virt_to_pfn(addr);
+    if (desc->flags & PAGEFLAG_BUDDY)
+    {
+        uint32_t cur_size = get_buddy_size(addr);
+        if (cur_size >= new_size)
+            return addr;
+
+        // Need to reallocate
+        new_size = align_pow2(new_size);
+
+        void* new_addr = alloc_buddy(new_size);
+
+        if (new_addr == NULL)
+            return NULL;
+
+        memcpy(new_addr, addr, cur_size);
+
+        free_buddy(addr);
+
+        return new_addr;
+    }
+    else
+    {
+        uint32_t cur_size = get_slab_size(addr);
+        if (cur_size >= new_size)
+            return addr;
+
+        // Need to reallocate
+        new_size = align_pow2(new_size);
+
+        void* new_addr = alloc_slab(new_size);
+
+        if (new_addr == NULL)
+            return NULL;
+
+        memcpy(new_addr, addr, cur_size);
+
+        free_slab(addr);// ERROR
+
+        return new_addr;
+    }
+}
+
+static void free(void* addr)
+{
+    phys_page_descriptor_t* desc = virt_to_pfn(addr);
+
+    assert(desc->type == PAGETYPE_HEAP);
+
+    if (desc->flags & PAGEFLAG_BUDDY)
+        free_buddy(addr);
+    else
+        free_slab(addr);
+}
+
 void setup_heap(void* heap_addr, uint32_t init_size)
 {
-    assert(sizeof(heap_slab_node_t) <= (1 << SLAB_ORDER_MIN));
+    assert(sizeof(heap_slab_node_t) <= (1 << SLAB_EXPON_MIN));
 
     assert((uint32_t)heap_addr % PAGE_SIZE == 0);
     assert(init_size != 0);
     assert(init_size % PAGE_SIZE == 0);
     assert(init_size < (1u << BUDDY_EXPON_MAX));
-
-    kalloc  = (void* (*)(uint32_t))abort;
-    krealloc = (void* (*)(uint32_t))abort;
-    kfree    = (void  (*)(void*   ))abort;
 
     init_heap(init_size, (uint32_t)heap_addr);
 
@@ -566,8 +661,8 @@ void setup_heap(void* heap_addr, uint32_t init_size)
 
     add_buddies((uint32_t)heap_addr, init_size, true);
     
-    void* ptr_buddy = alloc_buddy(PAGE_SIZE * 4);
-    void* ptr_slab = alloc_slab(64);
-    free_slab(ptr_slab);
-    free_buddy(ptr_buddy);
+    kalloc = alloc;
+    kalloc_pages = alloc_pages;
+    krealloc = realloc;
+    kfree = free;
 }

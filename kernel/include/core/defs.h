@@ -50,6 +50,12 @@ static inline uint32_t log2_u32(uint32_t x)
     return result;
 }
 
+static inline uint32_t align_to_n(uint32_t value, uint32_t alignment/*2^n*/)
+{
+    assert((alignment & (alignment-1)) == 0);
+
+    return (value + alignment - 1) & ~(alignment - 1);
+}
 static inline uint32_t align_pow2(uint32_t value)
 {
     if (value == 0) return 1;
