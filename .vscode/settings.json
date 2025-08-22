@@ -21,6 +21,13 @@
         "paging_utils.h": "c",
         "heap_structs.h": "c",
         "io.h": "c",
-        "debug.h": "c"
+        "debug.h": "c",
+        "stdio.h": "c",
+        "rsdt.h": "c",
+        "acpi.h": "c",
+        "fadt.h": "c",
+        "cdefs.h": "c",
+        "rsdp.h": "c",
+        "rdtsc.h": "c"
     }
 }

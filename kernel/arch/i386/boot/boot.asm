@@ -33,7 +33,7 @@ _start:
     ; Preserve the multiboot info pointer in `ebx`
     push ebx
     push eax
-
+    
     call entry_main
     add esp, 8
 

@@ -4,11 +4,14 @@
 #include <stdbool.h>
 #include <drivers/io.h>
 #include <drivers/isr.h>
+#include <drivers/rdtsc.h>
+#include <boot/acpi.h>
 #include <core/idt.h>
 #include <core/gdt.h>
 #include <multiboot/multiboot.h>
 
 #include <core/debug.h>
+#include <boot/rsdt.h>
 
 void halt() 
 {
@@ -47,6 +50,10 @@ static inline void sti()
 {
     asm volatile("sti");
 }
+static inline void cli()
+{
+    asm volatile("cli");
+}
 
 
 void setup_gdt();
@@ -57,6 +64,7 @@ void setup_isr();
 void setup_pic();
 void setup_pit();
 void setup_ps2();
+void setup_rdtsc();
 
 void entry_main(uint32_t magic, multiboot_info_t* mbd)
 {
@@ -69,6 +77,11 @@ void entry_main(uint32_t magic, multiboot_info_t* mbd)
     // Critical setup 
     setup_gdt();
     setup_idt();
+
+    setup_acpi();
+
+    // No support for MMIO yet
+    assert((acpi_timer.flags & ACPI_TIMER_MMIO) == 0); 
     
     setup_paging();
 
