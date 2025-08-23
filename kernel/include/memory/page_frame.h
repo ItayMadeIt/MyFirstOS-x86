@@ -13,6 +13,8 @@ enum phys_page_type {
     PAGETYPE_TABLE,
     PAGETYPE_RESERVED,
     PAGETYPE_UNUSED, // not physically allocated
+    PAGETYPE_ACPI, 
+    PAGETYPE_MMIO,
     PAGETYPE_KERNEL,
     PAGETYPE_HEAP,
     PAGETYPE_PHYS_PAGES,
@@ -59,6 +61,7 @@ extern phys_page_descriptor_t* phys_page_descs;
 void* alloc_phys_page_pfn(enum phys_page_type page_type, uint32_t page_flags);
 
 uint32_t setup_page_descriptors(uint32_t alloc_addr, multiboot_info_t* mbd);
+phys_page_descriptor_t* phys_to_pfn(void* addr);
 phys_page_descriptor_t* virt_to_pfn(void* addr);
 
 #endif // __PAGE_FRAME_H__

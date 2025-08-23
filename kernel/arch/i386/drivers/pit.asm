@@ -15,6 +15,7 @@ IRQ0_frequency:          dd 0
 PIT_reload_value:        dw 0
 
 section .text
+extern debug_print
 global IRQ0_handler
 IRQ0_handler:
     push eax
@@ -29,6 +30,10 @@ IRQ0_handler:
     ; Send the EOI to the PIC (master)
     mov al, 0x20
     out 0x20, al
+
+    push dword 1
+    call debug_print
+    add esp, 4
 
     pop ebx
     pop eax

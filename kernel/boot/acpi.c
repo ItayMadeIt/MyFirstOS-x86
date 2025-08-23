@@ -1,10 +1,25 @@
-#include "boot/fadt.h"
-#include "drivers/io.h"
+#include "memory/page_frame.h"
+#include <boot/fadt.h>
+#include <drivers/io.h>
+#include <memory/virt_alloc.h>
 #include <boot/acpi.h>
 #include <boot/rsdp.h>
 #include <boot/rsdt.h>
 
 acpi_timer_t acpi_timer;
+
+uint32_t gas_unit_size(uint8_t access_size, uint8_t bit_width) 
+{
+    if (access_size >= 1 && access_size <= 4) 
+    {
+        static const uint32_t sz[5] = {0,1,2,4,8};
+        return sz[access_size];
+    }
+
+    return (bit_width <= 8) ? 1 : 
+            (bit_width <= 16) ? 2 : 
+            (bit_width <= 32) ? 4 : 8;
+}
 
 bool valid_checksum(acpi_sdt_header_t* table_header)
 {
@@ -22,14 +37,27 @@ uint32_t get_acpi_time()
 {
     if (acpi_timer.flags & ACPI_TIMER_MMIO)
     {
-        // No support yet
-        return 0;
+        switch (acpi_timer.mmio.unit)
+        {
+        case 1:
+            return *(uint8_t*)acpi_timer.mmio.addr;
+        case 2:
+            return *(uint16_t*)acpi_timer.mmio.addr;
+        case 4:
+            return *(uint32_t*)acpi_timer.mmio.addr;
+        case 8:
+            return *(uint64_t*)acpi_timer.mmio.addr;
+        
+        default:
+            break;
+        } 
+        
     }
     else if (acpi_timer.flags & ACPI_TIMER_IO)
     {
         return inl(acpi_timer.io_port);
     }
-    
+
     return 0;
 }
 
@@ -55,11 +83,27 @@ void setup_acpi()
 
     acpi_timer.flags = ACPI_TIMER_ACTIVE;
 
-    if (rdsp->revision >= 2 && fadt->X_PM_timer_block.address != (uint32_t)NULL)
+    if (rdsp->revision >= 2 && fadt->X_PM_timer_block.address != (uint32_t)NULL &&
+        fadt->X_PM_timer_block.address_space == 0)
     {
         acpi_timer.flags |= ACPI_TIMER_MMIO;
 
-        acpi_timer.mem_region = fadt->X_PM_timer_block;
+        generic_address_struct_t* gas = &fadt->X_PM_timer_block;
+        uint32_t unit = gas_unit_size(
+            gas->access_size, 
+            gas->bit_width ? gas->bit_width : 32
+        );
+        uint32_t pa = fadt->X_PM_timer_block.address & ~(unit - 1);
+        const uint32_t off = (uint32_t)(gas->address & (unit - 1));
+        void* va = identity_map_pages(
+            (void*)pa, 
+            1, 
+            PAGETYPE_MMIO, 
+            PAGEFLAG_KERNEL | PAGEFLAG_DRIVER  | PAGEFLAG_READONLY
+        );
+
+        acpi_timer.mmio.unit = unit;
+        acpi_timer.mmio.addr = (void*)((uint32_t)va + off);
     }
     else
     {

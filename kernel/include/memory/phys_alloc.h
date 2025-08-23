@@ -15,7 +15,7 @@ typedef struct phys_memory_list
     uint16_t amount;
 } phys_memory_list_t;
 
-extern uint32_t max_memory;
+extern uint64_t max_memory;
 
 extern uint8_t linker_kernel_begin;
 extern uint8_t linker_kernel_end;

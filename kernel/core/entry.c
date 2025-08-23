@@ -4,7 +4,6 @@
 #include <stdbool.h>
 #include <drivers/io.h>
 #include <drivers/isr.h>
-#include <drivers/rdtsc.h>
 #include <boot/acpi.h>
 #include <core/idt.h>
 #include <core/gdt.h>
@@ -78,11 +77,6 @@ void entry_main(uint32_t magic, multiboot_info_t* mbd)
     setup_gdt();
     setup_idt();
 
-    setup_acpi();
-
-    // No support for MMIO yet
-    assert((acpi_timer.flags & ACPI_TIMER_MMIO) == 0); 
-    
     setup_paging();
 
     // Setup interrupt handlers
@@ -90,12 +84,13 @@ void entry_main(uint32_t magic, multiboot_info_t* mbd)
 
     setup_memory(mbd);
 
-    // inputs using pic1, pic2
+    // inputs using pic1, pic2 (slave)
     setup_pic();
 
     // basic drivers
     setup_pit();
     setup_ps2();
+    setup_acpi();
 
     sti();
 

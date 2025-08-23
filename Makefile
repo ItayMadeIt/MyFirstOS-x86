@@ -92,14 +92,14 @@ iso: install
 	grub-mkrescue -o "$(ISO)" "$(ISODIR)"
 
 run: iso
-	qemu-system-$(ARCH) -m 256M -cdrom "$(ISO)" -cpu qemu32,+invtsc
+	qemu-system-$(ARCH) -m 256M -cdrom "$(ISO)"
 
 debug: 
 	$(MAKE) DEBUG=1 iso
 
 debug-run: 
 	$(MAKE) DEBUG=1 iso
-	qemu-system-$(ARCH) -cdrom "$(ISO)" -s -S -cpu qemu32,+invtsc
+	qemu-system-$(ARCH) -cdrom "$(ISO)" -s -S
 
 debug-gdb: 
 	$(MAKE) DEBUG=1 iso

@@ -63,7 +63,12 @@ void setup_ps2()
 {
     init_keycodes();
 
-    set_idt_entry(0x21, IRQ1_handler, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+    set_idt_entry(
+        0x21, 
+        IRQ1_handler, 
+        SEGMENT_SELECTOR_CODE_DPL0, 
+        IDT_INTERRUPT_32_DPL0
+    );
 }
 
 void key_callback()

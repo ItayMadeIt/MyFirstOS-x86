@@ -31,8 +31,8 @@ typedef struct page_directory
 }  __attribute__((aligned(ENTRIES_AMOUNT * sizeof(uint32_t)))) page_directory_t;
 
 
-#define round_page_up(x)   (((uint32_t)x + 0xFFFu) & ~0xFFFu)
-#define round_page_down(x) ((uint32_t)x & ~0xFFFu)
+#define round_page_up(x)   (((uint64_t)x + 0xFFFull) & ~0xFFFull)
+#define round_page_down(x) ((uint64_t)x & ~0xFFFull)
 
 extern page_directory_t page_directory; 
 

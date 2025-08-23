@@ -26,6 +26,7 @@ typedef struct generic_address_struct
     uint64_t address;
 }  __attribute__((packed))  generic_address_struct_t;
 
+uint32_t gas_unit_size(uint8_t access_size, uint8_t bit_width) ;
 
 enum acpi_timer_flags {
     ACPI_TIMER_ACTIVE = 1 << 0, // On = Active, Off = Cannot be used
@@ -37,8 +38,11 @@ enum acpi_timer_flags {
 typedef struct acpi_timer {
     uint8_t flags; // acpi_timer_flags
     union {
-        generic_address_struct_t mem_region;
-        uint32_t io_port;
+        struct {
+            uint8_t unit; 
+            volatile void* addr;
+        } mmio;  
+        uint16_t io_port;
     };
 } acpi_timer_t;
 

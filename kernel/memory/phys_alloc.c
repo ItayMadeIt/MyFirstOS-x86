@@ -12,14 +12,14 @@
 static uint8_t pages_allocated[PAGES_ARR_SIZE];
 static uint32_t last_free_group_index = 0;
 
-uint32_t max_memory;
+uint64_t max_memory;
 
 uint32_t kernel_begin_pa;
 uint32_t kernel_end_pa;
 
 static void reset_pages_allocated()
 {
-    uint32_t pages_amount = max_memory>>12;
+    uint32_t pages_amount = max_memory / PAGE_SIZE;
     for (uint32_t i = 0; i < pages_amount; i++)
     {
         pages_allocated[i] = 0;
@@ -45,8 +45,10 @@ static phys_memory_list_t get_available_memory_list(const multiboot_info_t* mbd)
     multiboot_memory_map_t* mmap = (multiboot_memory_map_t*) mbd->mmap_addr;
     uint32_t mmap_end = mbd->mmap_addr + mbd->mmap_length;
 
+    debug_print_str("mmap begin phys alloc: \n");
     while ((uint32_t) mmap < mmap_end)
     {
+        debug_print_int(mmap->type);
         if (mem_list.amount == MAX_MEMORY_ENTRIES)
         {
             debug_print_str("Memory list is more than %u entries");
@@ -54,11 +56,12 @@ static phys_memory_list_t get_available_memory_list(const multiboot_info_t* mbd)
             halt();
         }
         // Save into the list
-        if (mmap->type == MULTIBOOT_MEMORY_AVAILABLE)
-        {   
-            mem_list.mmmt[mem_list.amount++] = mmap;
-            max_memory = max(max_memory, mmap->addr_low + mmap->len_low); 
-        }
+        mem_list.mmmt[mem_list.amount++] = mmap;
+
+        max_memory = max(
+            max_memory,
+            round_page_up( mmap->addr_low + mmap->len_low) 
+        );
 
         // Get next iteration
         uint32_t next_mmap_addr = (uint32_t) mmap + (sizeof(mmap->size) + mmap->size);
