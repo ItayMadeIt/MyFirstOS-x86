@@ -28,6 +28,9 @@
         "fadt.h": "c",
         "cdefs.h": "c",
         "rsdp.h": "c",
-        "rdtsc.h": "c"
+        "rdtsc.h": "c",
+        "pit.h": "c",
+        "limits.h": "c",
+        "stdlib.h": "c"
     }
 }

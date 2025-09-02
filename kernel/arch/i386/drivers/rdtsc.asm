@@ -2,6 +2,7 @@ section .bss
 IRQ0_fractions:         dd 0
 IRQ0_ms:                dd 0
 
+section .text
 global setup_rdtsc
 setup_rdtsc:
     mov eax, 1

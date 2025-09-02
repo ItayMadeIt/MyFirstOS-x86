@@ -1,9 +1,11 @@
-#include <stdint.h>
-#include <stdbool.h>
+#include <core/defs.h>
+#include <early/defs.h>
 #include <core/idt.h>
 #include <core/debug.h>
 
+EARLY_BSS_SECTION
 idt_entry_t idt_entries[IDT_ENTRIES] __attribute__((aligned(16)));
+EARLY_BSS_SECTION
 void (*interrupt_callback_entries[IDT_ENTRIES]) (uint32_t error_code);
 
 void idt_c_handler(uint8_t interrupt_number, uint32_t error_code)
@@ -23,6 +25,7 @@ void idt_c_handler(uint8_t interrupt_number, uint32_t error_code)
     interrupt_callback_entries[interrupt_number](error_code);
 }
 
+EARLY_TEXT_SECTION
 void set_idt_entry(uint32_t entry_index, void (*handler_addr), uint16_t selector, uint8_t type_attr)
 {
     idt_entries[entry_index].zero = 0;
@@ -34,13 +37,14 @@ void set_idt_entry(uint32_t entry_index, void (*handler_addr), uint16_t selector
     idt_entries[entry_index].type_attr = type_attr;
 }
 
-
+EARLY_TEXT_SECTION
 void set_idt_callback(uint16_t index, void (*handler_addr))
 {
     idt_entries[index].offset_low = ((uint32_t)handler_addr) & 0xFFFF;
     idt_entries[index].offset_high = ((uint32_t)handler_addr >> 16) & 0xFFFF;
 }
 
+EARLY_TEXT_SECTION
 static inline void load_idt_descriptor(idt_descriptor_t* idt_descriptor)
 {
     asm volatile (
@@ -51,11 +55,13 @@ static inline void load_idt_descriptor(idt_descriptor_t* idt_descriptor)
     );
 }
 
+EARLY_TEXT_SECTION
 void set_interrupt_c_callback(uint8_t entry_index, void (*callback) (uint32_t error_code))
 {
     interrupt_callback_entries[entry_index] = callback;
 }
 
+EARLY_TEXT_SECTION
 void setup_idt()
 {
     for (uint16_t i = 0; i < IDT_ENTRIES; ++i) 

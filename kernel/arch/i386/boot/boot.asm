@@ -13,29 +13,38 @@ align 4
     dd MB_FLAGS              ; flags (ALIGN | MEMINFO)
     dd MB_CHECKSUM   ; checksum
 
-section .bss
-align 16
-stack_bottom:
-    resb 0x10000    ; 64 KiB
-stack_top:
+section .bss.boot
+extern kernel_stack_bottom        ; physical stack bottom
+extern __va_pa_off                ; virtual = phys + off
 
 
 ; Entry Point
-section .text
+section .text.boot
+
 extern entry_main
+
 global _start
 jmp _start
 _start:
-    ; Set up the stack
-    mov esp, stack_top
-    and esp, 0xFFFFFFF0
+    cli
+    cld
 
-    ; Preserve the multiboot info pointer in `ebx`
-    push ebx
-    push eax
-    
+    ; Save GRUB data
+    mov esi, eax
+    mov edi, ebx
+
+    ; Set up the stack
+    ; eax = physical bottom
+    mov eax, kernel_stack_bottom
+    sub eax, __va_pa_off 
+
+    mov esp, eax
+    mov ebp, eax
+
+    ; call entry_main(uint32_t magic, multiboot_info_t* mbd)
+    push edi
+    push esi
     call entry_main
-    add esp, 8
 
     ; Hang if kernel_main returns
     cli

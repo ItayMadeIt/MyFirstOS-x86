@@ -1,21 +1,23 @@
 BITS 32
 
 section .bss
-    ; Fractions of 1 ms since timer
+; Fractions of 1 ms since timer
+global system_timer_fractions
 system_timer_fractions:  dd 0
-    ; Number of whole ms since timer initialized
+; Number of whole ms since timer initialized
+global system_timer_ms
 system_timer_ms:         dd 0
-    ; Fractions of 1 ms between IRQs
+; Fractions of 1 ms between IRQs
 IRQ0_fractions:          dd 0
-    ; Number of whole ms between IRQs
+; Number of whole ms between IRQs
 IRQ0_ms:                 dd 0
-    ; Actual frequency of PIT
+; Actual frequency of PIT
 IRQ0_frequency:          dd 0
-    ; Current PIT reload value
+; Current PIT reload value
 PIT_reload_value:        dw 0
 
 section .text
-extern debug_print
+extern pit_callback
 global IRQ0_handler
 IRQ0_handler:
     push eax
@@ -31,12 +33,13 @@ IRQ0_handler:
     mov al, 0x20
     out 0x20, al
 
-    push dword 1
-    call debug_print
-    add esp, 4
+    ; Call pit callback (pit_callback is pointer to function)
+    mov eax, [pit_callback]
+    call eax
 
     pop ebx
     pop eax
+    
     iretd
 
 ; Input:

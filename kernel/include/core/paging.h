@@ -22,12 +22,12 @@
 
 typedef struct page_table
 {
-    uint32_t entries[ENTRIES_AMOUNT];
+    void* entries[ENTRIES_AMOUNT];
 }  __attribute__((aligned(ENTRIES_AMOUNT * sizeof(uint32_t)))) page_table_t;
 
 typedef struct page_directory
 {
-    uint32_t entries[ENTRIES_AMOUNT];
+    void* entries[ENTRIES_AMOUNT];
 }  __attribute__((aligned(ENTRIES_AMOUNT * sizeof(uint32_t)))) page_directory_t;
 
 

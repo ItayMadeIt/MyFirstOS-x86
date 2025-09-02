@@ -312,7 +312,7 @@ static void mark_paging_structures(phys_page_descriptor_t* phys_pages)
         }
 
         uint32_t phys_addr = (uint32_t)get_phys_addr(page_table);
-        uint32_t page_index = phys_addr>>12;
+        uint32_t page_index = phys_addr/PAGE_SIZE;
         
         phys_pages[page_index].type = PAGETYPE_TABLE;
     }

@@ -99,12 +99,15 @@ debug:
 
 debug-run: 
 	$(MAKE) DEBUG=1 iso
-	qemu-system-$(ARCH) -cdrom "$(ISO)" -s -S
+	qemu-system-$(ARCH) -cdrom "$(ISO)" -s -S \
+		-no-reboot -no-shutdown \
+		-d int,cpu_reset -D qemu.log \
+		-serial stdio
 
 debug-gdb: 
 	$(MAKE) DEBUG=1 iso
-	sudo -E /home/itaymadeit/opt/cross/bin/$(HOST)-gdb \
+	sudo env "PATH=$(PATH)" $(HOST)-gdb \
 	  "$(SYSROOT)/boot/waddleos.kernel" \
 	  -ex "target remote localhost:1234" \
-	  -ex "break entry_main" \
+	  -ex "break _start" \
 	  -ex "continue"

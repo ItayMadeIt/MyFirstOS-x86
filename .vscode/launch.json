@@ -7,6 +7,7 @@
       "request": "launch",
       "program": "${workspaceFolder}/isodir/boot/waddleos.kernel",
       "miDebuggerPath": "i686-elf-gdb",
+      "miDebuggerArgs": "--eval-command=set print elements 0",
       "stopAtEntry": false,
       "cwd": "${workspaceFolder}",
       "targetArchitecture": "x86",

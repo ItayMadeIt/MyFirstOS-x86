@@ -1,8 +1,11 @@
-#include <stdint.h>
+#include <core/defs.h>
+#include <early/defs.h>
 #include <core/gdt.h>
 
+EARLY_BSS_SECTION
 gdt_entry_t gdt_entries[DESCRIPTORS_AMOUNT]  __attribute__((aligned(16)));
 
+EARLY_TEXT_SECTION
 static void set_gdt_entry(gdt_entry_t* entry, uint32_t base, uint32_t limit, uint16_t flag)
 {
     entry->limit_low    = limit & 0xFFFF;              // set limit low bits 15:00
@@ -16,7 +19,7 @@ static void set_gdt_entry(gdt_entry_t* entry, uint32_t base, uint32_t limit, uin
     entry->granularity |= (flag >> 8) & 0xF0;          // set flags bits 03:00
 }
 
-
+EARLY_TEXT_SECTION
 static inline void load_gdt(gdt_description_t* gdtr)
 {
     // Load the GDT and reload the segment registers
@@ -36,7 +39,7 @@ static inline void load_gdt(gdt_description_t* gdtr)
     );
 }
 
-
+EARLY_TEXT_SECTION
 void setup_gdt()
 {
     // Setup GDT entries

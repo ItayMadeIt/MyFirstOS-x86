@@ -34,6 +34,15 @@
 #define STOR_GiB    0x40000000
 #define STOR_2GiB   0x80000000
 
+static inline void sti()
+{
+    asm volatile("sti");
+}
+static inline void cli()
+{
+    asm volatile("cli");
+}
+
 void halt();
 void abort();
 void assert(bool must_be_true);

@@ -3,6 +3,7 @@
 extern idt_c_handler
 
 %macro ISR_NO_ERR 1
+section .text
 global isr%1
 isr%1:
     pushad
@@ -15,6 +16,7 @@ isr%1:
 %endmacro
 
 %macro ISR_ERR 1
+section .text
 global isr%1
 isr%1:
     pushad
@@ -26,7 +28,6 @@ isr%1:
     add esp, 4
     iretd
 %endmacro
-
 
 ISR_NO_ERR 0
 ISR_NO_ERR 1

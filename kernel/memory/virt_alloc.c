@@ -29,7 +29,7 @@ static bool can_map_pages(void* va_ptr, uint32_t count)
         page_table_t* table = get_page_table(dir_index);
         while (pages_in_table && count) 
         {
-            if (table->entries[table_index] & PAGE_ENTRY_FLAG_PRESENT)
+            if ((uint32_t)table->entries[table_index] & PAGE_ENTRY_FLAG_PRESENT)
                 return false;
 
             va += PAGE_SIZE;

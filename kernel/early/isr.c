@@ -1,7 +1,7 @@
 #include <stdint.h>
 #include <drivers/isr.h>
 #include <core/idt.h>
-
+#include <early/defs.h>
 #include <core/debug.h>
 
 void interrupt_div0(uint32_t _unused_)
@@ -31,6 +31,7 @@ void interrupt_page_fault(uint32_t error)
     halt();
 }
 
+EARLY_TEXT_SECTION
 void setup_isr()
 {
     set_interrupt_c_callback(DIVIDE_0_INDEX  , interrupt_div0      );
