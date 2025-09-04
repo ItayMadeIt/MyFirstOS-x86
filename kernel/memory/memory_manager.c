@@ -21,6 +21,4 @@ void setup_memory(multiboot_info_t* mbd)
     
     uint32_t heap_start = round_page_up(page_desc_end_mem);
     setup_heap((void*)heap_start, STOR_2MiB);
-
-    //setup_vma();
 }

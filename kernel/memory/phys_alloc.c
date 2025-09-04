@@ -30,7 +30,7 @@ static void reset_pages_allocated()
 
 static void verify_flags(const multiboot_info_t* mbd)
 {
-    if (! (mbd->flags & (0b1 << 6)) )
+    if (! (mbd->flags & MULTIBOOT_INFO_MEM_MAP)
     {
         debug_print_str("Memory flag isn't enable.\n");
         halt();
@@ -45,14 +45,10 @@ static phys_memory_list_t get_available_memory_list(const multiboot_info_t* mbd)
     multiboot_memory_map_t* mmap = (multiboot_memory_map_t*) mbd->mmap_addr;
     uint32_t mmap_end = mbd->mmap_addr + mbd->mmap_length;
 
-    debug_print_str("mmap begin phys alloc: \n");
     while ((uint32_t) mmap < mmap_end)
     {
-        debug_print_int(mmap->type);
         if (mem_list.amount == MAX_MEMORY_ENTRIES)
         {
-            debug_print_str("Memory list is more than %u entries");
-            debug_print_int_nonewline(MAX_MEMORY_ENTRIES);
             halt();
         }
         // Save into the list

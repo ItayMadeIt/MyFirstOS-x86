@@ -2,6 +2,7 @@
 #include <drivers/io.h>
 #include <core/debug.h>
 #include <core/idt.h>
+#include <stdio.h>
 
 #define PS2_DATA 0x60
 #define PS2_CMD 0x64
@@ -89,7 +90,7 @@ void key_callback()
     if (KEYCODES[key & 0x7F] && !(key & 0x80))
     {
         //debug_print_str(key & 0x80 ? "Release: " : "Pressed: ");
-        debug_print_str(KEYCODES[key & 0x7F]);
+        printf("%s", KEYCODES[key & 0x7F]);
         //debug_print_str("\n");
     }
 

@@ -32,8 +32,15 @@ struct heap_slab_page_metadata;
 typedef struct heap_slab_order
 {
     uint32_t slab_order;
+    uint32_t obj_size;
+    uint32_t slab_size;
     struct heap_slab_page_metadata* free_slab;
 } heap_slab_order_t;
+typedef struct heap_slab_cache 
+{
+    heap_slab_order_t order;
+    const char* name;
+} heap_slab_cache_t;
 
 typedef struct heap_slab_page_metadata
 {

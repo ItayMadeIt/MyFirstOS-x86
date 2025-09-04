@@ -33,6 +33,8 @@ void assert(bool must_be_true)
 
 void kernel_main(multiboot_info_t* mbd)
 {
+	terminal_initialize();
+
     // Setup interrupt handlers
 	setup_memory(mbd);
 
@@ -46,8 +48,6 @@ void kernel_main(multiboot_info_t* mbd)
     setup_acpi();
 
 	sti();
-
-	terminal_initialize();
 
 	printf("Hi!!!\n\n");	
 

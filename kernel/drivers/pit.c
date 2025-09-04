@@ -9,7 +9,13 @@ void (* pit_callback);
 
 static void dummy() 
 {
-    printf("%X\n", system_timer_ms/1000);
+    static uint32_t last_system_timer = ~0;
+
+    if (last_system_timer != system_timer_ms / 1000)
+    {
+        printf("%d\n", system_timer_ms/1000);
+        last_system_timer =  system_timer_ms/1000;
+    }
 }
 
 void setup_pit()

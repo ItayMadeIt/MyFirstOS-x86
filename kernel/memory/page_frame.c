@@ -91,7 +91,7 @@ static void* bump_alloc_align(const uint32_t size, uint32_t alignment)
     {
         alignment = sizeof(void*);
     }
-    alignment = align_pow2(alignment);
+    alignment = align_up_pow2(alignment);
     
     uint32_t aligned_addr = (bump.alloc_addr + alignment - 1) & ~(alignment - 1);
     if (aligned_addr > UINT32_MAX - size) 
