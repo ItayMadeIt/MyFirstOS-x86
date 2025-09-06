@@ -2,6 +2,7 @@
 #include <core/paging.h>
 #include <core/debug.h>
 #include <memory/phys_alloc.h>
+#include <arch/cpu.h>
 
 // Max memory space 4GB:
 #define MAX_MEM_SPACE 4294967296
@@ -30,10 +31,10 @@ static void reset_pages_allocated()
 
 static void verify_flags(const multiboot_info_t* mbd)
 {
-    if (! (mbd->flags & MULTIBOOT_INFO_MEM_MAP)
+    if (! (mbd->flags & MULTIBOOT_INFO_MEM_MAP) )
     {
         debug_print_str("Memory flag isn't enable.\n");
-        halt();
+        cpu_halt();
     }
 }
 
@@ -49,7 +50,7 @@ static phys_memory_list_t get_available_memory_list(const multiboot_info_t* mbd)
     {
         if (mem_list.amount == MAX_MEMORY_ENTRIES)
         {
-            halt();
+            cpu_halt();
         }
         // Save into the list
         mem_list.mmmt[mem_list.amount++] = mmap;
@@ -178,7 +179,7 @@ void* alloc_phys_page_bitmap(uint32_t page_type, uint32_t page_flags)
     if (page_group_index >= PAGES_ARR_SIZE)
     {
         debug_print_str("Failed to allocate page");
-        halt();
+        cpu_halt();
     }
 
     // Get page index (max 8 bits)

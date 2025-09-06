@@ -5,6 +5,7 @@
 #include <core/paging.h>
 #include <core/defs.h>
 #include <memory/virt_alloc.h>
+#include <arch/cpu.h>
 
 #include <stdint.h>
 #include <string.h>
@@ -96,7 +97,8 @@ static void* bump_alloc_align(const uint32_t size, uint32_t alignment)
     uint32_t aligned_addr = (bump.alloc_addr + alignment - 1) & ~(alignment - 1);
     if (aligned_addr > UINT32_MAX - size) 
     { 
-        debug_print_str("bump: overflow\n"); halt(); 
+        debug_print_str("bump: overflow\n"); 
+        cpu_halt(); 
     }
     
     uint32_t needed_end = aligned_addr + size;

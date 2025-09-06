@@ -34,13 +34,6 @@ typedef struct heap_vars
 
 heap_vars_t heap;
 
-
-void* (*kalloc      )(uint32_t size);
-void* (*kalloc_pages)(uint32_t pages);
-void* (*krealloc    )(void* addr, uint32_t new_size);
-void  (*kfree       )(void* addr);
-
-
 static phys_page_descriptor_t* resolve_merge(phys_page_descriptor_t* cur_desc, uint32_t order)
 {
     heap_buddy_order_t* cur_desc_order = &cur_desc->u.buddy.order;
@@ -528,7 +521,7 @@ void free_slab(void* addr)
 }
 
 // Allocate abstraction for slab
-static void* alloc(uint32_t size)
+void* kalloc(uint32_t size)
 {
     if (size > (1 << SLAB_EXPON_MAX))
     {
@@ -555,7 +548,7 @@ static void* alloc(uint32_t size)
     return alloc_slab(&heap.free_slabs[order]);
 }
 
-static void* alloc_pages(uint32_t pages)
+void* kalloc_pages(uint32_t pages)
 {
     uint32_t size = pages * PAGE_SIZE;
 
@@ -586,7 +579,7 @@ static uint32_t get_buddy_size(void* buddy_addr)
     return 1 << expon;
 }
 
-static void* realloc(void* addr, uint32_t new_size)
+void* krealloc(void* addr, uint32_t new_size)
 {
     phys_page_descriptor_t* desc = virt_to_pfn(addr);
     if (desc->flags & PAGEFLAG_BUDDY)
@@ -626,23 +619,30 @@ static void* realloc(void* addr, uint32_t new_size)
 
         // Need to reallocate
         new_size = align_up_pow2(new_size);
-
         uint32_t slab_order_index = log2_u32(new_size)-SLAB_EXPON_MIN;
 
-        void* new_addr = alloc_slab(&heap.free_slabs[slab_order_index]);
+        void* new_addr;
+        if (slab_order_index <= SLAB_INDEX_ORDER_MAX)
+        {
+            new_addr= alloc_slab(&heap.free_slabs[slab_order_index]);
+        }
+        else
+        {
+            new_addr = alloc_buddy(new_size);
+        }
 
         if (new_addr == NULL)
             return NULL;
 
         memcpy(new_addr, addr, old_size);
 
-        free_slab(addr);// ERROR
+        free_slab(addr);
 
         return new_addr;
     }
 }
 
-static void free(void* addr)
+void kfree(void* addr)
 {
     phys_page_descriptor_t* desc = virt_to_pfn(addr);
 
@@ -657,8 +657,9 @@ static void free(void* addr)
 heap_slab_cache_t* kcreate_slab_cache(uint32_t obj_size, const char* slab_name)
 {
     assert(obj_size >= sizeof(heap_slab_node_t));
+    obj_size = align_to_n(obj_size, sizeof(void*)); 
 
-    heap_slab_cache_t* slab_cache = alloc(sizeof(heap_slab_cache_t));
+    heap_slab_cache_t* slab_cache = kalloc(sizeof(heap_slab_cache_t));
 
     slab_cache->name = slab_name;
     
@@ -677,23 +678,8 @@ void* kalloc_cache(heap_slab_cache_t* cache)
 
 void kfree_slab_cache(heap_slab_cache_t* slab_cache)
 {
-    free(slab_cache);
+    kfree(slab_cache);
 }
-
-typedef struct __attribute__((packed)) s1 
-{
-    uint32_t d1;
-    uint8_t d2;
-    uint16_t d3;
-    uint16_t d4;
-} s1_t;
-typedef struct __attribute__((packed)) s2
-{
-    uint8_t  d1;
-    uint16_t d2;
-    uint32_t d3;
-    uint32_t d4;
-} s2_t;
 
 void setup_heap(void* heap_addr, uint32_t init_size)
 {
@@ -715,33 +701,4 @@ void setup_heap(void* heap_addr, uint32_t init_size)
     heap.max_addr = heap_addr + init_size;
 
     add_buddies((uint32_t)heap_addr, init_size, true);
-    
-    kalloc = alloc;
-    kalloc_pages = alloc_pages;
-    krealloc = realloc;
-    kfree = free;
-
-    heap_slab_cache_t* s1_cache = kcreate_slab_cache(sizeof(s1_t), "s1");
-    heap_slab_cache_t* s2_cache = kcreate_slab_cache(sizeof(s2_t), "s2");
-
-    s1_t* s1_arr[100] = {};
-    s1_t* s2_arr[100] = {};
-    for (uint32_t i = 0; i < 100; i++)
-    {
-        s1_arr[i] = kalloc_cache(s1_cache);
-        s2_arr[i] = kalloc_cache(s2_cache);
-    }
-    for (uint32_t i = 0; i < 100; i++)
-    {
-        kfree(s1_arr[i]);
-        s1_arr[i] = NULL;
-        
-        kfree(s2_arr[i]);
-        s2_arr[i] = NULL;
-    }
-
-    kfree_slab_cache(s1_cache);
-    s1_cache = NULL;
-    kfree_slab_cache(s2_cache);
-    s2_cache = NULL;
 }

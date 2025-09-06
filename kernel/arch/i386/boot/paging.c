@@ -128,7 +128,7 @@ static inline void enable_paging()
 }
 
 EARLY_TEXT_SECTION
-void setup_paging()
+void init_paging()
 {
     zero_page_directory(&page_directory);
     zero_page_table(kernel_tables, KERNEL_TABLES);

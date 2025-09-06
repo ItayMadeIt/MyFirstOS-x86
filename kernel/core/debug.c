@@ -9,8 +9,10 @@ static int cursor_row = 0;
 static int cursor_col = 0;
 
 void scroll_up() {
-    for (int row = 1; row < VGA_HEIGHT; ++row) {
-        for (int col = 0; col < VGA_WIDTH; ++col) {
+    for (int row = 1; row < VGA_HEIGHT; ++row) 
+    {
+        for (int col = 0; col < VGA_WIDTH; ++col) 
+        {
             VGA_MEMORY[(row - 1) * VGA_WIDTH + col] = VGA_MEMORY[row * VGA_WIDTH + col];
         }
     }

@@ -1,32 +1,12 @@
-#include <core/defs.h>
-#include <early/defs.h>
-#include <core/idt.h>
-#include <core/debug.h>
+#include <arch/irq.h>
+#include <arch/cpu.h>
+#include <arch/i386/core/isr.h>
+#include <arch/i386/core/irq.h>
 
-EARLY_BSS_SECTION
 idt_entry_t idt_entries[IDT_ENTRIES] __attribute__((aligned(16)));
-EARLY_BSS_SECTION
-void (*interrupt_callback_entries[IDT_ENTRIES]) (uint32_t error_code);
+void (*interrupt_callback_entries[IDT_ENTRIES]) (void* data);
 
-void idt_c_handler(uint8_t interrupt_number, uint32_t error_code)
-{
-    if (interrupt_number >= BASE_INTERRUPTS_ENTRIES)
-    {
-        debug_print_str("Interrupt number wasn't normal\n\n");
-        debug_print_int(interrupt_number);
-
-        // Sort of a halt
-        interrupt_callback_entries[interrupt_number](error_code);
-    }
-
-    debug_print_str("Interrupt number is: ");
-    debug_print_int(interrupt_number);
-
-    interrupt_callback_entries[interrupt_number](error_code);
-}
-
-EARLY_TEXT_SECTION
-void set_idt_entry(uint32_t entry_index, void (*handler_addr), uint16_t selector, uint8_t type_attr)
+static inline void set_idt_entry(uint32_t entry_index, void (*handler_addr), uint16_t selector, uint8_t type_attr)
 {
     idt_entries[entry_index].zero = 0;
     
@@ -37,14 +17,6 @@ void set_idt_entry(uint32_t entry_index, void (*handler_addr), uint16_t selector
     idt_entries[entry_index].type_attr = type_attr;
 }
 
-EARLY_TEXT_SECTION
-void set_idt_callback(uint16_t index, void (*handler_addr))
-{
-    idt_entries[index].offset_low = ((uint32_t)handler_addr) & 0xFFFF;
-    idt_entries[index].offset_high = ((uint32_t)handler_addr >> 16) & 0xFFFF;
-}
-
-EARLY_TEXT_SECTION
 static inline void load_idt_descriptor(idt_descriptor_t* idt_descriptor)
 {
     asm volatile (
@@ -55,22 +27,66 @@ static inline void load_idt_descriptor(idt_descriptor_t* idt_descriptor)
     );
 }
 
-EARLY_TEXT_SECTION
-void set_interrupt_c_callback(uint8_t entry_index, void (*callback) (uint32_t error_code))
+void irq_enable()
 {
-    interrupt_callback_entries[entry_index] = callback;
+    asm volatile (
+        "sti\n\t"
+    );
 }
 
-EARLY_TEXT_SECTION
-void setup_idt()
+void irq_disable()
+{
+    asm volatile (
+        "cli\n\t"
+    );
+}
+
+void idt_c_handler(uint8_t interrupt_number, uint32_t error_code)
+{
+    interrupt_callback_entries[interrupt_number]((void*)(uintptr_t)error_code);
+}
+
+uintptr_t irq_save()
+{
+    uintptr_t flags;
+    asm volatile(
+        "pushf\n\t"
+        "pop %0\n\t"
+        "cli\n\t"
+        : "=r"(flags)
+        : 
+        : "memory"
+    );
+
+    return flags;
+}
+
+void irq_restore(uintptr_t flags)
+{
+    asm volatile(
+        "push %0\n\t"
+        "popf   \n\t"
+        : 
+        : "r"(flags)
+        : "memory"
+    );
+}
+
+void irq_register_handler(uint32_t vector, void (*handle)(void*))
+{
+    interrupt_callback_entries[vector] = handle;
+}
+
+
+void init_irq()
 {
     for (uint16_t i = 0; i < IDT_ENTRIES; ++i) 
     {
         interrupt_callback_entries[i] = 0;
     
         set_idt_entry(
-            i, 
-            idt_c_handler, 
+            i,
+            cpu_halt,
             SEGMENT_SELECTOR_CODE_DPL0, 
             IDT_INTERRUPT_32_DPL0
         );

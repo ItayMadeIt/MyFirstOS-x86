@@ -103,16 +103,19 @@ int printf(const char* restrict format, ...)
 
 	int written = 0;
 
-	while (*format != '\0') {
+	while (*format != '\0') 
+	{
 		size_t maxrem = INT_MAX - written;
 
-		if (format[0] != '%' || format[1] == '%') {
+		if (format[0] != '%' || format[1] == '%') 
+		{
 			if (format[0] == '%')
 				format++;
 			size_t amount = 1;
 			while (format[amount] && format[amount] != '%')
 				amount++;
-			if (maxrem < amount) {
+			if (maxrem < amount) 
+			{
 				// TODO: Set errno to EOVERFLOW.
 				return -1;
 			}
@@ -125,7 +128,8 @@ int printf(const char* restrict format, ...)
 
 		const char* format_begun_at = format++;
 
-		if (*format == 'c') {
+		if (*format == 'c') 
+		{
 			format++;
 			char c = (char) va_arg(parameters, int /* char promotes to int */);
 			if (!maxrem) {
@@ -135,7 +139,8 @@ int printf(const char* restrict format, ...)
 			if (!print(&c, sizeof(c)))
 				return -1;
 			written++;
-		} else if (*format == 's') {
+		} 
+		else if (*format == 's') {
 			format++;
 			const char* str = va_arg(parameters, const char*);
 			size_t len = strlen(str);

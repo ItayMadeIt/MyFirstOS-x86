@@ -1,6 +1,6 @@
-#include "memory/page_frame.h"
+#include <arch/i386/drivers/io.h>
+#include <memory/page_frame.h>
 #include <boot/fadt.h>
-#include <drivers/io.h>
 #include <memory/virt_alloc.h>
 #include <boot/acpi.h>
 #include <boot/rsdp.h>

@@ -37,17 +37,6 @@
 #define container_of(ptr, type, member) \
     ((type *)((char *)(ptr) - offsetof(type, member)))
 
-
-static inline void sti()
-{
-    asm volatile("sti");
-}
-static inline void cli()
-{
-    asm volatile("cli");
-}
-
-void halt();
 void abort();
 void assert(bool must_be_true);
 

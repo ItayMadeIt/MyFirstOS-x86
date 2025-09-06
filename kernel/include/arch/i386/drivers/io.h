@@ -58,7 +58,7 @@ static inline void io_wait()
     outb(0x80, 0);
 }
 
-static inline void PIC_sendEOI(uint8_t irq)
+static inline void pic_send_eoi(uint8_t irq)
 {
     // Sent to the PIC2 End-of-Interrupt as well
 	if(irq >= 8)

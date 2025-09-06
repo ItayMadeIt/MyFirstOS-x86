@@ -31,6 +31,14 @@
         "rdtsc.h": "c",
         "pit.h": "c",
         "limits.h": "c",
-        "stdlib.h": "c"
+        "stdlib.h": "c",
+        "pci.h": "c",
+        "irq.h": "c",
+        "cpu.h": "c",
+        "early_utils.h": "c",
+        "early.h": "c",
+        "keyboard.h": "c",
+        "stdbool.h": "c",
+        "pic.h": "c"
     }
 }

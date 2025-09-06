@@ -36,6 +36,6 @@ typedef struct page_directory
 
 extern page_directory_t page_directory; 
 
-void setup_paging();
+void init_paging();
 
 #endif // __PAGING_H__

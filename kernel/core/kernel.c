@@ -1,34 +1,36 @@
-#include <stdint.h>
-#include <drivers/tty.h>
-#include <boot/acpi.h>
 #include <stdio.h>
+#include <core/defs.h>
+#include <drivers/tty.h>
+#include <arch/int_timer.h>
+#include <arch/keyboard.h>
+#include <boot/acpi.h>
 #include <multiboot/multiboot.h>
+#include <arch/irq.h>
+#include <arch/cpu.h>
 
 void setup_memory(multiboot_info_t* mbd);
-void setup_isr();
+void init_boot_isr();
 void setup_pic();
 void setup_pit();
 void setup_ps2();
 
-void halt() 
-{
-    asm volatile (
-        "cli\n\t"   // disable interrupts
-        "hlt\n\t"   // halt the CPU
-    );
-}
 void abort()
 {
     // for now
-    halt();
+    cpu_halt();
 }
+
 void assert(bool must_be_true)
 {
     if (! must_be_true) 
     {   
 		printf("Aborted\n");
-        halt();
+        abort();
     }
+}
+static void dummy()
+{
+
 }
 
 void kernel_main(multiboot_info_t* mbd)
@@ -42,12 +44,12 @@ void kernel_main(multiboot_info_t* mbd)
     setup_pic();
 
     // basic drivers
-    setup_pit();
-    setup_ps2();
+    init_int_timer(20);
+    init_keyboard(dummy);
 
     setup_acpi();
 
-	sti();
+	//irq_enable();
 
 	printf("Hi!!!\n\n");	
 

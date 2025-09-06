@@ -1,28 +1,28 @@
 [BITS 32]
 
-extern idt_c_handler
+extern early_idt_c_handler
 
 %macro ISR_NO_ERR 1
-section .text
-global isr%1
-isr%1:
+section .boot.text
+global early_isr%1
+early_isr%1:
     pushad
     push dword %1        ; Interrupt number
     push dword 0         ; Fake error code
-    call idt_c_handler
+    call early_idt_c_handler
     add esp, 8
     popad
     iretd
 %endmacro
 
 %macro ISR_ERR 1
-section .text
-global isr%1
-isr%1:
+section .boot.text
+global early_isr%1
+early_isr%1:
     pushad
     push dword [esp + 32] ; Error code (after pushad)
     push dword %1         ; Interrupt number
-    call idt_c_handler
+    call early_idt_c_handler
     add esp, 8
     popad
     add esp, 4

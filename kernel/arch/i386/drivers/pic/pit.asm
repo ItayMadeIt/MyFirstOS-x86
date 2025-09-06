@@ -1,45 +1,46 @@
 BITS 32
 
+%define PIT_ISR_CODE 0x20
+
 section .bss
 ; Fractions of 1 ms since timer
-global system_timer_fractions
-system_timer_fractions:  dd 0
+global pit_system_timer_ms_fractions
+pit_system_timer_ms_fractions:  dd 0
 ; Number of whole ms since timer initialized
-global system_timer_ms
-system_timer_ms:         dd 0
+global pit_system_timer_ms
+pit_system_timer_ms:         dd 0
 ; Fractions of 1 ms between IRQs
-IRQ0_fractions:          dd 0
+tick_fractions:          dd 0
 ; Number of whole ms between IRQs
-IRQ0_ms:                 dd 0
+tick_ms:                 dd 0
 ; Actual frequency of PIT
-IRQ0_frequency:          dd 0
+tick_frequency:          dd 0
 ; Current PIT reload value
-PIT_reload_value:        dw 0
+pit_reload_value:        dw 0
 
 section .text
 extern pit_callback
-global IRQ0_handler
-IRQ0_handler:
-    push eax
-    push ebx
+global pit_isr
+pit_isr:
+    pushad
+    pushf
 
-    mov eax, [IRQ0_fractions]
-    mov ebx, [IRQ0_ms]                  ; EAX:EBX = amount of time between IRQs
+    mov eax, [tick_fractions]
+    mov ebx, [tick_ms]                  ; EAX:EBX = amount of time between IRQs
 
-    add  [system_timer_fractions], eax  ; Update system timer tick fractions
-    adc  [system_timer_ms], ebx         ; Update system timer tick milliseconds
+    add  [pit_system_timer_ms_fractions], eax  ; Update system timer tick fractions
+    adc  [pit_system_timer_ms], ebx         ; Update system timer tick milliseconds
 
     ; Send the EOI to the PIC (master)
     mov al, 0x20
-    out 0x20, al
+    out PIT_ISR_CODE, al
 
     ; Call pit callback (pit_callback is pointer to function)
     mov eax, [pit_callback]
     call eax
 
-    pop ebx
-    pop eax
-    
+    popf
+    popad
     iretd
 
 ; Input:
@@ -83,7 +84,7 @@ rounded_freq_div_3:
 ; Store the reload value and calculate the actual frequency
 get_reload_value:
     push eax                         ; Save reload value on stack
-    mov [PIT_reload_value], ax       ; Save 16-bit reload value
+    mov [pit_reload_value], ax       ; Save 16-bit reload value
     mov ebx, eax                     ; EBX = reload value
 
     ; Compute corrected frequency:
@@ -106,7 +107,7 @@ rounded_hz_div_3:
 ; Calculate the amount of time between IRQs in 32.32 fixed point
 ; time_ms = reload_value * 3000 / 1193181 ≈ reload_value * 3000 * 2^42 / 3579545 / 2^10
 calc_amount_time:
-    mov [IRQ0_frequency], eax        ; Store actual frequency for later display
+    mov [tick_frequency], eax        ; Store actual frequency for later display
 
     pop ebx                          ; EBX = reload value
     mov eax, 0xDBB3A062              ; EAX = floor(3000 * 2^42 / 3579545)
@@ -117,8 +118,8 @@ calc_amount_time:
     shr  edx, 10
 
     ; Store 32.32 fixed-point components
-    mov [IRQ0_ms], edx
-    mov [IRQ0_fractions], eax
+    mov [tick_ms], edx
+    mov [tick_fractions], eax
 
 ; Program the PIT channel 0 in mode 2 (rate generator), lobyte/hibyte
 program_pit_channel:
@@ -128,7 +129,7 @@ program_pit_channel:
     mov al, 00110100b                ; ch0, lobyte/hibyte, mode 2, binary
     out 0x43, al
 
-    mov ax, [PIT_reload_value]
+    mov ax, [pit_reload_value]
     out 0x40, al                     ; Low byte
     mov al, ah
     out 0x40, al                     ; High byte

@@ -1,6 +1,6 @@
 #include <core/defs.h>
 #include <early/defs.h>
-#include <core/gdt.h>
+#include <arch/i386/core/gdt.h>
 
 EARLY_BSS_SECTION
 gdt_entry_t gdt_entries[DESCRIPTORS_AMOUNT]  __attribute__((aligned(16)));
@@ -40,7 +40,7 @@ static inline void load_gdt(gdt_description_t* gdtr)
 }
 
 EARLY_TEXT_SECTION
-void setup_gdt()
+void init_gdt()
 {
     // Setup GDT entries
 
