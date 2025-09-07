@@ -2,7 +2,7 @@
 #define __RSDT_H__
 
 #include <stdint.h>
-#include <boot/acpi.h>
+#include <firmware/acpi.h>
 
 // RDST/XDST - Root/eXtended system description table
 // This table contains pointers to all the other System Description Tables

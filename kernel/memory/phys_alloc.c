@@ -2,7 +2,7 @@
 #include <core/paging.h>
 #include <core/debug.h>
 #include <memory/phys_alloc.h>
-#include <arch/cpu.h>
+#include <kernel/core/cpu.h>
 
 // Max memory space 4GB:
 #define MAX_MEM_SPACE 4294967296

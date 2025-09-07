@@ -45,7 +45,7 @@ void early_set_idt_callback(uint16_t index, void (*handler_addr))
 }
 
 EARLY_TEXT_SECTION
-static inline void load_idt_descriptor(idt_descriptor_t* idt_descriptor)
+static inline void early_load_idt_descriptor(idt_descriptor_t* idt_descriptor)
 {
     asm volatile (
         "lidt (%0)"
@@ -113,5 +113,5 @@ void setup_early_idt()
     idt_descriptor.base = (uint32_t)&early_idt_entries;
     idt_descriptor.limit = sizeof(early_idt_entries)- 1;
 
-    load_idt_descriptor(&idt_descriptor);
+    early_load_idt_descriptor(&idt_descriptor);
 }

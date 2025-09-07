@@ -1,7 +1,7 @@
 #include <core/defs.h>
 #include <string.h>
-#include <boot/rsdt.h>
-#include <boot/fadt.h>
+#include <firmware/rsdt.h>
+#include <firmware/fadt.h>
 
 #define FADT_SIGNATURE "FACP"
 #define FADT_SIGNATURE_LEN 4

@@ -1,15 +1,16 @@
-#include <arch/irq.h>
-#include <arch/cpu.h>
-#include <arch/i386/core/isr.h>
+#include <kernel/core/irq.h>
+#include <kernel/core/cpu.h>
+#include <arch/i386/core/idt.h>
 #include <arch/i386/core/irq.h>
 
-idt_entry_t idt_entries[IDT_ENTRIES] __attribute__((aligned(16)));
-void (*interrupt_callback_entries[IDT_ENTRIES]) (void* data);
+idt_entry_t idt_entries[IDT_ENTRIES];
+void (*interrupt_callback_entries[IDT_ENTRIES]) (irq_frame_t* data);
 
-static inline void set_idt_entry(uint32_t entry_index, void (*handler_addr), uint16_t selector, uint8_t type_attr)
+void set_idt_entry(uint32_t entry_index, void (*handler_addr_ptr), uint16_t selector, uint8_t type_attr)
 {
     idt_entries[entry_index].zero = 0;
     
+    uintptr_t handler_addr = (uintptr_t)handler_addr_ptr;
     idt_entries[entry_index].offset_low = ((uint32_t)handler_addr) & 0xFFFF;
     idt_entries[entry_index].offset_high = ((uint32_t)handler_addr >> 16) & 0xFFFF;
 
@@ -41,9 +42,16 @@ void irq_disable()
     );
 }
 
-void idt_c_handler(uint8_t interrupt_number, uint32_t error_code)
+void idt_c_handler(irq_frame_t* frame)
 {
-    interrupt_callback_entries[interrupt_number]((void*)(uintptr_t)error_code);
+    uint32_t v = frame->irq_index;
+
+    void (*callback)(irq_frame_t*) = interrupt_callback_entries[v];
+    
+    if (callback) 
+    {
+        callback(frame);
+    }
 }
 
 uintptr_t irq_save()
@@ -65,14 +73,14 @@ void irq_restore(uintptr_t flags)
 {
     asm volatile(
         "push %0\n\t"
-        "popf   \n\t"
+        "popf \n\t"
         : 
         : "r"(flags)
         : "memory"
     );
 }
 
-void irq_register_handler(uint32_t vector, void (*handle)(void*))
+void irq_register_handler(uint32_t vector, void (*handle)(irq_frame_t*))
 {
     interrupt_callback_entries[vector] = handle;
 }
@@ -92,6 +100,7 @@ void init_irq()
         );
     }
 
+    // Normal interrupts
     set_idt_entry(0x00, isr0 , SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
     set_idt_entry(0x01, isr1 , SEGMENT_SELECTOR_CODE_DPL0, IDT_TRAP_32_PL0);
     set_idt_entry(0x02, isr2 , SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
@@ -124,6 +133,25 @@ void init_irq()
     set_idt_entry(0x1D, isr29, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
     set_idt_entry(0x1E, isr30, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
     set_idt_entry(0x1F, isr31, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+
+    // IRQs
+    set_idt_entry(0x20, isr32, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+    set_idt_entry(0x21, isr33, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+    set_idt_entry(0x22, isr34, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+    set_idt_entry(0x23, isr35, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+    set_idt_entry(0x24, isr36, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+    set_idt_entry(0x25, isr37, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+    set_idt_entry(0x26, isr38, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+    set_idt_entry(0x27, isr39, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+    set_idt_entry(0x28, isr40, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+    set_idt_entry(0x29, isr41, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+    set_idt_entry(0x2A, isr42, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+    set_idt_entry(0x2B, isr43, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+    set_idt_entry(0x2C, isr44, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+    set_idt_entry(0x2D, isr45, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+    set_idt_entry(0x2E, isr46, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+    set_idt_entry(0x2F, isr47, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
+
 
     idt_descriptor_t idt_descriptor;
     idt_descriptor.base = (uint32_t)&idt_entries;

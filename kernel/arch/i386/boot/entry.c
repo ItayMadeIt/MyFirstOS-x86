@@ -1,6 +1,7 @@
 #include <arch/i386/early/early.h>
 #include <early/defs.h>
-#include <arch/cpu.h>
+#include <kernel/core/cpu.h>
+#include <kernel/core/irq.h>
 #include <multiboot/multiboot.h>
 
 void kernel_main(multiboot_info_t* mbd);
@@ -36,6 +37,8 @@ void entry_main(uint32_t magic, multiboot_info_t* mbd)
     init_boot_isr();
 
     init_paging();
+
+    irq_disable();
 
     // Call kernel_main with mbd
     uint32_t new_stack_top = (uint32_t)kernel_stack_top;

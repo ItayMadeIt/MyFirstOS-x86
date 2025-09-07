@@ -6,12 +6,20 @@
 ;
 
 extern idt_c_handler
+
+%macro PUSH_PLACEHOLDERS 0
+    push dword 0      ; user SS
+    push dword 0      ; user ESP
+%endmacro
+%macro POP_PLACEHOLDERS 0
+    add esp, 8
+%endmacro
+
 %macro IRQ 1
 section .text
 global isr%1
 isr%1:
-    push dword 0         ; user ss
-    push dword 0         ; user esp
+    PUSH_PLACEHOLDERS
     pushad               ; push general purpose registers
     push dword %1        ; irq_index
     push dword 0         ; fake err_code
@@ -19,7 +27,7 @@ isr%1:
     call idt_c_handler
     add esp, 12          ; pop arg, fake err_code and irq_index
     popad                ; restore registers
-    add esp, 8           ; pop both user ss & esp
+    POP_PLACEHOLDERS
     iretd
 %endmacro
 
@@ -27,8 +35,7 @@ isr%1:
 section .text
 global isr%1
 isr%1:
-    push dword 0         ; user ss
-    push dword 0         ; user esp
+    PUSH_PLACEHOLDERS
     pushad               ; push general purpose registers
     push dword %1        ; irq_index
     push dword 0         ; fake err_code
@@ -36,7 +43,7 @@ isr%1:
     call idt_c_handler
     add esp, 12          ; pop arg, fake err_code and irq_index
     popad                ; restore registers
-    add esp, 8           ; pop both user ss & esp
+    POP_PLACEHOLDERS
     iretd
 %endmacro
 
@@ -44,8 +51,7 @@ isr%1:
 section .text
 global isr%1
 isr%1:
-    push dword 0         ; user esp
-    push dword 0         ; user ss
+    PUSH_PLACEHOLDERS
     pushad               ; push general purpose registers
     mov eax, [esp + 40]  ; fetch CPU err_code, pushad (32) + 2 dwords for user
     push dword %1        ; irq_index
@@ -54,7 +60,8 @@ isr%1:
     call idt_c_handler
     add esp, 12          ; pop arg, fake err_code and irq_index
     popad                ; restore registers
-    add esp, 12          ; pop user_esp & user_ss + error
+    POP_PLACEHOLDERS
+    add esp, 4           ; pop error
     iretd
 %endmacro
 

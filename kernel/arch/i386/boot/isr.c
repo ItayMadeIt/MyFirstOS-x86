@@ -1,8 +1,8 @@
 #include <stdint.h>
 #include <early/defs.h>
 #include <core/debug.h>
-#include <arch/irq.h>
-#include <arch/cpu.h>
+#include <kernel/core/irq.h>
+#include <kernel/core/cpu.h>
 #include <arch/i386/early/idt.h>
 
 #define DIVIDE_0_INDEX   0

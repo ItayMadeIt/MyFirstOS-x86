@@ -58,14 +58,4 @@ static inline void io_wait()
     outb(0x80, 0);
 }
 
-static inline void pic_send_eoi(uint8_t irq)
-{
-    // Sent to the PIC2 End-of-Interrupt as well
-	if(irq >= 8)
-    {
-		outb(PIC2,PIC_EOI);
-	}
-
-	outb(PIC1,PIC_EOI);
-}
 #endif // __IO_H__

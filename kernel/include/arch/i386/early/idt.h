@@ -1,40 +1,6 @@
 
 #include <core/defs.h>
-
-typedef struct idt_entry {
-    uint16_t offset_low;            // Lower 16 bits of the handler function address
-    uint16_t segment_selector;      // Segment selector (usually code segment)
-    uint8_t  zero;                  // Must be zero
-    uint8_t  type_attr;             // Type and attributes
-    uint16_t offset_high;           // Upper 16 bits of the handler function address
-} __attribute__((packed, aligned(16))) idt_entry_t;
-
-typedef struct idt_descriptor 
-{
-	uint16_t limit;
-	uint32_t base;
-} __attribute__((packed)) idt_descriptor_t;
-
-// Descriptor types for the IDT
-
-#define IDT_PRESENT(x)           ((x) << 7)           // Present bit (must be 1 for active entries)
-#define IDT_DPL(x)               (((x) & 0b11) << 5)  // Descriptor Privilege Level (0-3)
-#define IDT_SELECTOR(x)          ((x) & 0xFFFF)       // Lower 16 bits for segment selector
-
-#define IDT_FLAGS(type, dpl)  (IDT_PRESENT(1) | IDT_DPL(dpl) | (type & 0xF))
-
-#define IDT_TYPE_INTERRUPT_GATE  0xE   // 32-bit interrupt gate
-#define IDT_TYPE_TRAP_GATE       0xF   // 32-bit trap gate
-#define IDT_TYPE_TASK_GATE       0x5   // Task gate
-
-
-#define IDT_INTERRUPT_32_DPL0   IDT_FLAGS(IDT_TYPE_INTERRUPT_GATE, 0)
-#define IDT_TRAP_32_PL0        IDT_FLAGS(IDT_TYPE_TRAP_GATE, 0)
-
-#define SEGMENT_SELECTOR_CODE_DPL0 IDT_SELECTOR(0x08)
-
-#define IDT_ENTRIES 256
-#define BASE_INTERRUPTS_ENTRIES 0x20
+#include <arch/i386/core/idt.h>
 
 extern void early_isr0();
 extern void early_isr1();

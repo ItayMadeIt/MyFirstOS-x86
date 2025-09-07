@@ -1,10 +1,10 @@
 #include <arch/i386/drivers/io.h>
 #include <memory/page_frame.h>
-#include <boot/fadt.h>
 #include <memory/virt_alloc.h>
-#include <boot/acpi.h>
-#include <boot/rsdp.h>
-#include <boot/rsdt.h>
+#include <firmware/fadt.h>
+#include <firmware/acpi.h>
+#include <firmware/rsdp.h>
+#include <firmware/rsdt.h>
 
 acpi_timer_t acpi_timer;
 

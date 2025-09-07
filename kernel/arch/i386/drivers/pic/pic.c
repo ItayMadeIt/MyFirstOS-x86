@@ -15,6 +15,10 @@
 #define ICW4_BUF_MASTER	0x0C		/* Buffered mode/master */
 #define ICW4_SFNM	0x10		/* Special fully nested (not) */
 
+
+static uint8_t pic_master_base;
+static uint8_t pic_slave_base;
+
 /*
 arguments:
 	offset1 - vector offset for master PIC
@@ -23,6 +27,9 @@ arguments:
 */
 void PIC_remap(int offset1, int offset2)
 {
+    pic_master_base = (uint8_t)offset1;
+    pic_slave_base  = (uint8_t)offset2;
+
 	outb(PIC1_COMMAND, ICW1_INIT | ICW1_ICW4);  // starts the initialization sequence (in cascade mode)
 	io_wait();
 	outb(PIC2_COMMAND, ICW1_INIT | ICW1_ICW4);
@@ -72,7 +79,22 @@ uint16_t pic_get_isr(void)
     return __pic_get_irq_reg(PIC_READ_ISR);
 }
 
+void pic_send_eoi_vector(uint8_t vector)
+{
+	if (vector >= pic_slave_base && vector < pic_slave_base + 8)
+	{
+        outb(PIC2, PIC_EOI);
+	}
+	// then master
+	outb(PIC1, PIC_EOI);
+
+}
+
 void setup_pic()
 {
 	PIC_remap(0x20, 0x28);
+
+	// make everything not usable
+	outb(PIC1_DATA, 0xFF);
+	outb(PIC2_DATA, 0xFF);
 }

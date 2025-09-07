@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <kernel/core/irq.h>
 
 typedef struct __attribute__((packed)) irq_frame
 {
@@ -24,3 +25,7 @@ typedef struct __attribute__((packed)) irq_frame
     uint32_t eip;
 
 } irq_frame_t;
+
+void set_idt_entry(uint32_t entry_index, void (*handler_addr), uint16_t selector, uint8_t type_attr);
+
+void init_irq();

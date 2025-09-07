@@ -1,14 +1,14 @@
 #include <stdbool.h>
-#include <arch/irq.h>
-#include <arch/i386/drivers/io.h>
+
+#include <kernel/drivers/keyboard.h>
+#include <kernel/core/irq.h>
 #include <arch/i386/drivers/pic.h>
-#include <arch/keyboard.h>
+#include <arch/i386/drivers/io.h>
 
 #define PS2_DATA 0x60
 #define PS2_CMD 0x64
 
-#define PS2_IRQ_CODE 0x21
-#define PS2_REL_IRQ_CODE (PS2_IRQ_CODE - PIC1)
+#define PS2_IRQ_VECTOR 0x21
 
 extern void ps2_handler();
 
@@ -18,7 +18,7 @@ uint8_t ps2_read_data(void)
 }
 void ps2_send_eoi(void)
 {    
-    pic_send_eoi(0x21 - 0x20);
+    pic_send_eoi_vector(PS2_IRQ_VECTOR);
 }
 
 static uint16_t ps2_kc_map[128];
@@ -155,22 +155,32 @@ void init_keycodes()
     ps2_kc_map_ext[0x5D] = KEYCODE_MENU;
 }
 
+void ps2_key_dispatch(irq_frame_t* frame);
+
 key_event_cb_t key_event_callback;
 
 void init_keyboard(key_event_cb_t callback)
 {
+    assert(callback);
+
     init_keycodes();
 
     irq_register_handler(
-        PS2_IRQ_CODE,
-        ps2_handler
+        PS2_IRQ_VECTOR,
+        ps2_key_dispatch
     );
 
     key_event_callback = callback;
+
+    // unmask IRQ1
+    io_wait();
+    outb(PIC1_DATA, inb(PIC1_DATA) & ~0x02);
 }
 
-void ps2_key_callback()
+void ps2_key_dispatch(irq_frame_t* frame)
 {
+    (void)frame;
+
     static bool extended = false;
 
     uint16_t ps2_scancode = ps2_read_data();
@@ -181,6 +191,7 @@ void ps2_key_callback()
         extended = true;
         io_wait();
         ps2_send_eoi();
+
         return;
     }
     if (ps2_scancode == 0xE1) 

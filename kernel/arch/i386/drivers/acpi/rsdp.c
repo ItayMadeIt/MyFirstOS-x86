@@ -1,5 +1,5 @@
 #include <core/defs.h>
-#include <boot/rsdp.h>
+#include <firmware/rsdp.h>
 #include <string.h>
 
 #define EBDA_MEM 0x40E

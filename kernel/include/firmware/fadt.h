@@ -2,8 +2,8 @@
 #define __FADT_H__
 
 #include <core/defs.h>
-#include <boot/acpi.h>
-#include <boot/rsdt.h>
+#include <firmware/acpi.h>
+#include <firmware/rsdt.h>
 
 // FADT - Fixed ACPI Description Table
 // Info about fixed registers and other important fixed data

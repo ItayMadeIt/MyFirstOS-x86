@@ -7,7 +7,7 @@ typedef struct idt_entry {
     uint8_t  zero;                  // Must be zero
     uint8_t  type_attr;             // Type and attributes
     uint16_t offset_high;           // Upper 16 bits of the handler function address
-} __attribute__((packed, aligned(16))) idt_entry_t;
+} __attribute__((packed, aligned(8))) idt_entry_t;
 
 typedef struct idt_descriptor 
 {
@@ -68,6 +68,23 @@ extern void isr28();
 extern void isr29();
 extern void isr30();
 extern void isr31();
+
+extern void isr32();
+extern void isr33();
+extern void isr34();
+extern void isr35();
+extern void isr36();
+extern void isr37();
+extern void isr38();
+extern void isr39();
+extern void isr40();
+extern void isr41();
+extern void isr42();
+extern void isr43();
+extern void isr44();
+extern void isr45();
+extern void isr46();
+extern void isr47();
 
 void early_set_interrupt_c_callback(uint8_t entry_index, void (*callback) (uint32_t error_code));
 void early_set_idt_callback(uint16_t index, void (*handler_addr));

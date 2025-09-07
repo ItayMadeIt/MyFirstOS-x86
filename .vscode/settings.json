@@ -39,6 +39,7 @@
         "early.h": "c",
         "keyboard.h": "c",
         "stdbool.h": "c",
-        "pic.h": "c"
+        "pic.h": "c",
+        "int_timer.h": "c"
     }
 }

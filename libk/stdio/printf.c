@@ -57,6 +57,151 @@ static int print_int(int value)
 	return count;
 }
 
+static int print_long(long value) 
+{
+    if (value == 0) 
+	{
+        putchar('0');
+        return 1;
+    }
+
+	int count = 0;
+
+    if (value < 0) 
+	{
+        putchar('-');
+        value = -value;
+
+		count++;
+    }
+
+    char digits[32]; // enough for even a 64 bit int 2^64 is ~20 digits
+    int i = 0;
+
+    while (value > 0) 
+	{
+        digits[i++] = '0' + (value % 10);
+        value /= 10;
+    }
+
+    // print in reverse order
+    while (i--) 
+	{
+        if (putchar(digits[i]) == EOF)
+		{
+			return -1;
+		}
+
+		count++;
+    }
+	return count;
+}
+
+
+static int print_longlong(long long value) 
+{
+    if (value == 0) 
+	{
+        putchar('0');
+        return 1;
+    }
+
+	int count = 0;
+
+    if (value < 0) 
+	{
+        putchar('-');
+        value = -value;
+
+		count++;
+    }
+
+    char digits[32]; // enough for even a 64 bit int 2^64 is ~20 digits
+    int i = 0;
+
+    while (value > 0) 
+	{
+        digits[i++] = '0' + (value % 10);
+        value /= 10;
+    }
+
+    // print in reverse order
+    while (i--) 
+	{
+        if (putchar(digits[i]) == EOF)
+		{
+			return -1;
+		}
+
+		count++;
+    }
+	return count;
+}
+
+static int print_ulong(unsigned long value) 
+{
+    if (value == 0) 
+	{
+        putchar('0');
+        return 1;
+    }
+
+    char digits[32]; // enough for even a 64 bit int 2^64 is ~20 digits
+    int i = 0;
+
+    while (value > 0) 
+	{
+        digits[i++] = '0' + (value % 10);
+        value /= 10;
+    }
+
+	int count = 0;
+
+    // print in reverse order
+    while (i--) 
+	{
+        if (putchar(digits[i]) == EOF)
+		{
+			return -1;
+		}
+
+		count++;
+    }
+	return count;
+}
+
+static int print_ulonglong(unsigned long long value) 
+{
+    if (value == 0) 
+	{
+        putchar('0');
+        return 1;
+    }
+
+    char digits[32]; // enough for even a 64 bit int 2^64 is ~20 digits
+    int i = 0;
+
+    while (value > 0) 
+	{
+        digits[i++] = '0' + (value % 10);
+        value /= 10;
+    }
+
+	int count = 0;
+
+    // print in reverse order
+    while (i--) 
+	{
+        if (putchar(digits[i]) == EOF)
+		{
+			return -1;
+		}
+
+		count++;
+    }
+	return count;
+}
+
 static int print_hex(unsigned int value, bool uppercase) 
 {
     if (value == 0) 
@@ -172,7 +317,85 @@ int printf(const char* restrict format, ...)
 			if (count == -1)
 				return -1;
 			written += count;
-		} else {
+		}
+		else if (*format == 'l') {
+			format++; // skip first 'l'
+
+			if (*format == 'd') {
+				format++;
+				long val = va_arg(parameters, long);
+				int count = print_long(val);
+				if (count == -1) return -1;
+				written += count;
+			}
+			else if (*format == 'u') {
+				format++;
+				unsigned long val = va_arg(parameters, unsigned long);
+				int count = print_ulong(val);
+				if (count == -1) return -1;
+				written += count;
+			}
+			else if (*format == 'l') {
+			
+				format++; // saw second 'l'
+				if (*format == 'd') { // %lld
+					format++;
+					long long val = va_arg(parameters, long long);
+					int count = print_longlong(val);
+					if (count == -1) return -1;
+					written += count;
+				}
+				else if (*format == 'u') { // %llu
+					format++;
+					unsigned long long val = va_arg(parameters, unsigned long long);
+					int count = print_ulonglong(val);
+					if (count == -1) return -1;
+					written += count;
+				}
+				else if (*format == 'x') { // %llx
+					format++;
+					unsigned long long val = va_arg(parameters, unsigned long long);
+					// extend your hex printer to 64-bit:
+					char buf[32];
+					int i = 0;
+					const char* hex = "0123456789abcdef";
+					if (val == 0) {
+						putchar('0');
+						written++;
+					} else {
+						while (val > 0) {
+							buf[i++] = hex[val % 16];
+							val /= 16;
+						}
+						while (i--) {
+							putchar(buf[i]);
+							written++;
+						}
+					}
+				}
+				else if (*format == 'X') { // %llX
+					format++;
+					unsigned long long val = va_arg(parameters, unsigned long long);
+					char buf[32];
+					int i = 0;
+					const char* hex = "0123456789ABCDEF";
+					if (val == 0) {
+						putchar('0');
+						written++;
+					} else {
+						while (val > 0) {
+							buf[i++] = hex[val % 16];
+							val /= 16;
+						}
+						while (i--) {
+							putchar(buf[i]);
+							written++;
+						}
+					}
+				}
+			}
+		}
+		else {
 			format = format_begun_at;
 			size_t len = strlen(format);
 			if (maxrem < len) {

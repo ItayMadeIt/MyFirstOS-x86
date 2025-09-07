@@ -5,7 +5,7 @@
 #include <core/paging.h>
 #include <core/defs.h>
 #include <memory/virt_alloc.h>
-#include <arch/cpu.h>
+#include <kernel/core/cpu.h>
 
 #include <stdint.h>
 #include <string.h>
