@@ -62,6 +62,7 @@ $(BUILDDIR)/%.o: %.asm
 
 clean:
 	rm -rf $(BUILDDIR)
+	rm -f $(BOOTDIR)/waddleos.kernel
 
 install: install-headers install-kernel
 

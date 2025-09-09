@@ -1,6 +1,6 @@
 #include <core/defs.h>
 #include <early/defs.h>
-#include <core/paging.h>
+#include <arch/i386/core/paging.h>
 
 #define KERNEL_TABLES 64
 #define BOOT_TABLES   2

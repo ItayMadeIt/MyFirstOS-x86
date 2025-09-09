@@ -1,7 +1,7 @@
 // Not the real IDT, just a trampoline for only necessary interrupts that can't be modified
 #include <core/defs.h>
 #include <early/defs.h>
-#include <arch/i386/early/idt.h>
+#include <arch/i386/boot/idt.h>
 #include <core/debug.h>
 
 EARLY_BSS_SECTION

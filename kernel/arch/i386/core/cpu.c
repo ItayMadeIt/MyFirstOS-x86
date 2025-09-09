@@ -1,6 +1,6 @@
 #include <kernel/core/cpu.h>
-#include <arch/i386/core/irq.h>
-#include <arch/i386/drivers/pic.h>
+#include <arch/i386/interrupts/irq.h>
+#include <arch/i386/drivers/pic/pic.h>
 
 void cpu_halt()
 {
@@ -15,6 +15,4 @@ void cpu_init()
     init_irq();
 
     setup_pic();
-    
-    // create dummy irq functions to see if they are getting called
 }

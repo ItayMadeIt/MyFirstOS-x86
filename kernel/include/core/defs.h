@@ -33,6 +33,10 @@
 #define STOR_512MiB 0x20000000
 #define STOR_GiB    0x40000000
 #define STOR_2GiB   0x80000000
+#define STOR_4GiB   ((uint64_t)0x100000000)
+
+// page size for the current architecture
+#define PAGE_SIZE STOR_4KiB
 
 #define container_of(ptr, type, member) \
     ((type *)((char *)(ptr) - offsetof(type, member)))
@@ -53,13 +57,13 @@ static inline uint32_t log2_u32(uint32_t x)
 }
 
 
-static inline uint32_t align_to_n(uint32_t value, uint32_t alignment/*2^n*/)
+static inline uintptr_t align_to_n(uintptr_t value, uintptr_t alignment/*2^n*/)
 {
     assert((alignment & (alignment-1)) == 0);
 
     return (value + alignment - 1) & ~(alignment - 1);
 }
-static inline uint32_t align_up_pow2(uint32_t value)
+static inline uintptr_t align_up_pow2(uintptr_t value)
 {
     if (value == 0) return 1;
 
@@ -70,6 +74,10 @@ static inline uint32_t align_up_pow2(uint32_t value)
     value |= value >> 8;
     value |= value >> 16;
     value++;
+
+#if UINTPTR_MAX > 0xFFFFFFFFu
+    value |= value >> 32;
+#endif
 
     return value;
 }

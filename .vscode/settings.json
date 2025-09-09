@@ -40,6 +40,12 @@
         "keyboard.h": "c",
         "stdbool.h": "c",
         "pic.h": "c",
-        "int_timer.h": "c"
+        "int_timer.h": "c",
+        "ps2_key.h": "c",
+        "entry_data.h": "c",
+        "boot_data.h": "c",
+        "pfn_alloc.h": "c",
+        "pfn_desc.h": "c",
+        "gas.h": "c"
     }
 }

@@ -1,22 +1,25 @@
-#include <arch/i386/early/early.h>
+#include <arch/i386/boot/early.h>
 #include <early/defs.h>
 #include <kernel/core/cpu.h>
-#include <kernel/core/irq.h>
-#include <multiboot/multiboot.h>
+#include <arch/i386/early/irq.h>
+#include <arch/i386/boot/entry_data.h>
 
-void kernel_main(multiboot_info_t* mbd);
+void kernel_main(boot_data_t* data);
 
-void jump_high_kernel(uint32_t stack_top, multiboot_info_t* mbd)
+static boot_data_t entry_data;
+void jump_high_kernel(uintptr_t stack_top, boot_data_t data)
 {
+    entry_data = data;
+
     asm volatile(
-        "movl %0, %%esp\n\t"      // switch to new (low-phys) stack
+        "movl %0, %%esp\n\t"      // switch to new stack
         "movl %0, %%ebp\n\t"
-        "pushl %1\n\t"            // push mbd (already adjusted if needed)
-        "call kernel_main\n\t"    // kernel_main(mbd)
         :
-        : "r"(stack_top), "r"(mbd)
+        : "r"(stack_top)
         : "memory", "cc"
     );
+
+    kernel_main(&entry_data);
 }
 
 // constant offset: virt = phys + off
@@ -33,14 +36,16 @@ void entry_main(uint32_t magic, multiboot_info_t* mbd)
     }
 
     // Critical setup 
+    early_irq_disable();
     init_gdt();
     init_boot_isr();
-
     init_paging();
 
-    irq_disable();
-
     // Call kernel_main with mbd
+    boot_data_t data = {
+        .mbd = mbd
+    };
+
     uint32_t new_stack_top = (uint32_t)kernel_stack_top;
-    jump_high_kernel(new_stack_top, mbd);
+    jump_high_kernel(new_stack_top, data);
 }

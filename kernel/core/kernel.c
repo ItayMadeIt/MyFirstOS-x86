@@ -1,15 +1,15 @@
 #include <stdio.h>
 #include <core/defs.h>
 #include <drivers/tty.h>
-#include <firmware/acpi.h>
-#include <multiboot/multiboot.h>
+#include <firmware/acpi/acpi.h>
+#include <kernel/boot/boot_data.h>
 
-#include <kernel/drivers/keyboard.h>
-#include <kernel/drivers/int_timer.h>
-#include <kernel/core/irq.h>
+#include <kernel/devices/keyboard.h>
+#include <kernel/devices/int_timer.h>
+#include <kernel/interrupts/irq.h>
 #include <kernel/core/cpu.h>
 
-void setup_memory(multiboot_info_t* mbd);
+void init_memory(boot_data_t* data);
 void init_boot_isr();
 void setup_pic();
 void setup_pit();
@@ -99,26 +99,22 @@ static void dummy_time_event(int_timer_event_t time_event)
     );
 }
 
-void kernel_main(multiboot_info_t* mbd)
+void kernel_main(boot_data_t* boot_data)
 {
     cpu_init();
 
 	terminal_initialize();
 
     // Setup interrupt handlers
-	setup_memory(mbd);
+	init_memory(boot_data);
 
     // basic drivers
     init_int_timer(10, dummy_time_event);
     init_keyboard(dummy_key_handler);
 
-    // setup_acpi();
+    setup_acpi();
 
 	irq_enable();
-
-#ifdef __is_libc
-	printf("[ERROR] LIBC IS DEFINED/USED\n\n");	
-#endif
 
 	while(1)
     {

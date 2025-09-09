@@ -1,9 +1,9 @@
 #include <stdint.h>
 #include <early/defs.h>
 #include <core/debug.h>
-#include <kernel/core/irq.h>
 #include <kernel/core/cpu.h>
-#include <arch/i386/early/idt.h>
+#include <kernel/interrupts/irq.h>
+#include <arch/i386/boot/idt.h>
 
 #define DIVIDE_0_INDEX   0
 #define GEN_PROT_INDEX   13

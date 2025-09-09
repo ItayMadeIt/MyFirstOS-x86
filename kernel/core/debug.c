@@ -48,46 +48,48 @@ void debug_print_str(const char* str) {
     }
 }
 
-void debug_print(uint32_t value) {
+void debug_print(uint64_t value) 
+{
     char hex[] = "0123456789ABCDEF";
-    for (int i = 7; i >= 0; --i) {
+    for (int i = sizeof(value)*2-1; i >= 0; --i) 
+    {
         char ch = hex[(value >> (i * 4)) & 0xF];
         put_char(ch);
     }
     put_char('\n');
 }
 
-void debug_print_int_nonewline(int32_t value) {
+void debug_print_int_nonewline(int64_t value) 
+{
     char buffer[12];
     int i = 0;
 
-    if (value < 0) {
+    if (value < 0) 
+    {
         put_char('-');
         value = -value;
     }
 
-    if (value == 0) {
+    if (value == 0) 
+    {
         put_char('0');
         return;
     }
 
-    while (value > 0) {
+    while (value > 0) 
+    {
         buffer[i++] = '0' + (value % 10);
         value /= 10;
     }
 
-    while (i--) {
+    while (i--) 
+    {
         put_char(buffer[i]);
     }
 }
-void debug_print_int(int32_t value) {
-    debug_print_int_nonewline(value);
-    put_char('\n');
-}
 
-void debug_print_binary(uint8_t value) {
-    for (int i = 7; i >= 0; --i) {
-        put_char((value & (1u << i)) ? '1' : '0');
-    }
+void debug_print_int(int64_t value) 
+{
+    debug_print_int_nonewline(value);
     put_char('\n');
 }
