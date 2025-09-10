@@ -1,3 +1,4 @@
+#include "drivers/pci.h"
 #include <stdio.h>
 #include <core/defs.h>
 #include <drivers/tty.h>
@@ -113,6 +114,8 @@ void kernel_main(boot_data_t* boot_data)
     init_keyboard(dummy_key_handler);
 
     setup_acpi();
+
+    init_pci();
 
 	irq_enable();
 

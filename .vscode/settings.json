@@ -46,6 +46,7 @@
         "boot_data.h": "c",
         "pfn_alloc.h": "c",
         "pfn_desc.h": "c",
-        "gas.h": "c"
+        "gas.h": "c",
+        "pci_ops.h": "c"
     }
 }

@@ -2,6 +2,9 @@
 #define __PCI_OPS_H__
 
 #include <core/defs.h>
+#define BUS_COUNT 256
+#define DEVS_COUNT 32
+#define FUNCS_COUNT 8
 
 uint8_t pci_config_read_byte(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset);
 uint16_t pci_config_read_word(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset);

@@ -9,7 +9,6 @@
 #include <arch/i386/interrupts/irq.h>
 #include <arch/i386/core/idt.h>
 
-#define IRQ_TIMER_VEC   0x20 
 
 // PIT constants
 #define PIT_INPUT_CLOCK 3579545
@@ -78,7 +77,6 @@ static inline uint64_t compute_system_nanoseconds(void)
 
 extern void IRQ0_handler();
 
-void pit_isr();
 int_timer_callback_t pit_callback;
 
 void set_pit_vars(uint32_t desired_hz)
@@ -122,10 +120,13 @@ void load_pit(uint32_t desired_hz)
     outb(PIT_COMMAND, 0x34); // ch0, lobyte/hibyte, mode 2
     outb(PIT_CHANNEL0, (uint8_t)(pit_reload_value & 0xFF));       // low
     outb(PIT_CHANNEL0, (uint8_t)((pit_reload_value >> 8) & 0xFF));// high
+
+    // unmask IRQ0
+    io_wait();
+    outb(PIC1_DATA, inb(PIC1_DATA) & ~0x01);
 }
 
-
-static void pit_timer_dispatch(irq_frame_t* frame) 
+void pit_timer_dispatch(irq_frame_t* frame) 
 {
     (void)frame;
 
@@ -149,28 +150,7 @@ static void pit_timer_dispatch(irq_frame_t* frame)
     pic_send_eoi_vector(IRQ_TIMER_VEC);
 }
 
-void init_int_timer(const uint64_t hz, int_timer_callback_t callback)
-{
-    load_pit(hz);
-
-    system_timer_ms = 0;
-    system_timer_ms_fractions = 0;
-    tick_count = 0;
-    pit_hz = hz;
-
-    int_timer_update_callback(callback);
-
-    irq_register_handler(
-        IRQ_TIMER_VEC, 
-        pit_timer_dispatch
-    );
-
-    // unmask IRQ0
-    io_wait();
-    outb(PIC1_DATA, inb(PIC1_DATA) & ~0x01);
-}
-
-void int_timer_update_callback(int_timer_callback_t callback) 
+void pit_update_callback(int_timer_callback_t callback) 
 {
     assert(callback);
     pit_callback = callback;
