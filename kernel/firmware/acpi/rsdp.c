@@ -38,7 +38,7 @@ static bool valid_rsdp_checksum(rsdp_t* r)
 rsdp_t* gather_rdsp()
 {
     uint32_t ebda_ptr = (*(uint16_t*)0x040E) << 4;
-    for (uint32_t i = 0; i < STOR_1Kib; i+=RDSP_ALIGNMENT)
+    for (uint32_t i = 0; i < STOR_1KiB; i+=RDSP_ALIGNMENT)
     {
         rsdp_t* rsdp = (rsdp_t*)(ebda_ptr + i) ;
         if (memcmp(rsdp->signature, RSDP_SIGNATURE, RSDP_SIGNATURE_LEN) == 0

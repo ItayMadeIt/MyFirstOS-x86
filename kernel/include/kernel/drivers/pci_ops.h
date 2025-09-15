@@ -6,6 +6,8 @@
 #define DEVS_COUNT 32
 #define FUNCS_COUNT 8
 
+#define PCI_CMD_OFF 0x04
+
 uint8_t pci_config_read_byte(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset);
 uint16_t pci_config_read_word(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset);
 uint32_t pci_config_read_dword(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset);

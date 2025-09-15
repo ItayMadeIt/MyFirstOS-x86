@@ -47,6 +47,8 @@
         "pfn_alloc.h": "c",
         "pfn_desc.h": "c",
         "gas.h": "c",
-        "pci_ops.h": "c"
+        "pci_ops.h": "c",
+        "ide.h": "c",
+        "storage.h": "c"
     }
 }

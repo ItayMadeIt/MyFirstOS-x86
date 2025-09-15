@@ -117,8 +117,8 @@ enum header_type
     PCI_HEADER_CARDBUS_BRIDGE = 2,
 } ;
 
-typedef struct pci_function {
-    uint8_t function;                // function number (0–7)
+typedef struct pci_driver {
+    uint8_t func;                // function number (0–7)
     uint8_t slot;                    // device slot (0-31)
     uint8_t bus;                     // bus number (0-255)
     union {
@@ -128,6 +128,11 @@ typedef struct pci_function {
         pci_cardbus_bridge_header_t cardbus_bridge_header;
     };
     const char* device_name;
+
+} pci_driver_t;
+
+typedef struct pci_function {
+    pci_driver_t driver;
     // next function in same device
     struct pci_function* next;
 } pci_function_t;
@@ -146,6 +151,8 @@ typedef struct pci_bus {
     // next bus
     struct pci_bus* next;
 } pci_bus_t;
+
+pci_driver_t* get_pci_device(uint16_t class_code, uint16_t subclass_code);
 
 void init_pci();
 

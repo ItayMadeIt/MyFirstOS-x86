@@ -202,42 +202,38 @@ static int print_ulonglong(unsigned long long value)
 	return count;
 }
 
-static int print_hex(unsigned int value, bool uppercase) 
+static int print_hex(unsigned int value, bool uppercase, unsigned int min_digits) 
 {
-    if (value == 0) 
+    const char* hex = uppercase ? "0123456789ABCDEF" : "0123456789abcdef";
+    char digits[0x20];
+    unsigned int i = 0;
+
+	if (value == 0) 
 	{
-		if (!print("0x0", sizeof("0x0")-1))
+        digits[i++] = '0';
+    } 
+	else 
+	{
+        while (value > 0) 
 		{
-			return -1;
-		}
-
-        return sizeof("0x0");
+            digits[i++] = hex[value % 0x10];
+            value /= 0x10;
+        }
     }
 
-	if (!print("0x", sizeof("0x")-1))
+    // Pad with zeros if needed
+    while (i < min_digits) 
 	{
-		return -1;
-	}
-	int count = sizeof("0x");
-
-    const char* hex = uppercase ? 
-		"0123456789ABCDEF" : "0123456789abcdef";
-    char digits[16];
-    int i = 0;
-
-    while (value > 0) 
-	{
-        digits[i++] = hex[value % 16];
-        value /= 16;
+        digits[i++] = '0';
     }
 
+    int count = 0;
     while (i--) 
 	{
-        putchar(digits[i]);
-		count++;
-	}
-
-	return count;
+        if (putchar(digits[i]) == EOF) return -1;
+        count++;
+    }
+    return count;
 }
 
 
@@ -306,18 +302,49 @@ int printf(const char* restrict format, ...)
 		} else if (*format == 'x') {
 			format++;
             int val = va_arg(parameters, unsigned int);
-            int count = print_hex(val, false);
+            int count = print_hex(val, false, 0);
 			if (count == -1)
 				return -1;
 			written += count;
 		}  else if (*format == 'X') {
 			format++;
             int val = va_arg(parameters, unsigned int);
-            int count = print_hex(val, true);
+            int count = print_hex(val, true, 0);
 			if (count == -1)
 				return -1;
 			written += count;
 		}
+		else if (*format == '0') 
+		{
+			format++; // skip '0'
+			unsigned int width = 0;
+			while (*format >= '0' && *format <= '9') 
+			{
+				width = width * 10 + (*format - '0');
+				format++;
+			}
+
+			if (*format == 'x') 
+			{
+				format++;
+				unsigned int val = va_arg(parameters, unsigned int);
+				int count = print_hex(val, false, width);
+				if (count == -1) 
+					return -1;
+				written += count;
+			}
+			else if (*format == 'X') 
+			{
+				format++;
+				unsigned int val = va_arg(parameters, unsigned int);
+				int count = print_hex(val, true, width);
+				if (count == -1) 
+					return -1;
+				written += count;
+			}
+			continue;
+		}
+
 		else if (*format == 'l') {
 			format++; // skip first 'l'
 

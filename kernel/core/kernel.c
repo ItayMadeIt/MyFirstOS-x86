@@ -7,6 +7,7 @@
 
 #include <kernel/devices/keyboard.h>
 #include <kernel/devices/int_timer.h>
+#include <kernel/devices/storage.h>
 #include <kernel/interrupts/irq.h>
 #include <kernel/core/cpu.h>
 
@@ -32,6 +33,7 @@ void assert(bool must_be_true)
 }
 static bool dummy_printing_time;
 
+extern uint8_t ide_data_arr[512];
 static void dummy_key_handler(raw_key_event_t key_event)
 {
     if (key_event.pressed == false)
@@ -82,6 +84,7 @@ static void dummy_key_handler(raw_key_event_t key_event)
         case KEYCODE_ENTER: printf("\n"); break;
         case KEYCODE_SPACE: printf(" "); break;
         case KEYCODE_MINUS: dummy_printing_time = !dummy_printing_time; break;
+        case KEYCODE_EQUAL: printf("%d\n", (uint32_t)ide_data_arr[0]);
 
         default:
             break;
@@ -100,6 +103,8 @@ static void dummy_time_event(int_timer_event_t time_event)
     );
 }
 
+
+
 void kernel_main(boot_data_t* boot_data)
 {
     cpu_init();
@@ -109,18 +114,20 @@ void kernel_main(boot_data_t* boot_data)
     // Setup interrupt handlers
 	init_memory(boot_data);
 
+    // Setup pci devices
+    init_pci();
+
     // basic drivers
     init_int_timer(10, dummy_time_event);
     init_keyboard(dummy_key_handler);
+    init_stor();
 
     setup_acpi();
-
-    init_pci();
 
 	irq_enable();
 
 	while(1)
     {
-        //printf("Hi!!!\n\n");	
+
     }
 }

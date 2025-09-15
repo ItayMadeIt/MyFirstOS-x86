@@ -1,7 +1,8 @@
-*.iso
-isodir
+*.img
+imgdir
 sysroot
 .cache/
 build/
 compile_commands.json
 .gdb_history
+qemu.log

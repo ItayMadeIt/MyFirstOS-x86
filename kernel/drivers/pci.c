@@ -67,21 +67,21 @@ static void init_device_names()
 
 static void fetch_dev_name(pci_function_t* node)
 {
-    node->device_name = NULL;
+    node->driver.device_name = NULL;
     for (uint32_t i = 0; i < PERMADE_DEVICES_NAMES; i++)
     {
-        if (devs_metadata[i].class_code == node->header.class_code &&
-            devs_metadata[i].subclass_code == node->header.subclass_code)
+        if (devs_metadata[i].class_code == node->driver.header.class_code &&
+            devs_metadata[i].subclass_code == node->driver.header.subclass_code)
         {
-            node->device_name = devs_metadata[i].device_name;
+            node->driver.device_name = devs_metadata[i].device_name;
         }
     }
 }
 
 static void fetch_func_header(pci_function_t* node)
 {
-    node->header.header_type = get_header_type(node->bus, node->slot, node->function);
-    uint8_t header_type = node->header.header_type & 0x7F;
+    node->driver.header.header_type = get_header_type(node->driver.bus, node->driver.slot, node->driver.func);
+    uint8_t header_type = node->driver.header.header_type & 0x7F;
 
     uint16_t header_size = 0;
     uint32_t* header = NULL;
@@ -91,19 +91,19 @@ static void fetch_func_header(pci_function_t* node)
         case PCI_HEADER_GENERAL_DEVICE:
         {
             header_size = sizeof(pci_device_header_t);   
-            header = (uint32_t*) &node->device_header;
+            header = (uint32_t*) &node->driver.device_header;
             break;
         }
         case PCI_HEADER_CARDBUS_BRIDGE:
         {
             header_size = sizeof(pci_cardbus_bridge_header_t);
-            header = (uint32_t*) &node->cardbus_bridge_header;
+            header = (uint32_t*) &node->driver.cardbus_bridge_header;
             break;
         }
         case PCI_HEADER_PCI_BRIDGE:
         {
             header_size = sizeof(pci_bridge_header_t);
-            header = (uint32_t*) &node->pci_bridge_header;
+            header = (uint32_t*) &node->driver.pci_bridge_header;
             break;
         }
         default:
@@ -117,9 +117,9 @@ static void fetch_func_header(pci_function_t* node)
     for (uint16_t i = 0; i < header_size; i+=sizeof(uint32_t))
     {
         header[i / sizeof(uint32_t)] = pci_config_read_dword(
-            node->bus,
-            node->slot,
-            node->function,
+            node->driver.bus,
+            node->driver.slot,
+            node->driver.func,
             i
         );
     }
@@ -154,9 +154,9 @@ static pci_function_t* make_func_node(pci_device_t* dev_node, uint8_t func_index
 {
     pci_function_t* func_node = kalloc(sizeof(pci_function_t));
 
-    func_node->bus = dev_node->bus;
-    func_node->slot = dev_node->slot;
-    func_node->function = func_index;
+    func_node->driver.bus = dev_node->bus;
+    func_node->driver.slot = dev_node->slot;
+    func_node->driver.func = func_index;
 
     func_node->next = NULL;
 
@@ -173,12 +173,11 @@ static int amount;
 
 static void scan_function(pci_function_t* function)
 {     
-   uint8_t header_type = function->header.header_type & 0x7F;
+   uint8_t header_type = function->driver.header.header_type & 0x7F;
 
     if (header_type == PCI_HEADER_PCI_BRIDGE)
     {
-        amount++;
-        scan_bus(function->pci_bridge_header.secondary_bus_number);
+        scan_bus(function->driver.pci_bridge_header.secondary_bus_number);
     }
 }
 
@@ -212,6 +211,7 @@ static void scan_device(pci_device_t* dev_node)
 
 static void scan_bus(uint8_t bus)
 {
+    amount++;
     pci_bus_t* bus_node = make_bus_node(bus);
 
     for (uintptr_t dev_index = 0; dev_index < DEVS_COUNT; dev_index++)
@@ -233,54 +233,31 @@ static void scan_bus(uint8_t bus)
     push_bus_node(bus_node);
 }
 
+pci_driver_t* get_pci_device(uint16_t class_code, uint16_t subclass_code)
+{
+    for (pci_bus_t* bus_it = pci_ll; bus_it != NULL; bus_it = bus_it->next)
+    {
+        for (pci_device_t* dev_it = bus_it->dev_ll; dev_it != NULL; dev_it = dev_it->next)
+        {
+            for (pci_function_t* func_it = dev_it->func_ll; func_it != NULL; func_it = func_it->next)
+            {
+                if (func_it->driver.header.class_code != class_code) continue;
+                
+                if (func_it->driver.header.subclass_code != subclass_code) continue;
+                
+                return &func_it->driver;
+            }
+        }
+    }
+    return NULL;
+}
+
 void init_pci()
 {
     init_device_names();
-    
+
     // scan full PCI
     pci_ll = NULL;
     scan_bus(0);
 
-    pci_bus_t* bus_it = pci_ll;
-    while (bus_it)
-    {
-        pci_device_t* dev_it = bus_it->dev_ll;
-        while (dev_it)
-        {
-            pci_function_t* func_it = dev_it->func_ll;
-            while (func_it)
-            {
-                uint8_t header_type = func_it->header.header_type & 0x7F;
-
-                if (header_type == PCI_HEADER_GENERAL_DEVICE) 
-                {
-                    printf("Vendor %x | Class %x Subclass %x Progif %x Name %s\n",
-                        func_it->device_header.header.vendor_id,
-                        func_it->device_header.header.class_code,
-                        func_it->device_header.header.subclass_code,
-                        func_it->device_header.header.progif, 
-                        func_it->device_name ? func_it->device_name : "None");
-                }
-                else if (header_type == PCI_HEADER_PCI_BRIDGE) 
-                {
-                    printf("Vendor %x | PCI-PCI bridge | Secondary bus %d\n",
-                        func_it->pci_bridge_header.header.vendor_id,
-                        func_it->pci_bridge_header.secondary_bus_number);
-                }
-                else if (header_type == PCI_HEADER_CARDBUS_BRIDGE) 
-                {
-                    printf("Vendor %x | CardBus bridge\n",
-                        func_it->cardbus_bridge_header.header.vendor_id);
-                }
-
-
-                func_it = func_it->next;
-            }
-
-            dev_it = dev_it->next;
-        }
-        
-        bus_it = bus_it->next;
-    }
-    printf("\n%d\n\n", amount);
 }

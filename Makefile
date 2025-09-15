@@ -1,20 +1,20 @@
-.PHONY: all clean install install-headers iso run debug qemu-debug
+.PHONY: all clean install install-headers img run debug qemu-debug
 
 all: install
 
 $(info >>> Makefile is being read!)
 
 # Core config
-HOST     := $(shell ./default-host.sh)
-ARCH     := $(shell ./target-triplet-to-arch.sh $(HOST))
+HOST     := $(shell ./scripts/default-host.sh)
+ARCH     := $(shell ./scripts/target-triplet-to-arch.sh $(HOST))
 
-SYSROOT   := $(shell pwd)/isodir
-DESTDIR   := $(shell pwd)/isodir
-ISODIR    := $(shell pwd)/isodir
+SYSROOT   := $(shell pwd)/imgdir
+DESTDIR   := $(shell pwd)/imgdir
+IMGDIR    := $(shell pwd)/imgdir
 BUILDDIR  := $(shell pwd)/build
-ISO       := $(BUILDDIR)/waddleos.iso
+IMG       := $(BUILDDIR)/waddleos.img
 
-PREFIX        := /usr
+PREFIX        := /root/usr
 EXEC_PREFIX   := $(PREFIX)
 LIBDIR        := $(EXEC_PREFIX)/lib
 BOOTDIR       := $(SYSROOT)/boot
@@ -22,7 +22,7 @@ INCLUDEDIR    := $(PREFIX)/include
 
 CFLAGS        := 
 CPPFLAGS      :=
-LDFLAGS       :=
+LDFLAGS       := -L$(BUILDDIR)/libk
 CC            := $(HOST)-gcc --sysroot=$(SYSROOT)
 AR            := $(HOST)-ar
 AS            := $(HOST)-as
@@ -80,32 +80,34 @@ clean:
 		echo "→ cleaning $$PROJECT"; \
 		$(MAKE) -C $$PROJECT clean || exit 1; \
 	done
-	@rm -rf $(ISO) 
+	@rm -rf $(IMG) 
 
-iso: install
+img: install
 	@mkdir -p "$(BOOTDIR)/grub"
-	@if [ ! -f "$(ISODIR)/boot/grub/grub.cfg" ]; then \
-		echo 'menuentry "Waddle-OS" {' > "$(ISODIR)/boot/grub/grub.cfg"; \
-		echo '  multiboot /boot/waddleos.kernel' >> "$(ISODIR)/boot/grub/grub.cfg"; \
-		echo '}' >> "$(ISODIR)/boot/grub/grub.cfg"; \
+	@if [ ! -f "$(IMGDIR)/boot/grub/grub.cfg" ]; then \
+		echo 'menuentry "Waddle-OS" {' > "$(IMGDIR)/boot/grub/grub.cfg"; \
+		echo '  multiboot /waddleos.kernel' >> "$(IMGDIR)/boot/grub/grub.cfg"; \
+		echo '}' >> "$(IMGDIR)/boot/grub/grub.cfg"; \
 	fi
-	grub-mkrescue -o "$(ISO)" "$(ISODIR)"
+	@dd if=/dev/zero of=$(IMG) bs=1MiB count=64
+	sudo -u builder ./scripts/img-maker.sh $(IMG)
+	
 
-run: iso
-	qemu-system-$(ARCH) -m 256M -cdrom "$(ISO)"
+run: img
+	qemu-system-$(ARCH) -m 256M -drive file=$(IMG),format=raw -serial stdio
 
 debug: 
-	$(MAKE) DEBUG=1 iso
+	$(MAKE) DEBUG=1 img
 
 debug-run: 
-	$(MAKE) DEBUG=1 iso
-	qemu-system-$(ARCH) -cdrom "$(ISO)" -s -S \
+	$(MAKE) DEBUG=1 img
+	qemu-system-$(ARCH) -m 256M -drive file=$(IMG),format=raw -serial stdio \
+		-s -S \
 		-no-reboot -no-shutdown \
-		-d int,cpu_reset -D qemu.log \
-		-serial stdio
+		-d int,cpu_reset -D qemu.log
 
 debug-gdb: 
-	$(MAKE) DEBUG=1 iso
+	$(MAKE) DEBUG=1 img
 	sudo env "PATH=$(PATH)" $(HOST)-gdb \
 	  "$(SYSROOT)/boot/waddleos.kernel" \
 	  -ex "target remote localhost:1234" \

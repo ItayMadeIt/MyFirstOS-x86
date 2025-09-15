@@ -5,7 +5,7 @@
       "name": "Debug WaddleOS Kernel",
       "type": "cppdbg",
       "request": "launch",
-      "program": "${workspaceFolder}/isodir/boot/waddleos.kernel",
+      "program": "${workspaceFolder}/imgdir/boot/waddleos.kernel",
       "miDebuggerPath": "i686-elf-gdb",
       "miDebuggerArgs": "--eval-command=set print elements 0",
       "stopAtEntry": false,
@@ -15,7 +15,7 @@
       "preLaunchTask": "build-and-run-debug-qemu",
       "customLaunchSetupCommands": [
         {
-          "text": "file ${workspaceFolder}/isodir/boot/waddleos.kernel"
+          "text": "file ${workspaceFolder}/imgdir/boot/waddleos.kernel"
         },
         {
           "text": "target remote localhost:1234"

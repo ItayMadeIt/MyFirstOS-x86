@@ -8,7 +8,7 @@
 #include <memory/core/linker_vars.h>
 #include <string.h>
 
-#define INIT_SIZE STOR_16Kib
+#define INIT_SIZE STOR_16KiB
 
 typedef struct bump_vars
 {

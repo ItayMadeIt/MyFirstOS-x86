@@ -58,4 +58,56 @@ static inline void io_wait()
     outb(0x80, 0);
 }
 
+
+// Input bytes (uint8_t) array
+static inline void insb(uint16_t port, void *addr, uint32_t count)
+{
+    asm volatile ("rep insb"
+                  : "+D"(addr), "+c"(count)
+                  : "d"(port)
+                  : "memory");
+}
+
+// Output bytes (uint8_t) array
+static inline void outsb(uint16_t port, const void *addr, uint32_t count)
+{
+    asm volatile ("rep outsb"
+                  : "+S"(addr), "+c"(count)
+                  : "d"(port));
+}
+
+// Input words (uint16_t) array
+static inline void insw(uint16_t port, void *addr, uint32_t count)
+{
+    asm volatile ("rep insw"
+                  : "+D"(addr), "+c"(count)
+                  : "d"(port)
+                  : "memory");
+}
+
+// Output words (uint16_t) array
+static inline void outsw(uint16_t port, const void *addr, uint32_t count)
+{
+    asm volatile ("rep outsw"
+                  : "+S"(addr), "+c"(count)
+                  : "d"(port));
+}
+
+// Input double words (uint32_t) array
+static inline void insl(uint16_t port, void *addr, uint32_t count)
+{
+    asm volatile ("rep insl"
+                  : "+D"(addr), "+c"(count)
+                  : "d"(port)
+                  : "memory");
+}
+
+// Output double words (uint32_t) array
+static inline void outsl(uint16_t port, const void *addr, uint32_t count)
+{
+    asm volatile ("rep outsl"
+                  : "+S"(addr), "+c"(count)
+                  : "d"(port));
+}
+
 #endif // __IO_H__
