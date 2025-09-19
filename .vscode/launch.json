@@ -13,6 +13,7 @@
       "targetArchitecture": "x86",
       "externalConsole": false,
       "preLaunchTask": "build-and-run-debug-qemu",
+      "postDebugTask": "kill-qemu",
       "customLaunchSetupCommands": [
         {
           "text": "file ${workspaceFolder}/imgdir/boot/waddleos.kernel"

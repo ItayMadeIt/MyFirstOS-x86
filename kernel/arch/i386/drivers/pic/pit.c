@@ -75,8 +75,6 @@ static inline uint64_t compute_system_nanoseconds(void)
     return ns + frac_ns;
 }
 
-extern void IRQ0_handler();
-
 int_timer_callback_t pit_callback;
 
 void set_pit_vars(uint32_t desired_hz)

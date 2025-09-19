@@ -10,7 +10,10 @@
 #define PIC2_COMMAND	PIC2
 #define PIC2_DATA	(PIC2+1)
 
+#define PIC_IRQ_OFFSET 0x20
+
 void pic_send_eoi_vector(uint8_t irq);
+void pic_unmask_vector(uint8_t vector);
 void setup_pic();
 
 #endif // __PIC_H__

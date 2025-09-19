@@ -1,11 +1,12 @@
+#ifndef __ARCH_STORAGE_H__
+#define __ARCH_STORAGE_H__
+
 #include <stdint.h>
 
 #define SECTOR_SIZE 512
 
-void init_stor();
-uint64_t stor_get_total_lba();  
-uint64_t stor_get_block_size(); 
-uint64_t stor_get_size_bytes(); 
+uint64_t stor_get_total_lba  (uintptr_t dev_id);  
+uint64_t stor_get_sector_size(uintptr_t dev_id); 
+uint64_t stor_get_size_bytes (uintptr_t dev_id); 
 
-void stor_write(uint64_t lba_begin, uint64_t lba_count, const uint8_t* data);
-void stor_read (uint64_t lba_begin, uint64_t lba_count, uint8_t* data);
+#endif // __STORAGE_H__

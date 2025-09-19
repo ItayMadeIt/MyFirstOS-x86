@@ -82,7 +82,8 @@ clean:
 	done
 	@rm -rf $(IMG) 
 
-img: install
+img: 
+	$(MAKE) install
 	@mkdir -p "$(BOOTDIR)/grub"
 	@if [ ! -f "$(IMGDIR)/boot/grub/grub.cfg" ]; then \
 		echo 'menuentry "Waddle-OS" {' > "$(IMGDIR)/boot/grub/grub.cfg"; \
@@ -96,11 +97,11 @@ img: install
 run: img
 	qemu-system-$(ARCH) -m 256M -drive file=$(IMG),format=raw -serial stdio
 
-debug: 
-	$(MAKE) DEBUG=1 img
+debug: img
+	$(MAKE) DEBUG=1 install
 
-debug-run: 
-	$(MAKE) DEBUG=1 img
+debug-run: img
+	$(MAKE) DEBUG=1 install
 	qemu-system-$(ARCH) -m 256M -drive file=$(IMG),format=raw -serial stdio \
 		-s -S \
 		-no-reboot -no-shutdown \

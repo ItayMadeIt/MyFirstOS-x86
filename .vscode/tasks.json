@@ -22,6 +22,11 @@
           "endsPattern": "."
         }
       }
+    },
+    {
+      "label": "kill-qemu",
+      "type": "shell",
+      "command": "pkill -9 -f qemu-system-i386"
     }
   ]
 }

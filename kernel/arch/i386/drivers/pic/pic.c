@@ -25,7 +25,7 @@ arguments:
 		vectors on the master become offset1..offset1+7
 	offset2 - same for slave PIC: offset2..offset2+7
 */
-void PIC_remap(int offset1, int offset2)
+void pic_remap(int offset1, int offset2)
 {
     pic_master_base = (uint8_t)offset1;
     pic_slave_base  = (uint8_t)offset2;
@@ -90,9 +90,39 @@ void pic_send_eoi_vector(uint8_t vector)
 
 }
 
+void pic_unmask_vector(uint8_t vector)
+{
+    uint8_t irq;
+    uint16_t port;
+
+    if (vector >= pic_slave_base && vector < pic_slave_base + 8)
+    {
+        irq = vector - pic_slave_base;
+        port = PIC2_DATA;
+
+        uint8_t master_mask = inb(PIC1_DATA);
+        master_mask &= ~(1 << 2);
+        outb(PIC1_DATA, master_mask);
+    }
+    else if (vector >= pic_master_base && vector < pic_master_base + 8)
+    {
+        irq = vector - pic_master_base;
+        port = PIC1_DATA;
+    }
+    else
+    {
+        return;
+    }
+
+    uint8_t mask = inb(port);
+    mask &= ~(1 << irq);
+    outb(port, mask);
+}
+
+
 void setup_pic()
 {
-	PIC_remap(0x20, 0x28);
+	pic_remap(PIC_IRQ_OFFSET, PIC_IRQ_OFFSET + 8);
 
 	// make everything not usable
 	outb(PIC1_DATA, 0xFF);
