@@ -39,18 +39,39 @@ struct stor_device
 
     void (*submit)(stor_request_t* req);    
    
-    uintptr_t sector_size;
-    uintptr_t sector_mask;
+    uint64_t sector_size;
+    uint64_t sector_mask;
+    
+    uint64_t cache_size; // max(page_size, sector_size)
+    uint64_t cache_mask; 
 };
+
+stor_device_t* main_stor_device();
 
 stor_device_t* stor_get_device(uint64_t dev_index);
 void init_storage();
 
 typedef uintptr_t (*storage_add_device)(
     void* data, 
-    uintptr_t sector_size, 
+    uint64_t sector_size, 
     void (*submit)(stor_request_t*), 
     uint64_t disk_size
 );
+
+static inline uint64_t cache_block_index(stor_device_t *dev, uint64_t byte_offset) 
+{
+    return byte_offset / dev->cache_size;
+}
+
+static inline uint64_t cache_block_start(stor_device_t *dev, uint64_t byte_offset) 
+{
+    return byte_offset & ~(dev->cache_size - 1);
+}
+
+static inline uint64_t cache_block_offset(stor_device_t *dev, uint64_t byte_offset) 
+{
+    return byte_offset & (dev->cache_size-1);
+}
+
 
 #endif // __STORAGE_H__

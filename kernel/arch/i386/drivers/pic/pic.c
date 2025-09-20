@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <arch/i386/drivers/io/io.h>
 #include <arch/i386/drivers/pic/pic.h>
+#include <kernel/interrupts/irq.h>
 
 
 #define ICW1_ICW4	0x01		/* Indicates that ICW4 will be present */
@@ -64,7 +65,9 @@ static uint16_t __pic_get_irq_reg(int ocw3)
      * represents IRQs 8-15.  PIC1 is IRQs 0-7, with 2 being the chain */
     outb(PIC1_COMMAND, ocw3);
     outb(PIC2_COMMAND, ocw3);
-    return (inb(PIC2_COMMAND) << 8) | inb(PIC1_COMMAND);
+    uint8_t irr1 = inb(PIC1_COMMAND);
+    uint8_t irr2 = inb(PIC2_COMMAND);
+    return ((uint16_t)irr2 << 8) | irr1;
 }
 
 /* Returns the combined value of the cascaded PICs irq request register */
@@ -90,33 +93,55 @@ void pic_send_eoi_vector(uint8_t vector)
 
 }
 
-void pic_unmask_vector(uint8_t vector)
+static void pic_unmask_irq(uint8_t irq_line)
 {
-    uint8_t irq;
+    uintptr_t irq_data = irq_save();
+
+    uint8_t bit;
     uint16_t port;
 
-    if (vector >= pic_slave_base && vector < pic_slave_base + 8)
+    if (irq_line < 8) 
     {
-        irq = vector - pic_slave_base;
-        port = PIC2_DATA;
-
-        uint8_t master_mask = inb(PIC1_DATA);
-        master_mask &= ~(1 << 2);
-        outb(PIC1_DATA, master_mask);
-    }
-    else if (vector >= pic_master_base && vector < pic_master_base + 8)
-    {
-        irq = vector - pic_master_base;
         port = PIC1_DATA;
-    }
-    else
+        bit  = irq_line;
+    } 
+    else 
     {
-        return;
+        port = PIC2_DATA;
+        bit  = irq_line - 8;
+
+        // ensure cascade (IRQ2) on master is unmasked
+        // io_wait();
+        // uint8_t new_mask = inb(PIC1_DATA) & ~(1u << 2);
+        // io_wait();
+        // outb(PIC1_DATA, new_mask);
     }
 
-    uint8_t mask = inb(port);
-    mask &= ~(1 << irq);
-    outb(port, mask);
+    io_wait();
+    uint8_t new_mask = inb(port) & ~(1u << bit);
+    io_wait();
+    outb(port, new_mask);
+
+    irq_restore(irq_data);
+}
+
+static inline int16_t vector_to_irq(uint8_t vector)
+{
+    if (vector >= pic_master_base && vector < pic_master_base + 8)
+        return (int16_t)(vector - pic_master_base);           // IRQ 0–7
+    if (vector >= pic_slave_base  && vector < pic_slave_base  + 8)
+        return (int16_t)(8 + (vector - pic_slave_base));      // IRQ 8–15
+    return -1; // not a PIC vector
+}
+
+void pic_unmask_vector(uint8_t vector)
+{
+    int16_t irq = vector_to_irq(vector);
+
+    if (irq >= 0) 
+    {
+        pic_unmask_irq((uint8_t)irq);
+    }
 }
 
 
@@ -125,6 +150,6 @@ void setup_pic()
 	pic_remap(PIC_IRQ_OFFSET, PIC_IRQ_OFFSET + 8);
 
 	// make everything not usable
-	outb(PIC1_DATA, 0xFF);
+	outb(PIC1_DATA, 0xFF ^ (1 << 2)); // only allow slave alerady
 	outb(PIC2_DATA, 0xFF);
 }

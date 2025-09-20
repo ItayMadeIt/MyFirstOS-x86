@@ -1,4 +1,4 @@
-#include <utils/tree_int.h>
+#include <utils/data_structs/tree_int.h>
 
 #include <stdio.h>
 

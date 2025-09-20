@@ -49,6 +49,10 @@
         "gas.h": "c",
         "pci_ops.h": "c",
         "ide.h": "c",
-        "storage.h": "c"
+        "storage.h": "c",
+        "murmur_hash.h": "c",
+        "murmur2_hash.h": "c",
+        "flat_hashmap.h": "c",
+        "block_device.h": "c"
     }
 }

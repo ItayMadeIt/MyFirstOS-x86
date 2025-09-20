@@ -6,14 +6,14 @@ void init_keyboard(key_event_cb_t callback)
 {
     assert(callback);
 
-    ps2_init_keycodes();
+    ps2_init();
 
     irq_register_handler(
         PS2_IRQ_VECTOR,
         ps2_key_dispatch
     );
 
-    key_event_callback = callback;
+    pic_unmask_vector(PS2_IRQ_VECTOR);
 
-    unmask_ps2_key();
+    key_event_callback = callback;
 }

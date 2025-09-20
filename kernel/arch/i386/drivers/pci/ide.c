@@ -128,7 +128,7 @@ typedef struct ide_vars
     ide_device_t devices[DEVICES]; 
 } ide_vars_t;
 
-ide_vars_t ide;
+static ide_vars_t ide;
 
 #define ATA_STATUS_BSY     0x80    // Busy
 #define ATA_STATUS_DRDY    0x40    // Drive ready
@@ -355,12 +355,14 @@ static void init_ide_channels(pci_driver_t* driver)
 
     if (ide.channels[ATA_PRIMARY].has_dma)
     {
-        send_bm_cmd(ATA_PRIMARY, 0x00);
+        send_bm_cmd(ATA_PRIMARY, ATA_BM_CMD_STOP);
+        send_bm_status(ATA_PRIMARY, ATA_BM_STATUS_IRQ | ATA_BM_STATUS_ERR);
     }
 
     if (ide.channels[ATA_SECONDARY].has_dma)
     {
-        send_bm_cmd(ATA_SECONDARY, 0x00);
+        send_bm_cmd(ATA_SECONDARY, ATA_BM_CMD_STOP);
+        send_bm_status(ATA_SECONDARY, ATA_BM_STATUS_IRQ | ATA_BM_STATUS_ERR);
     }
     ide.channels[ATA_PRIMARY  ].pic_enabled = false;
     ide.channels[ATA_SECONDARY].pic_enabled = false;
@@ -371,7 +373,7 @@ static void init_ide_channels(pci_driver_t* driver)
     ide.queue[ATA_SECONDARY].tail = NULL;
 }
 
-uint8_t ide_buf[2048] = {0};
+static uint8_t ide_ident_buffer[2048] = {0};
 
 static void init_ide_device(uintptr_t device_index, uintptr_t channel_index, uintptr_t drive_select)
 {
@@ -438,22 +440,22 @@ static void init_ide_device(uintptr_t device_index, uintptr_t channel_index, uin
     }
 
     // (V) Read Identification Space of the Device:
-    get_channel_identity(channel_index, (uint16_t*)ide_buf);
+    get_channel_identity(channel_index, (uint16_t*)ide_ident_buffer);
 
     // (VI) Read Device Parameters:
     ide.devices[device_index].present      = true;
     ide.devices[device_index].type         = type;
     ide.devices[device_index].channel      = channel_index;
     ide.devices[device_index].slave        = drive_select == ATA_SLAVE;
-    ide.devices[device_index].signature    = *((uint16_t*)(ide_buf + ATA_IDENT_DEVICETYPE));
-    ide.devices[device_index].features     = *((uint16_t*)(ide_buf + ATA_IDENT_CAPABILITIES));
-    ide.devices[device_index].command_sets = *((uint32_t*)(ide_buf + ATA_IDENT_COMMANDSETS));
+    ide.devices[device_index].signature    = *((uint16_t*)(ide_ident_buffer + ATA_IDENT_DEVICETYPE));
+    ide.devices[device_index].features     = *((uint16_t*)(ide_ident_buffer + ATA_IDENT_CAPABILITIES));
+    ide.devices[device_index].command_sets = *((uint32_t*)(ide_ident_buffer + ATA_IDENT_COMMANDSETS));
 
     // (VII) Get Size:
     if (ide.devices[device_index].command_sets & (1 << 26))
     {
         // Device uses 48-Bit Addressing:
-        uint64_t lba48 = *((uint64_t*)(ide_buf + ATA_IDENT_MAX_LBA_EXT)) & ((1ull<<48)-1);
+        uint64_t lba48 = *((uint64_t*)(ide_ident_buffer + ATA_IDENT_MAX_LBA_EXT)) & ((1ull<<48)-1);
         ide.devices[device_index].size = lba48;
 
         ide.devices[device_index].size_type = IDE_SIZE_LBA48;
@@ -461,16 +463,16 @@ static void init_ide_device(uintptr_t device_index, uintptr_t channel_index, uin
     else if(ide.devices[device_index].features & 0x200) // does support LBA
     {
         // Device uses CHS or 28-bit Addressing::
-        uint32_t lba28 = *((uint32_t*)(ide_buf + ATA_IDENT_MAX_LBA));
+        uint32_t lba28 = *((uint32_t*)(ide_ident_buffer + ATA_IDENT_MAX_LBA));
         ide.devices[device_index].size = lba28 & ((1<<28)-1);
 
         ide.devices[device_index].size_type = IDE_SIZE_LBA28;
     }
     else // get using chs 
     {
-        ide.devices[device_index].chs.heads     = *((uint8_t* )(ide_buf + ATA_IDENT_HEADS));
-        ide.devices[device_index].chs.sectors   = *((uint8_t* )(ide_buf + ATA_IDENT_SECTORS));
-        ide.devices[device_index].chs.cylinders = *((uint16_t*)(ide_buf + ATA_IDENT_CYLINDERS));
+        ide.devices[device_index].chs.heads     = *((uint8_t* )(ide_ident_buffer + ATA_IDENT_HEADS));
+        ide.devices[device_index].chs.sectors   = *((uint8_t* )(ide_ident_buffer + ATA_IDENT_SECTORS));
+        ide.devices[device_index].chs.cylinders = *((uint16_t*)(ide_ident_buffer + ATA_IDENT_CYLINDERS));
 
         ide.devices[device_index].size = 
             (uint64_t)ide.devices[device_index].chs.cylinders *
@@ -480,7 +482,7 @@ static void init_ide_device(uintptr_t device_index, uintptr_t channel_index, uin
         ide.devices[device_index].size_type = IDE_SIZE_CHS;
     }
     // String indicates model of device (like Western Digital HDD and SONY DVD-RW...):
-    uint16_t* ident_data = (uint16_t*) ide_buf;
+    uint16_t* ident_data = (uint16_t*) ide_ident_buffer;
     for (uint32_t i = 0; i < IDE_STR_INDEN_LENGTH / 2; ++i)
     {
         ide.devices[device_index].model[i * 2 + 0] = (ident_data[ATA_IDENT_MODEL/2 + i] >> 8) & 0xFF;
@@ -499,7 +501,7 @@ static void init_ide_devices()
         uintptr_t drive_select  = device_index % DEVS_PER_CHANNEL;
 
         init_ide_device(device_index, channel_index, drive_select);
-    }
+    }  
 
     for (uint32_t i = 0; i < DEVICES; i++)
     {
@@ -694,7 +696,6 @@ static ide_request_item_t* ide_pop_queue(uint16_t channel)
         return NULL;
     }
     
-    
     ide_request_item_t* item = ide.queue[channel].head;
         
     ide.queue[channel].head = ide.queue[channel].head->prev;
@@ -734,9 +735,10 @@ static void make_request(stor_request_t* request)
 static void ide_submit(stor_request_t* request)
 {
     ide_device_t* dev = (ide_device_t*) request->dev->dev_data;
+    
+    uintptr_t irq_data = irq_save();
+    
     bool empty_queue = ide.queue[dev->channel].head == NULL;
-
-    irq_disable();
 
     ide_push_queue(request);
 
@@ -746,19 +748,30 @@ static void ide_submit(stor_request_t* request)
         make_request(request);
     }
 
-    irq_enable();
+    irq_restore(irq_data);
 }
 
 
 static void primary_irq(irq_frame_t* irq_frame)
 {
     (void)irq_frame;
-    
-    uint16_t channel = ATA_PRIMARY;
 
+    uint16_t channel = ATA_PRIMARY;
+    
     ide_request_item_t* item = ide_pop_queue(channel);
 
+    if (!item) 
+    {
+        send_bm_cmd(channel, ATA_BM_CMD_STOP);
+        send_bm_status(channel, ATA_BM_STATUS_IRQ | ATA_BM_STATUS_ERR);
+    
+        pic_send_eoi_vector(ide.channels[channel].irq);
+    
+        return;
+    }
+
     send_bm_cmd(channel, ATA_BM_CMD_STOP);
+    send_bm_status(channel, ATA_BM_STATUS_IRQ | ATA_BM_STATUS_ERR);
 
     uint32_t bm_status = recv_bm_status(channel);
     uint16_t drv_status = ide_get_status(channel);
@@ -783,7 +796,10 @@ static void primary_irq(irq_frame_t* irq_frame)
 
     kfree(item);
     item = NULL;
+
+    pic_send_eoi_vector(ide.channels[channel].irq);
 }
+
 static void secondary_irq(irq_frame_t* irq_frame)
 {
     (void)irq_frame;
@@ -792,7 +808,18 @@ static void secondary_irq(irq_frame_t* irq_frame)
 
     ide_request_item_t* item = ide_pop_queue(channel);
 
+    if (!item) 
+    {
+        send_bm_cmd(channel, ATA_BM_CMD_STOP);
+        send_bm_status(channel, ATA_BM_STATUS_IRQ | ATA_BM_STATUS_ERR);
+    
+        pic_send_eoi_vector(ide.channels[channel].irq);
+    
+        return;
+    }
+
     send_bm_cmd(channel, ATA_BM_CMD_STOP);
+    send_bm_status(channel, ATA_BM_STATUS_IRQ | ATA_BM_STATUS_ERR);
 
     uint32_t bm_status = recv_bm_status(channel);
     uint16_t drv_status = ide_get_status(channel);
@@ -817,6 +844,8 @@ static void secondary_irq(irq_frame_t* irq_frame)
 
     kfree(item);
     item = NULL;
+
+    pic_send_eoi_vector(ide.channels[channel].irq);
 }
 
 static void enable_pic()
@@ -833,37 +862,22 @@ static void enable_pic()
         
         if (ide.devices[i].present && ide.channels[dev_channel].pic_enabled == false)
         {
-            ide.channels[dev_channel].pic_enabled = true;
-            pic_unmask_vector(ide.channels[dev_channel].irq);
+            
+            send_bm_cmd(dev_channel, ATA_BM_CMD_STOP);
+            send_bm_status(dev_channel, ATA_BM_STATUS_IRQ | ATA_BM_STATUS_ERR);
+            (void)ide_get_status(dev_channel);
 
             irq_register_handler(
                 ide.channels[dev_channel].irq,
-                dev_channel == ATA_PRIMARY ? primary_irq : secondary_irq 
+                dev_channel == ATA_PRIMARY ? primary_irq : secondary_irq
             );
+
+            pic_unmask_vector(ide.channels[dev_channel].irq);
+
+            ide.channels[dev_channel].pic_enabled = true;
         }
     }    
 }
-
-static void dummy_callback(stor_request_t* request, int64_t result)
-{
-    if (result > 0)
-    {
-        printf("Success\n\n");
-    }
-
-    uint8_t* buf = request->va_buffer;
-    
-    for (uint32_t i = 0; i < SECTOR_SIZE; i++)
-    {
-        printf("%02X ", (uint32_t)buf[i]);
-        if (i % 0x10 + 1 == 0x10)
-        {
-            printf("\n");
-        }
-    }
-}
-
-__attribute__((aligned(PAGE_SIZE))) uint8_t buffer[SECTOR_SIZE];
 
 void init_ide(storage_add_device add_func, pci_driver_t *driver)
 {
@@ -896,34 +910,4 @@ void init_ide(storage_add_device add_func, pci_driver_t *driver)
     }
     
     enable_pic();
-
-    for (uint32_t i = 0; i < DEVICES; i++)
-    {
-        if (ide.devices[i].present)
-        {
-            stor_device_t* dev = stor_get_device(ide.devices[i].external_dev_id);
-            
-            stor_request_t request = {
-                .callback = dummy_callback,
-                .dev = dev,
-                .action = STOR_REQ_READ,
-                .lba = 0,
-                .sectors = 1,
-                .user_data = NULL,
-                .va_buffer = buffer
-            };
-
-            dev->submit(&request);
-
-            request.action = STOR_REQ_WRITE;
-            buffer[0] = 'A';
-            buffer[1] = 'B';
-            buffer[2] = 'C';
-            buffer[3] = 'D';
-            buffer[4] = 'E';
-            dev->submit(&request);
-        }
-    }
-
-
 }

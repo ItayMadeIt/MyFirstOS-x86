@@ -120,8 +120,7 @@ void load_pit(uint32_t desired_hz)
     outb(PIT_CHANNEL0, (uint8_t)((pit_reload_value >> 8) & 0xFF));// high
 
     // unmask IRQ0
-    io_wait();
-    outb(PIC1_DATA, inb(PIC1_DATA) & ~0x01);
+    pic_unmask_vector(IRQ_TIMER_VEC);
 }
 
 void pit_timer_dispatch(irq_frame_t* frame) 

@@ -25,7 +25,7 @@ void unmask_ps2_key()
     outb(PIC1_DATA, inb(PIC1_DATA) & ~0x02);
 }
 
-void ps2_init_keycodes()
+void ps2_init()
 {
     for (uint16_t i = 0; i < 128; i++)
     {

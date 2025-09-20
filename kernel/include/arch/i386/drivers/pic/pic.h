@@ -12,7 +12,9 @@
 
 #define PIC_IRQ_OFFSET 0x20
 
-void pic_send_eoi_vector(uint8_t irq);
+uint16_t pic_get_irr(void);
+uint16_t pic_get_isr(void);
+void pic_send_eoi_vector(uint8_t vector);
 void pic_unmask_vector(uint8_t vector);
 void setup_pic();
 

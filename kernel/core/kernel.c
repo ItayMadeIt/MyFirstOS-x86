@@ -8,15 +8,10 @@
 
 #include <kernel/devices/keyboard.h>
 #include <kernel/devices/int_timer.h>
-#include <kernel/devices/storage.h>
 #include <kernel/interrupts/irq.h>
 #include <kernel/core/cpu.h>
 
 void init_memory(boot_data_t* data);
-void init_boot_isr();
-void setup_pic();
-void setup_pit();
-void setup_ps2();
 
 void abort()
 {
