@@ -120,6 +120,17 @@ void kernel_main(boot_data_t* boot_data)
 
 	irq_enable();
 
+    void* buffer = stor_read_sync(main_stor_device(), 0);
+    for (uintptr_t i = 0; i < 512; i++)
+    {
+        printf("%02X ", (uint32_t)((uint8_t*)buffer)[i]);
+    }
+    buffer = stor_read_sync(main_stor_device(), 0);
+    for (uintptr_t i = 0; i < 512; i++)
+    {
+        printf("%02X ", (uint32_t)((uint8_t*)buffer)[i]);
+    }
+
 	while(1)
     {
 

@@ -11,8 +11,9 @@ ARCH     := $(shell ./scripts/target-triplet-to-arch.sh $(HOST))
 SYSROOT   := $(shell pwd)/imgdir
 DESTDIR   := $(shell pwd)/imgdir
 IMGDIR    := $(shell pwd)/imgdir
-BUILDDIR  := $(shell pwd)/build
-IMG       := $(BUILDDIR)/waddleos.img
+BUILDTYPE ?= release
+BUILDDIR  := $(shell pwd)/build/$(BUILDTYPE)
+IMG       := $(shell pwd)/build/waddleos.img
 
 PREFIX        := /root/usr
 EXEC_PREFIX   := $(PREFIX)
@@ -29,7 +30,7 @@ AS            := $(HOST)-as
 NASM          := nasm
 NASMFLAGS     := -f elf32
 
-ifeq ($(DEBUG),1)
+ifeq ($(BUILDTYPE),debug)
 CFLAGS   += -g -O0 -DDEBUG
 else
 CFLAGS   += -O2
@@ -82,8 +83,7 @@ clean:
 	done
 	@rm -rf $(IMG) 
 
-img: 
-	$(MAKE) install
+img: all
 	@mkdir -p "$(BOOTDIR)/grub"
 	@if [ ! -f "$(IMGDIR)/boot/grub/grub.cfg" ]; then \
 		echo 'menuentry "Waddle-OS" {' > "$(IMGDIR)/boot/grub/grub.cfg"; \
@@ -94,21 +94,23 @@ img:
 	sudo -u builder ./scripts/img-maker.sh $(IMG)
 	
 
-run: img
+
+release:
+	$(MAKE) BUILDTYPE=release img
+
+debug: 
+	$(MAKE) BUILDTYPE=debug img
+
+run: release
 	qemu-system-$(ARCH) -m 256M -drive file=$(IMG),format=raw -serial stdio
 
-debug: img
-	$(MAKE) DEBUG=1 install
-
-debug-run: img
-	$(MAKE) DEBUG=1 install
+debug-run: debug
 	qemu-system-$(ARCH) -m 256M -drive file=$(IMG),format=raw -serial stdio \
 		-s -S \
 		-no-reboot -no-shutdown \
 		-d int,cpu_reset -D qemu.log
 
-debug-gdb: 
-	$(MAKE) DEBUG=1 img
+debug-gdb: debug
 	sudo env "PATH=$(PATH)" $(HOST)-gdb \
 	  "$(SYSROOT)/boot/waddleos.kernel" \
 	  -ex "target remote localhost:1234" \

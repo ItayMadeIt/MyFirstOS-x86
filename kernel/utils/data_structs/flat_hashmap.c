@@ -227,7 +227,7 @@ flat_hashmap_t init_fhashmap(void)
     return init_fhashmap_capacity(INIT_CAPACITY);
 }
 
-intptr_t fhashmap_insert(flat_hashmap_t* hashmap, const uint8_t *key_data, uint64_t key_length, void *data, uint8_t flags)
+intptr_t fhashmap_insert(flat_hashmap_t* hashmap, const void *key_data, uint64_t key_length, void *data, uint8_t flags)
 {
     uint64_t hash = hashmap->hash(key_data, key_length);
 
@@ -292,7 +292,7 @@ intptr_t fhashmap_insert(flat_hashmap_t* hashmap, const uint8_t *key_data, uint6
     return handle_rehash(hashmap);
 }
 
-void* fhashmap_get_data(flat_hashmap_t* hashmap, const uint8_t *key_data, uint64_t key_length)
+flat_hashmap_result_t fhashmap_get_data(flat_hashmap_t* hashmap, const void *key_data, uint64_t key_length)
 {
     uint64_t hash = hashmap->hash(key_data, key_length);
 
@@ -300,15 +300,21 @@ void* fhashmap_get_data(flat_hashmap_t* hashmap, const uint8_t *key_data, uint64
 
     if (same_entry)
     {
-        return same_entry->data;
+        return (flat_hashmap_result_t){
+            .succeed = true,
+            .value = same_entry->data
+        };
     }
     else
     {
-        return NULL;
+        return (flat_hashmap_result_t){
+            .succeed = false,
+            .value = NULL
+        };
     }
 }
 
-intptr_t fhashmap_delete(flat_hashmap_t* hashmap, const uint8_t *key_data, uint64_t key_length)
+flat_hashmap_result_t fhashmap_delete(flat_hashmap_t* hashmap, const void *key_data, uint64_t key_length)
 {
     uint64_t hash = hashmap->hash(key_data, key_length);
 
@@ -316,15 +322,33 @@ intptr_t fhashmap_delete(flat_hashmap_t* hashmap, const uint8_t *key_data, uint6
 
     if (!same_entry)
     {
-        return -1;
+        return (flat_hashmap_result_t){
+            .succeed = false,
+            .value = NULL
+        };
     }
+
+    void* user_data = same_entry->data;
 
     clean_entry(same_entry, STATE_DELETE);
 
     hashmap->delete_count++;
     hashmap->used_count--;
 
-    return handle_rehash(hashmap);
+    if (handle_rehash(hashmap) != 0)
+    {
+        return (flat_hashmap_result_t){
+            .succeed = false,
+            .value = NULL
+        };
+    }
+    else
+    {
+        return (flat_hashmap_result_t){
+            .succeed = true,
+            .value = user_data
+        };
+    }
 }
 
 void fhashmap_clear(flat_hashmap_t* hashmap)

@@ -5,7 +5,6 @@
 void cpu_halt()
 {
     asm volatile(
-        "cli\n\t"
         "hlt\n\t"
     ); 
 }
