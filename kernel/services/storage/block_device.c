@@ -1,6 +1,7 @@
 #include <stddef.h>
 #include <drivers/storage.h>
 #include "memory/heap/heap.h"
+#include <kernel/memory/virt_alloc.h>
 #include "utils/data_structs/flat_hashmap.h"
 #include <services/storage/block_device.h>
 #include <kernel/core/cpu.h>
@@ -124,15 +125,89 @@ static cache_entry_t* block_queue_evict(stor_device_t* device)
     return block_queue_pop(device, device->cache.cache_queue.lru);
 }
 
-static volatile bool done;
-static void sync_done(stor_request_t* request, int64_t result)
+static void sync_set_done(stor_request_t* request, int64_t result)
 {
     (void)request; (void)result;
 
-    done = true;
+    bool* done = request->user_data;
+    *done = true;
 }
 
-void* stor_read_sync(stor_device_t* device, uint64_t cache_lba)
+static void flush_dirty(stor_device_t* device, void* buffer)
+{
+    for (uint32_t i = 0; i < device->pages_per_block; i++)
+    {
+        clear_phys_flags(buffer + PAGE_SIZE * i, VIRT_PHYS_FLAG_DIRTY);
+    }
+}
+
+// checks if the block is dirty, and if so makes it clean but returns true, otherwise false
+static bool is_block_dirty(stor_device_t* device, void* buffer)
+{
+    bool reset_dirty = false;
+
+    for (uint32_t i = 0; i < device->pages_per_block; i++)
+    {
+        if (reset_dirty)
+        {
+            clear_phys_flags(buffer + PAGE_SIZE * i, VIRT_PHYS_FLAG_DIRTY);
+            continue;
+        }
+
+        uint32_t flags = get_phys_flags(buffer + PAGE_SIZE * i);
+        if (flags & VIRT_PHYS_FLAG_DIRTY)
+        {   
+            reset_dirty = true;
+            clear_phys_flags(buffer + PAGE_SIZE * i, VIRT_PHYS_FLAG_DIRTY);
+        }
+    }
+    
+    return reset_dirty;
+}
+
+static void flush_stor_entry_sync(stor_device_t* device, cache_entry_t* entry)
+{
+    bool dirty = is_block_dirty(device, entry->buffer);
+    if (!dirty)
+    {
+        return;
+    }
+
+    bool done = false;
+    stor_request_t request = {
+        .action = STOR_REQ_WRITE,
+        .callback = sync_set_done,
+        .dev = device,
+        .lba = entry->lba,
+        .sectors = device->block_size/device->sector_size,
+        .user_data = &done,
+        .va_buffer = entry->buffer,
+    };
+
+    device->submit(&request);
+    while(!done)
+    {
+        cpu_halt();
+    }
+}
+
+static void stor_iterate_queue(
+    stor_device_t* device, void (*callback)(stor_device_t* device, cache_entry_t* entry))
+{
+    cache_entry_t* entry = device->cache.cache_queue.mru;
+    while (entry)
+    {
+        callback(device, entry);
+        entry = entry->next;
+    }
+}
+
+void stor_flush_all(stor_device_t* device)
+{
+    stor_iterate_queue(device, flush_stor_entry_sync);
+}
+
+void* stor_get_sync(stor_device_t* device, uint64_t cache_lba)
 {
     flat_hashmap_result_t result = fhashmap_get_data(
         &device->cache.hashmap, 
@@ -158,6 +233,8 @@ void* stor_read_sync(stor_device_t* device, uint64_t cache_lba)
     {
         entry = block_queue_evict(device);
 
+        flush_stor_entry_sync(device, entry);
+
         // cache blocks are full, thus queue has at least 1 entry
         assert(entry);
 
@@ -178,6 +255,8 @@ void* stor_read_sync(stor_device_t* device, uint64_t cache_lba)
         entry->prev = NULL;
 
         entry->buffer = buffer;
+
+        block_queue_insert(device, entry);
     }
 
     entry->lba = cache_lba;
@@ -190,16 +269,15 @@ void* stor_read_sync(stor_device_t* device, uint64_t cache_lba)
         0
     );
 
-    done = false;
-
+    bool done = false;
     stor_request_t request = {
-        .callback = sync_done,
-        .va_buffer = buffer,
-        .sectors = device->cache.bucket_size / device->block_size,
+        .action = STOR_REQ_READ,
+        .callback = sync_set_done,
         .dev = device,
         .lba = cache_block_to_lba(device, cache_lba),
-        .user_data = NULL,
-        .action = STOR_REQ_READ
+        .sectors = device->cache.bucket_size / device->block_size,
+        .user_data = &done,
+        .va_buffer = buffer,
     };
     device->submit(&request);
 
@@ -207,6 +285,8 @@ void* stor_read_sync(stor_device_t* device, uint64_t cache_lba)
     {
         cpu_halt();
     }
+
+    flush_dirty(device, entry->buffer);
 
     return buffer;
 }

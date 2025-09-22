@@ -45,6 +45,7 @@ struct stor_device
     uint64_t sector_mask;
     
     uint64_t block_size; // max(page_size, sector_size)
+    uint64_t pages_per_block; 
     uint64_t cache_mask; 
 
     block_device_data_t cache;

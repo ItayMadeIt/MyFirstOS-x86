@@ -5,7 +5,9 @@
 #include <stdint.h>
 typedef struct stor_device stor_device_t;
 
-void* stor_read_sync(stor_device_t* device, uint64_t cache_lba);
+void* stor_get_sync(stor_device_t* device, uint64_t cache_lba);
+void stor_flush_all(stor_device_t* device);
+
 typedef struct cache_entry 
 {
     uint64_t lba;

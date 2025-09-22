@@ -4,6 +4,7 @@
 #include <memory/core/memory_manager.h>
 #include <arch/i386/memory/paging_utils.h>
 #include <string.h>
+#include "kernel/memory/virt_alloc.h"
 
 bool map_table_entry(void* phys_addr_ptr, void* virt_addr_ptr, uint16_t flags)
 {
@@ -93,6 +94,71 @@ void* get_phys_addr(void* virt_addr_ptr)
         ((uint32_t)page_table->entries[page_table_index] & ~0xFFF) | (virt_addr & 0xFFF) 
     );
 }
+
+void set_page_entry(void *virt_addr, uint32_t entry) 
+{
+    uint32_t vaddr = (uint32_t)virt_addr;
+
+    uint32_t page_dir_index   = vaddr >> 22;
+    uint32_t page_table_index = (vaddr >> 12) & 0x3FF;
+
+    page_directory_t *page_directory = (void*)0xFFFFF000;
+
+    if (((uint32_t) page_directory->entries[page_dir_index] & PAGE_ENTRY_FLAG_PRESENT) == 0) 
+    {
+        return;
+    }
+
+    page_table_t *page_table = (page_table_t*)(0xFFC00000 + (page_dir_index * PAGE_SIZE));
+
+    page_table->entries[page_table_index] = (void*)entry;
+
+    asm volatile("invlpg (%0)" ::"r"(virt_addr) : "memory");
+}
+
+uint32_t get_phys_flags(void *va) {
+  uint32_t result = 0;
+
+  uint32_t entry = get_page_entry(va);
+  if (entry & (PAGE_ENTRY_FLAG_PRESENT))
+    result |= VIRT_PHYS_FLAG_PRESENT;
+
+  if (entry & PAGE_ENTRY_FLAG_DIRTY)
+    result |= VIRT_PHYS_FLAG_DIRTY;
+
+  if (entry & PAGE_ENTRY_FLAG_ACCESS)
+    result |= VIRT_PHYS_FLAG_ACCESS;
+
+  if (entry & PAGE_ENTRY_FLAG_WRITE)
+    result |= VIRT_PHYS_FLAG_WRITE;
+
+  if (entry & PAGE_ENTRY_FLAG_USER)
+    result |= VIRT_PHYS_FLAG_USER;
+
+  return result;
+}
+
+void clear_phys_flags(void *va, uint32_t flags) 
+{
+    uint32_t entry = get_page_entry(va);
+    if (flags & VIRT_PHYS_FLAG_PRESENT)
+        abort();
+
+    if (entry & VIRT_PHYS_FLAG_ACCESS)
+        entry &= ~PAGE_ENTRY_FLAG_ACCESS;
+
+    if (entry & VIRT_PHYS_FLAG_DIRTY)
+        entry &= ~PAGE_ENTRY_FLAG_DIRTY;
+
+    if (entry & VIRT_PHYS_FLAG_WRITE)
+        entry &= ~PAGE_ENTRY_FLAG_WRITE;
+
+    if (entry & VIRT_PHYS_FLAG_USER)
+        entry &= ~PAGE_ENTRY_FLAG_USER;
+    
+    set_page_entry(va, entry);
+}
+
 uint32_t get_table_entry(void* virt_addr_ptr)
 {
     uint32_t virt_addr = (uint32_t)virt_addr_ptr;

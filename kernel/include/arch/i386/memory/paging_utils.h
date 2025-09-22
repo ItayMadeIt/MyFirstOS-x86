@@ -11,7 +11,7 @@ uint32_t get_table_entry(void* virt_addr);
 uint32_t get_page_entry(void* virt_addr);
 void* get_phys_addr(void* virt_addr);
 
-uint32_t get_table_entry(void* virt_addr);
+void set_page_entry(void* virt_addr, uint32_t entry);
 
 uint32_t get_page_entry(void* virt_addr);
 
