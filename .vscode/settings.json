@@ -54,6 +54,7 @@
         "murmur2_hash.h": "c",
         "flat_hashmap.h": "c",
         "block_device.h": "c",
-        "bitmap_alloc.h": "c"
+        "bitmap_alloc.h": "c",
+        "rb_tree.h": "c"
     }
 }

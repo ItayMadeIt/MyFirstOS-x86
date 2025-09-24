@@ -16,6 +16,7 @@ enum phys_page_type {
     PAGETYPE_KERNEL,
     PAGETYPE_HEAP,
     PAGETYPE_PHYS_PAGES,
+    PAGETYPE_DISK_CACHE,
 };
 
 

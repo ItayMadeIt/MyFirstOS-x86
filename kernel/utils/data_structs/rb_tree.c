@@ -1,48 +1,46 @@
-#include <utils/data_structs/tree_int.h>
-
-#include <stdio.h>
+#include <utils/data_structs/rb_tree.h>
 
 #define RB_COLOR 0b01
 #define RB_FLAGS 0b11
 
-static bool is_red(const node_t* node)
+static inline bool is_red(const rb_node_t* node)
 {
-    if (!node) return false;
+    if (!node) 
+		return false;
     return node->parent_color & RB_COLOR;
 }
-static inline bool is_black(const node_t* node)
+static inline bool is_black(const rb_node_t* node)
 {
 	return !is_red(node);
 }
 
-static inline void set_red(node_t* node)
+static inline void set_red(rb_node_t* node)
 {
 	node->parent_color |= RB_COLOR;
 }
-static inline void set_black(node_t* node)
+static inline void set_black(rb_node_t* node)
 {
 	node->parent_color &= ~RB_COLOR;
 }
-static node_t* get_parent(const node_t* node)
+static inline rb_node_t* get_parent(const rb_node_t* node)
 {
 	uintptr_t parent_addr = node->parent_color & (uintptr_t)(~RB_FLAGS);
-
-	return (node_t*)( parent_addr );
+	return (rb_node_t*)( parent_addr );
 }
 
-static inline void set_parent(node_t* node, const node_t* new_parent)
+static inline void set_parent(rb_node_t* node, const rb_node_t* new_parent)
 {
 	node->parent_color = (node->parent_color & RB_FLAGS) | (uintptr_t)new_parent;
 }
 
-static inline void set_color_to_other(node_t* left, node_t* right)
+static inline void set_color_to_other(rb_node_t* left, rb_node_t* right)
 {
 	left->parent_color = (uintptr_t)get_parent(left) | (right->parent_color & RB_COLOR);
 }
 
-static inline node_t* get_sibling(const node_t* node)
+static inline rb_node_t* get_sibling(const rb_node_t* node)
 {
-	node_t* parent = get_parent(node);
+	rb_node_t* parent = get_parent(node);
 
 	if (!parent)
 	{
@@ -52,9 +50,9 @@ static inline node_t* get_sibling(const node_t* node)
 	return parent->left == node ? parent->right : parent->left;
 }
 
-static inline node_t* get_uncle(const node_t* node)
+static inline rb_node_t* get_uncle(const rb_node_t* node)
 {
-	node_t* parent = get_parent(node);
+	rb_node_t* parent = get_parent(node);
 	
 	if (!parent)
 	{
@@ -64,10 +62,10 @@ static inline node_t* get_uncle(const node_t* node)
 	return get_sibling(parent);
 }
 
-static void rb_int_rotate_left(node_t** root, node_t* parent)
+static void rb_rotate_left(rb_node_t** root, rb_node_t* parent)
 {
-    node_t* right = parent->right;
-    node_t* pivot = right->left;
+    rb_node_t* right = parent->right;
+    rb_node_t* pivot = right->left;
 
 	// Rotate
 	parent->right = pivot;
@@ -76,7 +74,7 @@ static void rb_int_rotate_left(node_t** root, node_t* parent)
         set_parent(pivot, parent);
 	}
 
-	node_t* gparent = get_parent(parent);
+	rb_node_t* gparent = get_parent(parent);
 	set_parent(right, gparent);
 
 	if (!gparent)
@@ -97,10 +95,10 @@ static void rb_int_rotate_left(node_t** root, node_t* parent)
 }
 
 
-static void rb_int_rotate_right(node_t** root, node_t* parent)
+static void rb_rotate_right(rb_node_t** root, rb_node_t* parent)
 {
-    node_t* left = parent->left;
-    node_t* pivot = left->right;
+    rb_node_t* left = parent->left;
+    rb_node_t* pivot = left->right;
 
 	// Rotate
 	parent->left = pivot;
@@ -109,7 +107,7 @@ static void rb_int_rotate_right(node_t** root, node_t* parent)
         set_parent(pivot, parent);
 	}
 
-	node_t* gparent = get_parent(parent);
+	rb_node_t* gparent = get_parent(parent);
 	set_parent(left, gparent);
 
 	if (!gparent)
@@ -129,9 +127,9 @@ static void rb_int_rotate_right(node_t** root, node_t* parent)
 	set_parent(parent, left);
 }
 
-static node_t** find_node_link(node_t** root, int_data_t data, node_t** link_parent) 
+static rb_node_t** rb_find_node_link(rb_tree_t* tree, rb_node_t* data, rb_node_t** link_parent) 
 {
-    node_t** link = root;
+    rb_node_t** link = &tree->root;
     *link_parent = NULL;
 
 	// Simple BST
@@ -139,11 +137,13 @@ static node_t** find_node_link(node_t** root, int_data_t data, node_t** link_par
 	{
         *link_parent = *link;
 
-		if (data.begin < (*link)->data.begin)
+		int result = tree->cmp(*link, data);
+
+		if (result > 0)
 		{
             link = &(*link)->left;
 		}
-		else if (data.end >= (*link)->data.end)
+		else if (result < 0)
         {
 			link = &(*link)->right;
 		}
@@ -157,8 +157,8 @@ static node_t** find_node_link(node_t** root, int_data_t data, node_t** link_par
 }
 
 
-static inline void handle_insert_fixup_rotation(node_t** root, 
-		node_t* gparent, node_t* parent, 
+static inline void rb_handle_insert_fixup_rotation(rb_node_t** root, 
+		rb_node_t* gparent, rb_node_t* parent, 
 		bool is_left_child, bool is_zigzag )
 {
 	if (is_left_child)
@@ -166,26 +166,26 @@ static inline void handle_insert_fixup_rotation(node_t** root,
 		// Ensures it turned into a line
 		if (is_zigzag)
 		{
-			rb_int_rotate_left(root, parent);
+			rb_rotate_left(root, parent);
 		}
 		
-		rb_int_rotate_right(root, gparent);
+		rb_rotate_right(root, gparent);
 	}
 	else
 	{
 		// Ensures it turned into a line
 		if (is_zigzag)
 		{
-			rb_int_rotate_right(root, parent);
+			rb_rotate_right(root, parent);
 		}
 
-		rb_int_rotate_left(root, gparent);
+		rb_rotate_left(root, gparent);
 	}
 }
 
-static void rb_int_insert_fixup(node_t** root, node_t* node)
+static void rb_insert_fixup(rb_node_t** root, rb_node_t* node)
 {
-	node_t* parent = get_parent(node);
+	rb_node_t* parent = get_parent(node);
 
 	if (parent == NULL)
 	{
@@ -198,7 +198,7 @@ static void rb_int_insert_fixup(node_t** root, node_t* node)
 		return;
 	}
 
-	node_t* gparent = get_parent(parent);
+	rb_node_t* gparent = get_parent(parent);
 
 	// If parent is root
 	if (gparent == NULL)
@@ -206,7 +206,7 @@ static void rb_int_insert_fixup(node_t** root, node_t* node)
 		return;
 	}
 
-	node_t* uncle = get_uncle(node);
+	rb_node_t* uncle = get_uncle(node);
 
 	if (is_red(uncle))
 	{
@@ -214,14 +214,14 @@ static void rb_int_insert_fixup(node_t** root, node_t* node)
 		set_black(parent);
 		set_red(gparent);
 
-		rb_int_insert_fixup(root, gparent);
+		rb_insert_fixup(root, gparent);
 	}
 	else
 	{
 		bool parent_left_child = gparent->left == parent;
 		bool is_left_child = parent->left == node;
 
-		handle_insert_fixup_rotation(root, gparent, parent, is_left_child, parent_left_child != is_left_child);
+		rb_handle_insert_fixup_rotation(root, gparent, parent, is_left_child, parent_left_child != is_left_child);
 
 		set_black(parent);
 		set_red(gparent);
@@ -230,31 +230,7 @@ static void rb_int_insert_fixup(node_t** root, node_t* node)
 	set_black(*root);
 }
 
-node_t* rb_int_insert(node_t** root, node_t* node)
-{
-	node_t** link = root;
-	node_t* parent = NULL;
-
-	link = find_node_link(root, node->data, &parent);
-
-	if (*link != NULL)
-	{
-		return NULL;
-	}
-
-	node->right = NULL;
-	node->left = NULL;
-	
-	set_red(node);
-
-	*link = node;
-
-	rb_int_insert_fixup(root, node);
-
-	return node;
-}
-
-static node_t* rb_int_find_successor(node_t* node)
+static rb_node_t* rb_find_successor(rb_node_t* node)
 {
 	node = node->right;
 	if (!node)
@@ -269,9 +245,9 @@ static node_t* rb_int_find_successor(node_t* node)
 	return node;
 }
 
-static void transplant(node_t** root, node_t* old_node, node_t* new_node) 
+static void rb_transplant(rb_node_t** root, rb_node_t* old_node, rb_node_t* new_node) 
 {
-	node_t* parent = get_parent(old_node);
+	rb_node_t* parent = get_parent(old_node);
 
 	if (parent == NULL) 
 	{
@@ -292,9 +268,9 @@ static void transplant(node_t** root, node_t* old_node, node_t* new_node)
     }
 }
 
-void delete_configure_nuclear_node(node_t** root, node_t* delete_node, bool* delete_was_black, node_t** node_to_fix, node_t** node_to_fix_parent)
+static void rb_delete_configure_nuclear_node(rb_node_t** root, rb_node_t* delete_node, bool* delete_was_black, rb_node_t** node_to_fix, rb_node_t** node_to_fix_parent)
 {
-	node_t* successor_node = rb_int_find_successor(delete_node);
+	rb_node_t* successor_node = rb_find_successor(delete_node);
 	*delete_was_black = is_black(successor_node);
 	
 	*node_to_fix = successor_node->right;
@@ -320,7 +296,7 @@ void delete_configure_nuclear_node(node_t** root, node_t* delete_node, bool* del
 		*node_to_fix_parent = get_parent(successor_node);
 
 		// Remove successor_node 
-		transplant(root, successor_node, successor_node->right);
+		rb_transplant(root, successor_node, successor_node->right);
 
 		successor_node->right = delete_node->right;
 
@@ -331,7 +307,7 @@ void delete_configure_nuclear_node(node_t** root, node_t* delete_node, bool* del
 	}
 
 	// Remove delete_node and replace it with successor
-	transplant(root, delete_node, successor_node);
+	rb_transplant(root, delete_node, successor_node);
 
 	set_color_to_other(successor_node, delete_node);
 
@@ -346,8 +322,8 @@ void delete_configure_nuclear_node(node_t** root, node_t* delete_node, bool* del
 	set_color_to_other(delete_node, successor_node);
 }
 
-static inline void delete_fixup_sibling_red(
-	node_t** root, node_t* parent, node_t* sibling, bool is_left_child)
+static inline void rb_delete_fixup_sibling_red(
+	rb_node_t** root, rb_node_t* parent, rb_node_t* sibling, bool is_left_child)
 {
 	/* 
  	    Uppercase = Black, Lowercase = Red
@@ -369,16 +345,16 @@ static inline void delete_fixup_sibling_red(
 
 	if (is_left_child)
 	{
-		rb_int_rotate_left(root, parent);
+		rb_rotate_left(root, parent);
 	}
 	else
 	{
-		rb_int_rotate_right(root, parent);
+		rb_rotate_right(root, parent);
 	}
 }
 
-static inline void delete_fixup_sibling_black_child_red(
-	node_t** root, node_t* parent, node_t* sibling, bool is_left_child)
+static inline void rb_delete_fixup_sibling_black_child_red(
+	rb_node_t** root, rb_node_t* parent, rb_node_t* sibling, bool is_left_child)
 {
 	// Assumptions:
 	// - sibling is black
@@ -412,7 +388,7 @@ static inline void delete_fixup_sibling_black_child_red(
 		}
 
 		set_red(sibling);
-        rb_int_rotate_right(root, sibling);
+        rb_rotate_right(root, sibling);
 		                
 		sibling = parent->right;
     }
@@ -424,7 +400,7 @@ static inline void delete_fixup_sibling_black_child_red(
 		}
 
 		set_red(sibling);
-        rb_int_rotate_left(root, sibling);
+        rb_rotate_left(root, sibling);
 
 		sibling = parent->left;
     }
@@ -468,7 +444,7 @@ static inline void delete_fixup_sibling_black_child_red(
 		{
             set_black(sibling->right);
 		}
-		rb_int_rotate_left(root, parent);
+		rb_rotate_left(root, parent);
     }
     else
     {
@@ -476,22 +452,22 @@ static inline void delete_fixup_sibling_black_child_red(
         {    
 			set_black(sibling->left);
 		}
-		rb_int_rotate_right(root, parent);
+		rb_rotate_right(root, parent);
     }
 }
 
-void delete_fixup(node_t** root, node_t* node_to_fix, node_t* node_to_fix_parent)
+static void rb_delete_fixup(rb_node_t** root, rb_node_t* node_to_fix, rb_node_t* node_to_fix_parent)
 {
 	while (node_to_fix != *root && is_black(node_to_fix)) 
 	{        
 		bool is_left_child = (node_to_fix == node_to_fix_parent->left);
         
-		node_t* sibling = is_left_child ? node_to_fix_parent->right : node_to_fix_parent->left;
+		rb_node_t* sibling = is_left_child ? node_to_fix_parent->right : node_to_fix_parent->left;
 
 		// Ensure sibling is black, if red fix it
         if (is_red(sibling)) 
         {
-			delete_fixup_sibling_red(root, node_to_fix_parent, sibling, is_left_child);
+			rb_delete_fixup_sibling_red(root, node_to_fix_parent, sibling, is_left_child);
 			sibling = is_left_child ? 
 					node_to_fix_parent->right : node_to_fix_parent->left;
         }
@@ -510,7 +486,7 @@ void delete_fixup(node_t** root, node_t* node_to_fix, node_t* node_to_fix_parent
 		//              the parent and act upon it to solve the double black, one of the red children, can be used
         else 
         {
-			delete_fixup_sibling_black_child_red(root, node_to_fix_parent, sibling, is_left_child);
+			rb_delete_fixup_sibling_black_child_red(root, node_to_fix_parent, sibling, is_left_child);
 
             node_to_fix = *root;
 
@@ -525,78 +501,271 @@ void delete_fixup(node_t** root, node_t* node_to_fix, node_t* node_to_fix_parent
 }
 
 
-void rb_int_configure_delete(
-	node_t** root, node_t* delete,
+static void rb_configure_delete(
+	rb_node_t** root, rb_node_t* delete,
 	bool* delete_was_black,
-	node_t** node_to_fix, node_t** node_to_fix_parent)
+	rb_node_t** node_to_fix, rb_node_t** node_to_fix_parent)
 {
 	if (delete->left == NULL) 
 	{
 		*node_to_fix = delete->right;
 		*node_to_fix_parent = get_parent(delete);
 		*delete_was_black = is_black(delete);
-		transplant(root, delete, delete->right);
+		rb_transplant(root, delete, delete->right);
 	}
 	else if (delete->right == NULL) 
 	{
 		*node_to_fix = delete->left;
 		*node_to_fix_parent = get_parent(delete);
 		*delete_was_black = is_black(delete);
-		transplant(root, delete, delete->left);
+		rb_transplant(root, delete, delete->left);
 	}
 	else 
 	{
-		delete_configure_nuclear_node(root, delete, delete_was_black, node_to_fix, node_to_fix_parent);
+		rb_delete_configure_nuclear_node(root, delete, delete_was_black, node_to_fix, node_to_fix_parent);
 	}
 }
 
-
-node_t* rb_int_delete(node_t** root, data_t data)
+static void rb_augment_from(rb_tree_t* tree, rb_node_t* node)
 {
-	node_t** link = root;
-	node_t* parent = NULL;
+	while (node)
+	{
+		tree->augment(node);
 
-	link = find_node_link(root, data, &parent);
+		if (tree->root == node)
+		{
+			break;
+		}
+
+		node = get_parent(node);
+	}
+}
+
+rb_node_t* rb_insert(rb_tree_t* tree, rb_node_t* node)
+{
+	rb_node_t** link = &tree->root;
+	rb_node_t* parent = NULL;
+
+	link = rb_find_node_link(tree, node, &parent);
+
+	if (*link != NULL)
+	{
+		return NULL;
+	}
+
+	node->right = NULL;
+	node->left = NULL;
 	
-	node_t* delete = *link;
+	set_red(node);
+
+	*link = node;
+
+	set_parent(node, parent);
+	rb_insert_fixup(&tree->root, node);
+
+	rb_augment_from(tree, *link);
+
+	return node;
+}
+
+rb_node_t* rb_remove_key(rb_tree_t* tree, rb_node_t* key)
+{
+	rb_node_t** link = &tree->root;
+	rb_node_t* parent = NULL;
+
+	link = rb_find_node_link(tree, key, &parent);
+	
+	rb_node_t* delete = *link;
 
 	if (delete == NULL)
 	{
 		return NULL;
 	}
 
-	node_t* node_to_fix = NULL;
-	node_t* node_to_fix_parent = NULL;
+	rb_node_t* node_to_fix = NULL;
+	rb_node_t* node_to_fix_parent = NULL;
 
     bool delete_was_black = is_black(delete);
 
 	// Find the easiest configuration to delete the delete_node
-	rb_int_configure_delete(root, delete, &delete_was_black, &node_to_fix, &node_to_fix_parent);
+	rb_configure_delete(&tree->root, delete, &delete_was_black, &node_to_fix, &node_to_fix_parent);
 
 	if (delete_was_black)
 	{
-		delete_fixup(root, node_to_fix, node_to_fix_parent);
+		rb_delete_fixup(&tree->root, node_to_fix, node_to_fix_parent);
+	}
+	
+	if (node_to_fix)
+	{
+		rb_augment_from(tree, node_to_fix);
+	}
+	else if (node_to_fix_parent)
+	{	
+		rb_augment_from(tree, node_to_fix_parent);
 	}
 
 	return delete;
 }
 
-node_t* rb_int_search(node_t** root, data_t data)
-{
-	node_t* parent = NULL;
+rb_node_t *rb_remove_node(rb_tree_t *tree, rb_node_t *delete) 
+{ 
+	if (delete == NULL)
+	{
+		return NULL;
+	}
 
-	node_t** link = find_node_link(root, data, &parent);
+	rb_node_t* node_to_fix = NULL;
+	rb_node_t* node_to_fix_parent = NULL;
+
+    bool delete_was_black = is_black(delete);
+
+	// Find the easiest configuration to delete the delete_node
+	rb_configure_delete(&tree->root, delete, &delete_was_black, &node_to_fix, &node_to_fix_parent);
+
+	if (delete_was_black)
+	{
+		rb_delete_fixup(&tree->root, node_to_fix, node_to_fix_parent);
+	}
+
+	if (node_to_fix)
+	{
+		rb_augment_from(tree, node_to_fix);
+	}
+	else if (node_to_fix_parent)
+	{	
+		rb_augment_from(tree, node_to_fix_parent);
+	}
+
+	return delete;
+}
+
+rb_node_t *rb_search(rb_tree_t *tree, rb_node_t *key) 
+{
+	rb_node_t *parent = NULL;
+
+	rb_node_t **link = rb_find_node_link(tree, key, &parent);
 
 	return *link;
 }
 
-bool rb_int_overlap(node_t** root, uintptr_t addr)
+static inline rb_node_t* rb_get_min(rb_node_t* node)
 {
-	node_t* parent = NULL;
+	if (!node)
+	{
+		return NULL;
+	}
 
-	node_t** link = find_node_link(root, (int_data_t){addr, addr, 0, 0}, &parent);
-
-	return *link != NULL;
+	while (node->left)
+	{
+		node = node->left;
+	}
+	return node;
 }
-// tree will be changed to support a lot of options, to be able to be used for 
-// both the scheduler and the map of the programs
+static inline rb_node_t* rb_get_max(rb_node_t* node)
+{
+	if (!node)
+	{
+		return NULL;
+	}
+
+	while (node->right)
+	{
+		node = node->right;
+	}
+	return node;
+}
+
+rb_node_t* rb_min(rb_tree_t * tree)
+{
+	rb_node_t* node = tree->root;
+	return rb_get_min(node);
+}
+
+rb_node_t* rb_max(rb_tree_t * tree)
+{
+	rb_node_t* node = tree->root;
+	return rb_get_max(node);
+}
+
+rb_node_t *rb_prev(rb_node_t *node)
+{
+	if (node->left)
+	{
+		return rb_get_max(node->left);
+	}
+
+	while (true)
+	{
+		rb_node_t* parent = get_parent(node);
+        if (!parent)
+		{
+            return NULL;
+		}
+
+		// is right child
+		if (parent->right == node)
+		{
+			return parent;
+		}
+
+		node = parent;
+	}
+}
+
+
+rb_node_t *rb_next(rb_node_t *node)
+{
+	if (node->right)
+	{
+		return rb_get_min(node->right);
+	}
+
+	while (true)
+	{
+		rb_node_t* parent = get_parent(node);
+        if (!parent)
+		{
+            return NULL;
+		}
+
+		// is left child
+		if (parent->left == node)
+		{
+			return parent;
+		}
+
+		node = parent;
+	}
+}
+
+void rb_free_tree(rb_tree_t *tree, rb_free_t free_callback)
+{
+    rb_node_t *node = tree->root;
+    rb_node_t *last = NULL;
+
+    while (node) 
+	{
+		// Left as possible
+        if (node->left && last != node->left && last != node->right) 
+		{
+            node = node->left;
+        }
+        // If can't, go as right as possible
+        else if (node->right && last != node->right) 
+		{
+            node = node->right;
+        }
+        // Both children done, free this node
+        else 
+		{
+            rb_node_t *parent = get_parent(node);
+        
+		    free_callback(node);
+        
+		    last = node;
+            node = parent;
+        }
+    }
+
+    tree->root = NULL;
+}
