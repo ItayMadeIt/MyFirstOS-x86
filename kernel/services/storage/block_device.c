@@ -1,7 +1,7 @@
 #include <stddef.h>
 #include <drivers/storage.h>
 #include "memory/heap/heap.h"
-#include <kernel/memory/virt_alloc.h>
+#include <kernel/memory/paging.h>
 #include "utils/data_structs/flat_hashmap.h"
 #include <services/storage/block_device.h>
 #include <kernel/core/cpu.h>

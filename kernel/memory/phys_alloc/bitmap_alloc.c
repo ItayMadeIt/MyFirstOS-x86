@@ -1,3 +1,4 @@
+#include <memory/phys_alloc/phys_alloc.h>
 #include <core/debug.h>
 #include <memory/phys_alloc/bitmap_alloc.h>
 #include <kernel/boot/boot_data.h>
@@ -30,7 +31,7 @@ static void verify_flags(const boot_data_t* boot_data)
     if (!boot_has_memory(boot_data))
     {
         debug_print_str("Memory flag isn't enable.\n");
-        cpu_halt();
+        abort();
     }
 }
 
@@ -38,9 +39,9 @@ static void alloc_page_at(uintptr_t addr)
 {
     uintptr_t page_index = addr / PAGE_SIZE;
 
-    uint8_t bit = 1ull << (page_index & 0b111);
+    uint8_t bit = 1ull << (page_index % BIT_TO_BYTE);
 
-    uintptr_t page_chunk_index = page_index >> 3; 
+    uintptr_t page_chunk_index = page_index / BIT_TO_BYTE; 
 
     pages_allocated[page_chunk_index] &= ~bit;
 }
@@ -48,11 +49,11 @@ static void alloc_page_at(uintptr_t addr)
 static void free_page_at(void* addr_ptr)
 {
     uintptr_t addr = (uintptr_t)addr_ptr;
-    uintptr_t page_index = addr >> 12;
+    uintptr_t page_index = addr / PAGE_SIZE;
 
-    uint8_t bit = 1ull << (page_index & 0b111);
+    uint8_t bit = 1ull << (page_index % BIT_TO_BYTE);
 
-    uintptr_t page_chunk_index = page_index >> 3; 
+    uintptr_t page_chunk_index = page_index / BIT_TO_BYTE; 
 
     pages_allocated[page_chunk_index] |= bit;
 }
@@ -95,40 +96,88 @@ void* alloc_phys_page_bitmap(enum phys_page_type page_type, uint16_t page_flags)
 {
     (void)page_type; (void)page_flags;
 
-    uintptr_t page_group_index = last_free_group_index;
-    
+    phys_alloc_t alloc = alloc_phys_pages_bitmap(1, page_type, page_flags);
+
+    return alloc.count ? alloc.addr : NULL;
+}
+
+phys_alloc_t alloc_phys_pages_bitmap(uintptr_t count,
+                                     enum phys_page_type page_type,
+                                     uint16_t page_flags)
+{
+    (void)page_type; 
+    (void)page_flags;
+
+    phys_alloc_t result = { .addr = NULL, .count = 0 };
+
+    if (count == 0) 
+    {
+        return result;
+    }
+
+
     // Find free page group
-    while (page_group_index < PAGES_ARR_SIZE)
+    uintptr_t page_group_index;
+    for (page_group_index = last_free_group_index; page_group_index < PAGES_ARR_SIZE; page_group_index++)
     {
         if (pages_allocated[page_group_index])
         {
             break;
         }
-
-        ++page_group_index;
     }
     
-    if (page_group_index >= PAGES_ARR_SIZE)
+    // Number of pages available in bitmap
+    uintptr_t total_pages = PAGES_ARR_SIZE * BIT_TO_BYTE;
+    uintptr_t run_start = (uintptr_t)-1;
+    uintptr_t run_length = 0;
+
+    for (uintptr_t i = page_group_index * BIT_TO_BYTE; i < total_pages; i++) 
     {
-        debug_print_str("Failed to allocate page");
-        cpu_halt();
+        uintptr_t group = i / BIT_TO_BYTE;
+        uintptr_t bit   = i % BIT_TO_BYTE;
+        bool is_free = pages_allocated[group] & (1 << bit);
+
+        // hit allocated page before count 
+        if (!is_free && run_start != (uintptr_t)-1) 
+        {
+            break;
+        }
+
+        if (is_free)
+        {
+            // start new run
+            if (run_start == (uintptr_t)-1) 
+            {
+                run_start = i;
+                
+            }
+            run_length++;
+
+            // enough pages?
+            if (run_length == count) 
+            {
+                break;
+            }
+        }
     }
 
-    // Get page index (max 8 bits)
-    uintptr_t page_index = 0;
-    while ((pages_allocated[page_group_index] & (1 << page_index)) == 0)
+    // no free page found at all
+    if (run_start == (uintptr_t)-1)
     {
-        ++page_index;
+        return result;
     }
-    page_index |= page_group_index << 3;
-    // Cache
-    last_free_group_index = page_group_index;
 
-    // Allocate page
-    uintptr_t page_addr = page_index * PAGE_SIZE;
-    alloc_page_at(page_addr);
+    uintptr_t base_addr = run_start * PAGE_SIZE;
+    uintptr_t allocated = run_length;
+    for (uintptr_t j = 0; j < allocated; j++) 
+    {
+        alloc_page_at((run_start + j) * PAGE_SIZE);
+    }
 
-    return (void*)page_addr;
+    result.addr  = (void*)base_addr;
+    result.count = allocated;
+
+    return result;
 }
 
 void free_phys_page_bitmap(void* page_addr)
@@ -137,6 +186,16 @@ void free_phys_page_bitmap(void* page_addr)
 
     // (8 pages per byte in bitmap)
     last_free_group_index = (uintptr_t)page_addr / PAGE_SIZE / BIT_TO_BYTE;
+}
+
+void free_phys_pages_bitmap(phys_alloc_t free_params)
+{
+    for (uintptr_t i = 0; i < free_params.count; i++)
+    {
+        uintptr_t addr = (uintptr_t)free_params.addr + i * PAGE_SIZE;
+
+        free_phys_page_bitmap((void*)addr);
+    }
 }
 
 void init_bitmap_phys_allocator(boot_data_t* boot_data)

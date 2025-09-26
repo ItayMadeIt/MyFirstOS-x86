@@ -1,7 +1,8 @@
 #include <core/defs.h>
+#include <kernel/memory/paging.h>
 #include <memory/heap/heap_structs.h>
 #include <memory/heap/heap.h>
-#include <kernel/memory/virt_alloc.h>
+#include <memory/core/pfn_desc.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -27,8 +28,10 @@ typedef struct heap_vars
     heap_slab_order_t  free_slabs  [SLAB_ORDER_COUNT];
 
     void* min_addr;
-    void* max_addr;
-    uintptr_t size;
+    void* cur_max_addr;
+    void* reserved_max_addr;
+    uintptr_t cur_size;
+    uintptr_t reserved_max_size;
 } heap_vars_t;
 
 heap_vars_t heap;
@@ -168,16 +171,39 @@ static void add_heap_region(uintptr_t add_size)
 {
     assert(add_size && add_size % PAGE_SIZE == 0);
     
+    if (heap.cur_max_addr + add_size > heap.reserved_max_addr)
+    {
+        printf("Can't grow heap more");
+        abort();
+        return;
+    }
+
     assert(map_pages(
-        heap.max_addr, add_size/PAGE_SIZE, 
+        heap.cur_max_addr, add_size/PAGE_SIZE, 
         PAGETYPE_HEAP, 
         PAGEFLAG_VFREE | PAGEFLAG_BUDDY | PAGEFLAG_KERNEL
     ));
     
-    add_buddies((uintptr_t)heap.max_addr, add_size, false);
+    add_buddies((uintptr_t)heap.cur_max_addr, add_size, false);
 
-    heap.max_addr += add_size;
-    heap.size += add_size;
+    heap.cur_max_addr += add_size;
+    heap.cur_size += add_size;
+}
+
+static void grow_heap(uintptr_t failed_size)
+{
+    uintptr_t grow_size = min(
+        max(failed_size, heap.cur_size),
+        heap.reserved_max_size - heap.cur_size  // max possible grow size
+    );
+
+    if (heap.cur_size + grow_size > heap.reserved_max_size) 
+    {
+        printf("Heap wasn't sufficient\n");
+        abort();
+    }
+
+    add_heap_region(grow_size);
 }
 
 static uintptr_t pages_for_obj_size(uintptr_t obj_size)
@@ -193,9 +219,9 @@ static uintptr_t pages_for_obj_size(uintptr_t obj_size)
     return min(pages, MAX_SLAB_PAGE_AMOUNT);
 }
 
-static void init_heap_vars(uintptr_t size, uintptr_t start_va)
+static void init_heap_vars(uintptr_t size, uintptr_t max_size, uintptr_t start_va)
 {
-    heap.size = size;
+    heap.cur_size = size;
     
     for (uintptr_t i = 0; i < BUDDY_ORDER_COUNT; i++)
     {
@@ -212,7 +238,11 @@ static void init_heap_vars(uintptr_t size, uintptr_t start_va)
     }
 
     heap.min_addr = (void*) start_va;
-    heap.max_addr = (void*)(start_va + size);
+    heap.cur_max_addr = (void*)(start_va + size);
+    
+    heap.reserved_max_addr = (void*)(start_va + max_size);
+    heap.reserved_max_size = max_size;
+    
 }
 
 
@@ -237,8 +267,7 @@ void* alloc_buddy(uintptr_t size)
         if (order > BUDDY_ORDER_MAX)
         {
             printf("Heap allocated more (INIT_SIZE wasn't sufficient) [buddy allocator]\n");
-
-            add_heap_region(size * 2);
+            grow_heap(size);
             return alloc_buddy(size);
         } 
 
@@ -681,7 +710,7 @@ void kfree_slab_cache(heap_slab_cache_t* slab_cache)
     kfree(slab_cache);
 }
 
-void init_heap(void* heap_addr, uintptr_t init_size)
+void init_heap(void* heap_addr, uintptr_t max_size, uintptr_t init_size)
 {
     assert(sizeof(heap_slab_node_t) <= (1 << SLAB_EXPON_MIN));
 
@@ -690,7 +719,7 @@ void init_heap(void* heap_addr, uintptr_t init_size)
     assert(init_size % PAGE_SIZE == 0);
     assert(init_size < (1u << BUDDY_EXPON_MAX));
 
-    init_heap_vars(init_size, (uintptr_t)heap_addr);
+    init_heap_vars(init_size, max_size, (uintptr_t)heap_addr);
 
     assert(map_pages(
         heap_addr, 
@@ -698,7 +727,6 @@ void init_heap(void* heap_addr, uintptr_t init_size)
         PAGETYPE_HEAP, 
         PAGEFLAG_VFREE|PAGEFLAG_BUDDY|PAGEFLAG_KERNEL
     ));
-    heap.max_addr = heap_addr + init_size;
 
     add_buddies((uintptr_t)heap_addr, init_size, true);
 }

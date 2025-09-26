@@ -2,34 +2,9 @@
 #define __PAGE_FRAME_H__
 
 #include <stdint.h>
-#include <memory/phys_alloc/bitmap_alloc.h>
 #include <memory/heap/heap_structs.h>
+#include <memory/phys_alloc/bitmap_alloc.h>
 
-enum phys_page_type {
-    PAGETYPE_NONE = 0,
-    PAGETYPE_1MiB,
-    PAGETYPE_VENTRY,
-    PAGETYPE_RESERVED,
-    PAGETYPE_UNUSED, // not physically allocated
-    PAGETYPE_ACPI, 
-    PAGETYPE_MMIO,
-    PAGETYPE_KERNEL,
-    PAGETYPE_HEAP,
-    PAGETYPE_PHYS_PAGES,
-    PAGETYPE_DISK_CACHE,
-};
-
-
-enum phys_page_flag {
-    PAGEFLAG_VFREE    = 1 << 0, // Virtually free (Anything uses this memory, that's not heap's buddy)
-    PAGEFLAG_BUDDY    = 1 << 1, // Buddy(1) OR Slab(0)
-    PAGEFLAG_HEAD     = 1 << 2, // Is the head in contiguous virtual allocation
-    PAGEFLAG_DRIVER   = 1 << 3, // Driver related page
-    PAGEFLAG_KERNEL   = 1 << 4, // KERNEL or USER
-    PAGEFLAG_READONLY = 1 << 5, // Readonly 
-    PAGEFLAG_NOEXEC   = 1 << 6, // No Execute  
-    PAGEFLAG_IDEN_MAP = 1 << 7, // Identity Mapped  
-};
 
 #define PAGEFLAG_HEAP_MASK (PAGEFLAG_VFREE | PAGEFLAG_BUDDY | PAGEFLAG_HEAD)
 
@@ -57,11 +32,6 @@ typedef struct phys_page_descriptor {
     
 } phys_page_descriptor_t;
 
-void* alloc_phys_page_pfn(enum phys_page_type type, uint16_t flags);
-void free_phys_page_pfn(void* pa);
-void alloc_page_desc_region(void* start_ptr, uintptr_t count);
-//void free_page_desc_region(void* start_ptr, uintptr_t count);
-
 void init_pfn_descriptors(void** alloc_addr, boot_data_t* mbd);
 
 typedef struct pfn_manager_data {
@@ -71,6 +41,7 @@ typedef struct pfn_manager_data {
 
 extern pfn_manager_data_t pfn_data;
 
+phys_page_descriptor_t* pfn_map_page(void* phys_addr, uint16_t page_type, uint16_t page_flags);
 phys_page_descriptor_t* phys_to_pfn(void* addr);
 phys_page_descriptor_t* virt_to_pfn(void* addr);
 

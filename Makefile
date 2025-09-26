@@ -91,8 +91,8 @@ img: all
 		echo '}' >> "$(IMGDIR)/boot/grub/grub.cfg"; \
 	fi
 	@dd if=/dev/zero of=$(IMG) bs=1MiB count=64
+	@chmod 666 /home/itaymadeit/MyFirstOS-x86/build/waddleos.img
 	sudo -u builder ./scripts/img-maker.sh $(IMG)
-	
 
 
 release:

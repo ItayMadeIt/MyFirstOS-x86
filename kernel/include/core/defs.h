@@ -41,6 +41,8 @@
 #define container_of(ptr, type, member) \
     ((type *)((char *)(ptr) - offsetof(type, member)))
 
+#define clamp(v, min, max) (v < min ? min : (v > max ? max : v))
+
 void abort();
 void assert(bool must_be_true);
 

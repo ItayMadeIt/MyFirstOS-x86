@@ -4,12 +4,16 @@
 #include <core/defs.h>
 #include <arch/i386/core/paging.h>
 
+uint32_t get_pde_index(void* va);
+uint32_t get_pte_index(void* va);
+
 page_table_t* get_page_table(uint32_t index);
 void* get_page_phys_base(page_table_t* table, uint32_t index);
 
 uint32_t get_table_entry(void* virt_addr);
 uint32_t get_page_entry(void* virt_addr);
 void* get_phys_addr(void* virt_addr);
+
 
 void set_page_entry(void* virt_addr, uint32_t entry);
 

@@ -1,6 +1,7 @@
-#ifndef __PHYS_ALLOC_H__
-#define __PHYS_ALLOC_H__
+#ifndef __BITMAP_ALLOC_H__
+#define __BITMAP_ALLOC_H__
 
+#include <memory/phys_alloc/phys_alloc.h>
 #include <core/defs.h>
 #include <kernel/boot/boot_data.h>
 #include <stdint.h>
@@ -11,12 +12,11 @@
 
 #define MAX_MEMORY_ENTRIES 256
 
-extern uintptr_t max_memory;
+void* alloc_phys_page_bitmap (enum phys_page_type page_type, uint16_t page_flags);
+phys_alloc_t alloc_phys_pages_bitmap(uintptr_t count, enum phys_page_type page_type, uint16_t page_flags);
 
-enum phys_page_type;
-
-void* alloc_phys_page_bitmap(enum phys_page_type page_type, uint16_t page_flags);
 void free_phys_page_bitmap(void* page_addr);
+void free_phys_pages_bitmap(phys_alloc_t free_params);
 
 void init_bitmap_phys_allocator(boot_data_t* boot_data);
-#endif // __PHYS_ALLOC_H__
+#endif // __BITMAP_ALLOC_H__

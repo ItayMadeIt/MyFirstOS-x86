@@ -1,8 +1,8 @@
 #include "core/debug.h"
-#include "memory/phys_alloc/bitmap_alloc.h"
+#include "memory/phys_alloc/phys_alloc.h"
 #include <memory/core/pfn_desc.h>
 #include <kernel/core/paging.h>
-#include <kernel/memory/virt_alloc.h>
+#include <kernel/memory/paging.h>
 #include <core/defs.h>
 #include <kernel/core/cpu.h>
 #include <memory/core/linker_vars.h>
@@ -73,8 +73,34 @@ static void init_bump(void* begin_addr)
 
 pfn_manager_data_t pfn_data;
 
+phys_page_descriptor_t *pfn_map_page(void* phys_addr, uint16_t page_type, uint16_t page_flags)
+{
+    if (!pfn_data.descs)
+        return NULL;
+
+    uintptr_t page_index = (uintptr_t)phys_addr/PAGE_SIZE;
+    // init 
+    if (pfn_data.descs[page_index].type == PAGETYPE_UNUSED)
+    {
+        pfn_data.descs[page_index].type = page_type;
+        pfn_data.descs[page_index].flags = page_flags;
+        pfn_data.descs[page_index].ref_count = 1;
+    }
+    // bump usage
+    else
+    {
+        pfn_data.descs[page_index].ref_count++;
+    }
+
+    return &pfn_data.descs[page_index];
+}
+
+
 phys_page_descriptor_t *phys_to_pfn(void *phys_addr)
 {
+    if (!pfn_data.descs)
+        return NULL;
+
     uintptr_t page_index = (uintptr_t)phys_addr/PAGE_SIZE;
 
     assert(page_index < pfn_data.count);

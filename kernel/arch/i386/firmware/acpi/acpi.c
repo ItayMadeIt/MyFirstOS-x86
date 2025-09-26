@@ -1,10 +1,10 @@
 #include <arch/i386/drivers/io/io.h>
 #include <arch/i386/firmware/acpi/acpi.h>
-#include <memory/core/pfn_desc.h>
-#include <kernel/memory/virt_alloc.h>
+#include <memory/phys_alloc/phys_alloc.h>
 #include <firmware/acpi/fadt.h>
 #include <firmware/acpi/rsdp.h>
 #include <firmware/acpi/rsdt.h>
+#include <kernel/memory/paging.h>
 
 static acpi_timer_t acpi_timer;
 

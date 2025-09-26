@@ -1,3 +1,6 @@
+#ifndef __BOOT_DATA_H__
+#define __BOOT_DATA_H__
+
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -16,3 +19,4 @@ void boot_foreach_reserved_region(const boot_data_t* boot_data,
                                 void(*callback)(void* from_pa, void* to_pa));
 
 void boot_foreach_page_struct(void(*callback)(void* pa));
+#endif // __BOOT_DATA_H__
