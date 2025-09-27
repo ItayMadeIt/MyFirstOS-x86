@@ -12,8 +12,8 @@
 
 #define MAX_MEMORY_ENTRIES 256
 
-void* alloc_phys_page_bitmap (enum phys_page_type page_type, uint16_t page_flags);
-phys_alloc_t alloc_phys_pages_bitmap(uintptr_t count, enum phys_page_type page_type, uint16_t page_flags);
+void* alloc_phys_page_bitmap ();
+phys_alloc_t alloc_phys_pages_bitmap(uintptr_t count);
 
 void free_phys_page_bitmap(void* page_addr);
 void free_phys_pages_bitmap(phys_alloc_t free_params);

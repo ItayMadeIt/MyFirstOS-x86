@@ -61,6 +61,19 @@ void boot_foreach_free_page(const boot_data_t* boot_data, void(*callback)(void* 
             continue;
         }
 
+        // Only area > 1MiB
+        if (high <= STOR_1MiB) 
+        {
+            mmap = next_mmap(mmap);
+            continue;
+        }
+
+        // Clamp (1MiB, high)
+        if (low < STOR_1MiB)
+        {
+            low = STOR_1MiB;
+        }
+
         while (low < high)
         {
             callback((void*)low);
@@ -138,7 +151,7 @@ void boot_foreach_page_struct(void(*callback)(void* pa))
     for (uint32_t pdi = 0; pdi < ENTRIES_AMOUNT; ++pdi) 
     {
         page_table_t* pt = get_page_table(pdi);
-        if (pt)
+        if (!pt)
         {
             continue;
         }

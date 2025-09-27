@@ -35,13 +35,13 @@
 #define STOR_2GiB   0x80000000
 #define STOR_4GiB   ((uint64_t)0x100000000)
 
-// page size for the current architecture
-#define PAGE_SIZE STOR_4KiB
-
 #define container_of(ptr, type, member) \
-    ((type *)((char *)(ptr) - offsetof(type, member)))
+    ((type *)((char *)(ptr) - (uintptr_t)&(((type *)0)->member)))
 
 #define clamp(v, min, max) (v < min ? min : (v > max ? max : v))
+
+#define MAX_VADDR ((uintptr_t)-1) 
+#define HIGH_VADDR 0xC0000000
 
 void abort();
 void assert(bool must_be_true);

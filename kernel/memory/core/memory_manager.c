@@ -1,3 +1,4 @@
+#include "arch/i386/memory/paging_utils.h"
 #include "core/defs.h"
 #include "memory/phys_alloc/phys_alloc.h"
 #include "string.h"
@@ -7,15 +8,18 @@
 #include <memory/phys_alloc/pfn_alloc.h>
 #include <memory/heap/heap.h>
 #include <kernel/boot/boot_data.h>
+#include <memory/core/virt_alloc.h>
+#include <stdio.h>
 
 #define MM_AREA_VIRT   0xD0000000
 #define KERNEL_ADDR    0x00100000
+#define KERNEL_VIRT_ADDR 0xC0000000
 #define HEAP_MAX_SIZE  STOR_256MiB
 
 
-static phys_alloc_t dummy_alloc_phys_pages(uintptr_t count, enum phys_page_type type, uint16_t flags) 
+static phys_alloc_t dummy_alloc_phys_pages(uintptr_t count) 
 {
-    (void)type;(void)flags;(void)count;
+    (void)count;
     abort();
     return (phys_alloc_t){
         .addr = NULL,
@@ -23,9 +27,8 @@ static phys_alloc_t dummy_alloc_phys_pages(uintptr_t count, enum phys_page_type 
     };
 }
 
-static void* dummy_alloc_phys_page(enum phys_page_type type, uint16_t flags) 
+static void* dummy_alloc_phys_page() 
 {
-    (void)type;(void)flags;
     abort();
     return NULL;
 }
@@ -41,6 +44,12 @@ static void dummy_free_phys_pages(phys_alloc_t alloc)
     (void)alloc;
     abort();
 }
+
+typedef struct interval
+{
+    uintptr_t begin;
+    uintptr_t end;
+} interval_t;
 
 void init_memory(boot_data_t* boot_data)
 {
@@ -59,17 +68,54 @@ void init_memory(boot_data_t* boot_data)
     void* free_virt_addr = (void*)MM_AREA_VIRT;
 
     // Make a PFN based physical allocator
+    interval_t pfn_interval;
+    pfn_interval.begin = (uintptr_t) free_virt_addr;
     init_pfn_descriptors(&free_virt_addr, boot_data);
     init_pfn_allocator(boot_data);
+    pfn_interval.end = (uintptr_t) free_virt_addr;
+
     alloc_phys_page  = alloc_phys_page_pfn;
     alloc_phys_pages = alloc_phys_pages_pfn;
     free_phys_page   = free_phys_page_pfn;
     free_phys_pages  = free_phys_pages_pfn;
 
-    // after setting up a proper alloc_phys_page we can now use `map_pages` for the heap
-
-    uintptr_t heap_start = round_page_up(free_virt_addr);
+    uintptr_t heap_begin = round_page_up(free_virt_addr);
     uintptr_t heap_init_size = clamp(max_memory / 16, STOR_8MiB, STOR_128MiB);
-    uintptr_t heap_max_size = min(STOR_256MiB, max_memory);
-    init_heap((void*)heap_start, heap_max_size, heap_init_size);
+    uintptr_t heap_max_size = clamp(max_memory/4, STOR_32MiB, STOR_256MiB);
+    init_heap((void*)heap_begin, heap_max_size, heap_init_size);
+
+    interval_t heap_interval;
+    heap_interval.begin = heap_begin;
+    heap_interval.end   = heap_begin + heap_max_size;
+    
+    // Handle the virtual allocator 
+    init_virt_alloc();
+    virt_mark_region(
+        (void*)KERNEL_VIRT_ADDR, 
+        (void*)(KERNEL_VIRT_ADDR + kernel_size + STOR_2MiB + STOR_128KiB),
+        "Kernel"
+    );
+    virt_mark_region(
+        (void*)pfn_interval.begin, 
+        (void*)pfn_interval.end, 
+        "Page Descriptors"
+    );
+    virt_mark_region(
+        (void*)heap_interval.begin, 
+        (void*)heap_interval.end, 
+        "Heap"
+    );
+
+    uint8_t* pages0 = kvalloc_pages(
+        0x10*8, 
+        PAGETYPE_KERNEL, 
+        PAGEFLAG_KERNEL);
+    memcpy(
+        pages0, 
+        "I'm writing something here lol",
+        strlen("I'm writing something here lol")+1
+    ); 
+    printf("%s\n", pages0);
+
+    kvfree_pages(pages0);
 }

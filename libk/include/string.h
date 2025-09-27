@@ -11,5 +11,6 @@ void* memmove(void*, const void*, size_t);
 void* memset(void*, int, size_t);
 size_t strlen(const char*);
 int strncmp(const char* s1, const char* s2, size_t n);
+int strcmp(const char* s1, const char* s2);
 
 #endif

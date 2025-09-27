@@ -1,13 +1,13 @@
 #include "memory/core/pfn_desc.h"
-#include "memory/phys_alloc/phys_alloc.h"
 #include <memory/phys_alloc/pfn_alloc.h>
 #include <kernel/memory/paging.h>
+#include <stdio.h>
 
 phys_page_descriptor_t* page_desc_free_ll;
 
-void* alloc_phys_page_pfn(enum phys_page_type page_type, uint16_t page_flags)
+void* alloc_phys_page_pfn()
 {
-    phys_alloc_t alloc = alloc_phys_pages_pfn(1, page_type, page_flags);
+    phys_alloc_t alloc = alloc_phys_pages_pfn(1);
 
     return alloc.count ? alloc.addr : NULL;
 }
@@ -25,17 +25,9 @@ static inline void mark_pages(phys_page_descriptor_t* begin,
     }
 } 
 
-phys_alloc_t alloc_phys_pages_pfn(uintptr_t request_count, enum phys_page_type page_type, uint16_t page_flags)
+phys_alloc_t alloc_phys_pages_pfn(uintptr_t request_count)
 {
     if (!page_desc_free_ll)
-    {
-        return (phys_alloc_t){
-            .addr = NULL,
-            .count = 0
-        };
-    }
-
-    if (page_type == PAGETYPE_UNUSED)
     {
         return (phys_alloc_t){
             .addr = NULL,
@@ -56,10 +48,9 @@ phys_alloc_t alloc_phys_pages_pfn(uintptr_t request_count, enum phys_page_type p
         phys_page_descriptor_t* result_end_desc = &pfn_data.descs[page_index + page_desc_free_ll->u.free_page.count];
         mark_pages(
             result_begin_desc, result_end_desc, 
-            page_type, page_flags, 
-            1
-        );
-        
+            PAGETYPE_PHYS_ALLOC, PAGEFLAG_NONE, 
+            0 // not yet mapped
+        );        
 
         // Update list entry
         page_desc_free_ll->u.free_page.count -= taken_count;
@@ -82,8 +73,8 @@ phys_alloc_t alloc_phys_pages_pfn(uintptr_t request_count, enum phys_page_type p
         phys_page_descriptor_t* result_end_desc   = &pfn_data.descs[page_index + page_desc_free_ll->u.free_page.count];
         mark_pages(
             result_begin_desc, result_end_desc, 
-            page_type, page_flags, 
-            1
+            PAGETYPE_PHYS_ALLOC, PAGEFLAG_NONE, 
+            0 // not yet mapped
         );
 
 

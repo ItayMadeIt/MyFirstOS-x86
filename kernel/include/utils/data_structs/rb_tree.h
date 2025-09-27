@@ -23,6 +23,8 @@ typedef struct rb_tree
 	rb_augment_t augment;
 } rb_tree_t;
 
+void rb_init_tree(rb_tree_t *tree, rb_cmp_t cmp, rb_augment_t augment);
+
 static inline bool rb_empty(const rb_tree_t *tree) { return tree->root == NULL; }
 
 rb_node_t* rb_insert     (rb_tree_t* tree, rb_node_t* node);

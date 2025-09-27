@@ -7,20 +7,19 @@
 #include <string.h>
 
 
-static page_table_t* ensure_page_table(uint32_t va, uint32_t flags)
+static page_table_t* ensure_page_table(uint32_t va)
 {
     uint32_t dir_index = get_pde_index((void*)va);
     uint32_t entry = get_table_entry((void*)va);
 
     if (!(entry & PAGE_ENTRY_FLAG_PRESENT)) 
     {
-        void* new_table_phys = alloc_phys_page(PAGETYPE_VENTRY, PAGE_ENTRY_FLAG_ALLPERMS);
+        void* new_table_phys = alloc_phys_page();
         if (!new_table_phys) 
         {
             return NULL;
         }
-        map_table_entry(new_table_phys, (void*)va, flags);
-        memset((void*)(0xFFC00000 + dir_index * PAGE_SIZE), 0, PAGE_SIZE);
+        map_table_entry(new_table_phys, (void*)va, PAGE_ENTRY_WRITE_KERNEL_FLAGS);
     }
 
     return get_page_table(dir_index);
@@ -92,13 +91,13 @@ bool map_alloc_pages(void* va_ptr, uint32_t count,
         uint32_t pages_in_table = ENTRIES_AMOUNT - table_index;
         uint32_t chunk_count = (pages_in_table < count) ? pages_in_table : count;
 
-        page_table_t* table = ensure_page_table(va, PAGE_ENTRY_FLAG_ALLPERMS);
+        page_table_t* table = ensure_page_table(va);
         if (!table) 
         {
             return false;
         }
 
-        phys_alloc_t alloc = alloc_phys_pages(chunk_count, page_type, page_flags);
+        phys_alloc_t alloc = alloc_phys_pages(chunk_count);
         if (!alloc.count) 
         {
             return false;
@@ -118,12 +117,14 @@ static bool map_phys_range(void* pa_ptr, void* va_ptr, uint32_t count,
     uint32_t va = (uint32_t)va_ptr;
     uint32_t pa = (uint32_t)pa_ptr;
 
+    uint16_t hw_flags = pfn_flags_to_hw_flags(page_flags);
+
     while (count) 
     {
         uint32_t table_index = get_pte_index((void*)va);
         uint32_t pages_in_table = ENTRIES_AMOUNT - table_index;
 
-        page_table_t* table = ensure_page_table(va, pfn_flags_to_hw_flags(page_flags));
+        page_table_t* table = ensure_page_table(va);
         if (!table)
         {
             return false;
@@ -131,7 +132,7 @@ static bool map_phys_range(void* pa_ptr, void* va_ptr, uint32_t count,
 
         while (pages_in_table && count) 
         {
-            map_page_entry((void*)pa, (void*)va, pfn_flags_to_hw_flags(page_flags));
+            map_page_entry((void*)pa, (void*)va, hw_flags);
 
             pfn_map_page((void*)pa, page_type, page_flags);
 
@@ -230,12 +231,20 @@ static void handle_unmap_range_entry(uintptr_t va,
 
     void* pa_ptr = (void*)(entry & PAGE_MASK);
 
-    phys_page_descriptor_t* desc = phys_to_pfn(pa_ptr);
-    bool should_free = desc && desc->ref_count > 0 && --desc->ref_count == 0;
-
     uint32_t pte_index = get_pte_index((void*)va);
     table->entries[pte_index] = 0;
     invlpg((void*)va);
+
+    phys_page_descriptor_t* desc = phys_to_pfn(pa_ptr);
+    bool should_free = false;
+    if (desc && desc->ref_count > 0)
+    {
+        --desc->ref_count;
+        if (desc->ref_count == 0)
+        {
+            should_free = true;
+        }
+    }
 
     if (!should_free)
         return;

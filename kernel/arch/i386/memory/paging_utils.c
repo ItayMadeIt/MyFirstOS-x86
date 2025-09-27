@@ -54,6 +54,8 @@ bool map_page_entry(void* phys_addr_ptr, void* virt_addr_ptr, uint16_t flags)
     page_table_t* page_table = (page_table_t*)(0xFFC00000 + (page_dir_index * PAGE_SIZE));
     page_table->entries[page_table_index] = (void*)((phys_addr & 0xFFFFF000) | ((uint32_t)flags & 0x00000FFF));
 
+    invlpg(virt_addr_ptr);
+
     return true;
 }
 

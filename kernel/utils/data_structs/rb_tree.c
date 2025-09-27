@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <utils/data_structs/rb_tree.h>
 
 #define RB_COLOR 0b01
@@ -159,16 +160,18 @@ static rb_node_t** rb_find_node_link(rb_tree_t* tree, rb_node_t* data, rb_node_t
 
 static inline void rb_handle_insert_fixup_rotation(rb_node_t** root, 
 		rb_node_t* gparent, rb_node_t* parent, 
-		bool is_left_child, bool is_zigzag )
+		bool parent_left_child, bool node_left_child)
 {
-	if (is_left_child)
+	bool is_zigzag = (parent_left_child != node_left_child);
+
+	if (parent_left_child)
 	{
 		// Ensures it turned into a line
 		if (is_zigzag)
 		{
 			rb_rotate_left(root, parent);
 		}
-		
+
 		rb_rotate_right(root, gparent);
 	}
 	else
@@ -181,6 +184,11 @@ static inline void rb_handle_insert_fixup_rotation(rb_node_t** root,
 
 		rb_rotate_left(root, gparent);
 	}
+
+	// New top is always parent(gparent)
+	rb_node_t* new_top = get_parent(gparent);  
+	set_black(new_top);
+	set_red(gparent);
 }
 
 static void rb_insert_fixup(rb_node_t** root, rb_node_t* node)
@@ -218,13 +226,14 @@ static void rb_insert_fixup(rb_node_t** root, rb_node_t* node)
 	}
 	else
 	{
-		bool parent_left_child = gparent->left == parent;
-		bool is_left_child = parent->left == node;
+		bool parent_left_child = (gparent->left == parent);
+		bool node_left_child   = (parent->left == node);
 
-		rb_handle_insert_fixup_rotation(root, gparent, parent, is_left_child, parent_left_child != is_left_child);
-
-		set_black(parent);
-		set_red(gparent);
+		rb_handle_insert_fixup_rotation(
+			root, 
+			gparent, parent, 
+			parent_left_child, node_left_child
+		);
 	}
 
 	set_black(*root);
@@ -541,7 +550,16 @@ static void rb_augment_from(rb_tree_t* tree, rb_node_t* node)
 	}
 }
 
-rb_node_t* rb_insert(rb_tree_t* tree, rb_node_t* node)
+static void dummy_no_agument(rb_node_t* _) {(void)_;}
+
+void rb_init_tree(rb_tree_t *tree, rb_cmp_t cmp, rb_augment_t augment)
+{
+	tree->root = NULL;
+	tree->cmp = cmp;
+	tree->augment = augment ? augment : dummy_no_agument;
+}
+
+rb_node_t *rb_insert(rb_tree_t *tree, rb_node_t *node) 
 {
 	rb_node_t** link = &tree->root;
 	rb_node_t* parent = NULL;
@@ -561,6 +579,7 @@ rb_node_t* rb_insert(rb_tree_t* tree, rb_node_t* node)
 	*link = node;
 
 	set_parent(node, parent);
+
 	rb_insert_fixup(&tree->root, node);
 
 	rb_augment_from(tree, *link);

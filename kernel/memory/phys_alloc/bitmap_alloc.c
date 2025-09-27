@@ -14,6 +14,7 @@ uintptr_t max_memory;
 
 uintptr_t kernel_begin_pa;
 uintptr_t kernel_end_pa;
+uintptr_t kernel_size;
 
 static void reset_pages_allocated()
 {
@@ -88,26 +89,20 @@ static void reserve_kernel_memory()
         (void*)round_page_down(kernel_begin_pa), 
         (void*)round_page_up(kernel_end_pa)
     );
+    kernel_size = round_page_up(kernel_end_pa) - round_page_down(kernel_begin_pa);
     
     // boot_foreach_free_page_region(boot_data, alloc_page_region); 
 }
 
-void* alloc_phys_page_bitmap(enum phys_page_type page_type, uint16_t page_flags)
+void* alloc_phys_page_bitmap()
 {
-    (void)page_type; (void)page_flags;
-
-    phys_alloc_t alloc = alloc_phys_pages_bitmap(1, page_type, page_flags);
+    phys_alloc_t alloc = alloc_phys_pages_bitmap(1);
 
     return alloc.count ? alloc.addr : NULL;
 }
 
-phys_alloc_t alloc_phys_pages_bitmap(uintptr_t count,
-                                     enum phys_page_type page_type,
-                                     uint16_t page_flags)
+phys_alloc_t alloc_phys_pages_bitmap(uintptr_t count)
 {
-    (void)page_type; 
-    (void)page_flags;
-
     phys_alloc_t result = { .addr = NULL, .count = 0 };
 
     if (count == 0) 
@@ -210,7 +205,6 @@ void init_bitmap_phys_allocator(boot_data_t* boot_data)
     max_memory = get_max_memory(boot_data);
 
     boot_foreach_free_page(boot_data, free_page_at);
-
     boot_foreach_reserved_region(boot_data, alloc_page_region);
 
     reserve_kernel_memory();

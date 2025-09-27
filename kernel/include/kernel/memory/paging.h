@@ -1,7 +1,8 @@
-#ifndef __VIRT_ALLOC_H__
-#define __VIRT_ALLOC_H__
+#ifndef __MEM_PAGING_H__
+#define __MEM_PAGING_H__
 
 #include <core/defs.h>
+#include <kernel/core/paging.h>
 #include <memory/phys_alloc/phys_alloc.h>
 
 bool map_pages(void* va_ptr, uintptr_t count, enum phys_page_type page_type, uint16_t page_flags);
@@ -29,4 +30,4 @@ typedef enum virt_phys_flags
 uint32_t get_phys_flags(void* va);
 void clear_phys_flags(void* va, uint32_t flags);
 
-#endif // __VIRT_ALLOC_H__
+#endif // __MEM_PAGING_H__

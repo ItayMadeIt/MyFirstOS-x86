@@ -82,6 +82,10 @@ phys_page_descriptor_t *pfn_map_page(void* phys_addr, uint16_t page_type, uint16
     // init 
     if (pfn_data.descs[page_index].type == PAGETYPE_UNUSED)
     {
+        return NULL;
+    }
+    else if (pfn_data.descs[page_index].type == PAGETYPE_PHYS_ALLOC)
+    {
         pfn_data.descs[page_index].type = page_type;
         pfn_data.descs[page_index].flags = page_flags;
         pfn_data.descs[page_index].ref_count = 1;
@@ -126,8 +130,8 @@ static inline phys_page_descriptor_t* mark_range(uintptr_t start_pa, uintptr_t e
         return NULL;
     }
 
-    uintptr_t start = start_pa >> 12;
-    uintptr_t end = (end_pa - 1) >> 12; // inclusive
+    uintptr_t start = start_pa / PAGE_SIZE;
+    uintptr_t end = (end_pa - 1) / PAGE_SIZE; // inclusive
     if (start >= total_pages)
     { 
         return NULL;
@@ -156,8 +160,8 @@ static void mark_page_structure(void* page_struct_pa)
 static void mark_range_usable(void* start_pa, void* end_pa)
 {
     mark_range(
-        (uint32_t)start_pa,
-        (uint32_t)end_pa,
+        (uintptr_t)start_pa,
+        (uintptr_t)end_pa,
         pfn_data.descs, pfn_data.count,
         PAGETYPE_UNUSED, 0,
         PAGEFLAG_KERNEL | PAGEFLAG_VFREE
@@ -166,8 +170,8 @@ static void mark_range_usable(void* start_pa, void* end_pa)
 static void mark_range_reserved(void* start_pa, void* end_pa)
 {
     mark_range(
-        (uint32_t)start_pa,
-        (uint32_t)end_pa,
+        (uintptr_t)start_pa,
+        (uintptr_t)end_pa,
         pfn_data.descs, pfn_data.count,
         PAGETYPE_RESERVED, 1,
         PAGEFLAG_KERNEL | PAGEFLAG_READONLY
@@ -181,8 +185,8 @@ static void init_phys_pages(boot_data_t* boot_data)
                pfn_data.descs, pfn_data.count, 
                PAGETYPE_RESERVED, 1, 0);
 
-    boot_foreach_reserved_region(boot_data, mark_range_reserved);
     boot_foreach_free_page_region(boot_data, mark_range_usable);
+    boot_foreach_reserved_region(boot_data, mark_range_reserved);
 
     // Kernel image
     mark_range(round_page_down(kernel_begin_pa),

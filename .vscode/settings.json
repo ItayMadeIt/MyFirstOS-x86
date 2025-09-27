@@ -52,6 +52,8 @@
         "flat_hashmap.h": "c",
         "block_device.h": "c",
         "bitmap_alloc.h": "c",
-        "rb_tree.h": "c"
+        "rb_tree.h": "c",
+        "virt_alloc.h": "c",
+        "linker_vars.h": "c"
     }
 }
