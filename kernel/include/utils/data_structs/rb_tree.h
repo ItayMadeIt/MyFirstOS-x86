@@ -12,9 +12,9 @@ typedef struct __attribute__((aligned(sizeof(uintptr_t)))) rb_node {
 
 } rb_node_t;
 
-typedef int  (*rb_cmp_t    )(const rb_node_t* a, const rb_node_t* b);
+typedef intptr_t (*rb_cmp_t)(const rb_node_t* a, const rb_node_t* b);
 typedef void (*rb_augment_t)(rb_node_t* var);
-typedef void (*rb_free_t)  (rb_node_t* var);
+typedef void (*rb_free_t   )(rb_node_t* var);
 
 typedef struct rb_tree 
 {

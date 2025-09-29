@@ -87,19 +87,21 @@ typedef struct __attribute__((packed)) ide_prd_entry
 } ide_prd_entry_t; 
 
 #define PRD_ENTRIES_PER_CHANNEL 8
-typedef ide_prd_entry_t ide_prd_entries[PRD_ENTRIES_PER_CHANNEL];
 
 #define CHANNELS 2 // pri/sec
 #define DEVS_PER_CHANNEL 2   // for each channel - master/slave 
 #define DEVICES (CHANNELS * DEVS_PER_CHANNEL) 
 
 typedef struct __attribute__((aligned(SECTOR_SIZE))) ide_dma_vars
-{
-    __attribute__((aligned(64))) ide_prd_entries prd;  
+{   
+    ide_prd_entry_t* prdt;   // dynamic 
+    uint64_t prdt_capacity;  // allocated (not used)
+    
     // only needed for first entry if not aligned
     uint16_t head_offset;
     uint16_t head_size;
     uint16_t tail_valid;
+
     __attribute__((aligned(2))) uint8_t head_buffer[SECTOR_SIZE];
     __attribute__((aligned(2))) uint8_t tail_buffer[SECTOR_SIZE];  
 
@@ -450,7 +452,8 @@ static void init_ide_device(uintptr_t device_index, uintptr_t channel_index, uin
     ide.devices[device_index].signature    = *((uint16_t*)(ide_ident_buffer + ATA_IDENT_DEVICETYPE));
     ide.devices[device_index].features     = *((uint16_t*)(ide_ident_buffer + ATA_IDENT_CAPABILITIES));
     ide.devices[device_index].command_sets = *((uint32_t*)(ide_ident_buffer + ATA_IDENT_COMMANDSETS));
-
+    ide.devices[device_index].supports_dma = (ide.devices[device_index].features & (1 << 8)) != 0;
+    
     // (VII) Get Size:
     if (ide.devices[device_index].command_sets & (1 << 26))
     {
@@ -501,7 +504,7 @@ static void init_ide_devices()
         uintptr_t drive_select  = device_index % DEVS_PER_CHANNEL;
 
         init_ide_device(device_index, channel_index, drive_select);
-    }  
+    }     
 
     for (uint32_t i = 0; i < DEVICES; i++)
     {
@@ -516,83 +519,135 @@ static void init_ide_devices()
     }   
 }
 
+static void init_dma_devices()
+{
+    // Init dma per channel
+    for (uintptr_t ch = 0; ch < CHANNELS; ch++)
+    {
+        bool dev_supports_dma = false;
+        for (uintptr_t dev = 0; dev < DEVS_PER_CHANNEL; dev++)
+        {
+            if (ide.devices[ch*DEVS_PER_CHANNEL + dev].supports_dma)
+            {
+                dev_supports_dma = true;
+                break;
+            }
+        }
+
+        if (!dev_supports_dma)
+            continue;
+
+        ide.dma[ch].prdt = kalloc_aligned(
+            64,  // prdt addr must be aligned 64 bytes
+            sizeof(ide_prd_entry_t) * PRD_ENTRIES_PER_CHANNEL
+        );
+
+        assert(ide.dma[ch].prdt);
+
+        ide.dma[ch].prdt_capacity = PRD_ENTRIES_PER_CHANNEL;
+    }
+}
+
 #define PRD_MAX_BOUNDARY STOR_64KiB
 #define PRD_LAST_BIT     0x8000
 
-// Returns the amount of sectors that are needed to be copied// Returns the amount of sectors that are needed to be copied
-static uint32_t fill_prdt(uint8_t channel, void* virt_buffer, uintptr_t byte_count) 
+static void prdt_iterate_chunk_prd(uint64_t prd_index, ide_dma_vars_t* dma, uintptr_t* remaining, uintptr_t* va)
 {
-    assert(byte_count % SECTOR_SIZE == 0);
-    assert(((uintptr_t)virt_buffer % SECTOR_SIZE) == 0);
-
-    uintptr_t va        = (uintptr_t)virt_buffer;
-    uintptr_t remaining = byte_count;
-    uintptr_t prd_index = 0;
-
-    uint32_t sectors = byte_count / SECTOR_SIZE;
-
-    while (remaining > 0) 
+    if (prd_index >= dma->prdt_capacity) 
     {
-        if (prd_index >= PRD_ENTRIES_PER_CHANNEL) 
-            abort();
+        // grow dynamically
+        uint64_t new_capacity = dma->prdt_capacity * 2;
+        dma->prdt = krealloc(dma->prdt, sizeof(ide_prd_entry_t) * new_capacity);
+        dma->prdt_capacity = new_capacity;
+    }
 
-        uintptr_t cur_chunk_size = 0;
-        uintptr_t start_pa = (uintptr_t)get_phys_addr((void*)va); 
-        uintptr_t cur_pa   = start_pa;
+    uintptr_t cur_chunk_size = 0;
+    uintptr_t start_pa = (uintptr_t)get_phys_addr((void*)*va);
+    uintptr_t cur_pa   = start_pa;
+
+    // Until no bytes remain, or some policy stopped this prd entry
+    while (*remaining > 0) 
+    {
+        uintptr_t page_offset = ((*va) + cur_chunk_size) & (PAGE_SIZE - 1);
+        uintptr_t page_space  = PAGE_SIZE - page_offset;
+
+        uintptr_t take = (*remaining < page_space) ? *remaining : page_space;
+
+        uintptr_t boundary = PRD_MAX_BOUNDARY -
+                                ((cur_pa + cur_chunk_size) &
+                                (PRD_MAX_BOUNDARY - 1));
+        if (take > boundary)
+            take = boundary;
+
+        // must be sector aligned
+        take -= take % SECTOR_SIZE;
+        if (take == 0)
+            break;
+
+        cur_chunk_size += take;
+        *remaining     -= take;
+
+        if (*remaining == 0)
+            break;
+
+        // phys must be continous
+        uintptr_t next_pa =
+            (uintptr_t)get_phys_addr((void*)(*va + cur_chunk_size));
+        if (next_pa != (cur_pa & PAGE_MASK) + PAGE_SIZE)
+            break;
+
+        // Must not pass the MAX BOUNDARY
+        uintptr_t cur_prd_max_boundary  = cur_pa  & (~(PRD_MAX_BOUNDARY-1));
+        uintptr_t next_prd_max_boundary = next_pa & (~(PRD_MAX_BOUNDARY-1));
+        if (cur_prd_max_boundary != next_prd_max_boundary)
+            break;
+
+        cur_pa = next_pa;
+    }
+
+    dma->prdt[prd_index].phys_addr  = (uint32_t)start_pa;
+    dma->prdt[prd_index].bytes_size =
+        (cur_chunk_size == PRD_MAX_BOUNDARY ? 
+            0 : (uint16_t)cur_chunk_size);
+    dma->prdt[prd_index].flags = 0;
+
+    *va += cur_chunk_size;
+}
+
+// Returns the amount of sectors that are needed to be copied
+static uint64_t fill_prdt(uint8_t channel, stor_request_chunk_entry_t* chunk_arr, uint64_t chunk_length) 
+{
+    ide_dma_vars_t* dma = &ide.dma[channel];
+    uint64_t total_sectors = 0;
+    uint64_t prd_index = 0;
+
+    for (uint64_t ci = 0; ci < chunk_length; ci++) 
+    {
+        uintptr_t va        = (uintptr_t)chunk_arr[ci].va_buffer;
+        uintptr_t remaining = chunk_arr[ci].sectors * SECTOR_SIZE;
+
+        assert((va % SECTOR_SIZE) == 0);
 
         while (remaining > 0) 
         {
-            uintptr_t page_offset = (va + cur_chunk_size) & (PAGE_SIZE - 1);
-            uintptr_t page_space  = PAGE_SIZE - page_offset;
+            prdt_iterate_chunk_prd(prd_index, dma, &remaining, &va);
 
-            uintptr_t take = (remaining < page_space) ? remaining : page_space;
-
-            uintptr_t boundary = PRD_MAX_BOUNDARY - ((cur_pa + cur_chunk_size) & (PRD_MAX_BOUNDARY - 1));
-            if (take > boundary) 
-                take = boundary;
-
-            // stop if we’d break sector alignment
-            take -= take % SECTOR_SIZE;
-            if (take == 0) 
-                break;
-
-            cur_chunk_size += take;
-            remaining      -= take;
-
-            if (remaining == 0) 
-                break;
-
-            uintptr_t next_pa = (uintptr_t)get_phys_addr((void*)(va + cur_chunk_size));
-            if (next_pa != (cur_pa & PAGE_MASK) + PAGE_SIZE) 
-                break;
-
-            uintptr_t cur_prd_max_boundary  = cur_pa  & (~(PRD_MAX_BOUNDARY-1));
-            uintptr_t next_prd_max_boundary = next_pa & (~(PRD_MAX_BOUNDARY-1));
-            if (cur_prd_max_boundary != next_prd_max_boundary) 
-                break;
-
-            cur_pa = next_pa;
+            prd_index++;
         }
 
-        ide.dma[channel].prd[prd_index].phys_addr  = (uint32_t)start_pa;
-        ide.dma[channel].prd[prd_index].bytes_size =
-            (cur_chunk_size == PRD_MAX_BOUNDARY ? 0 : (uint16_t)cur_chunk_size);
-        ide.dma[channel].prd[prd_index].flags = 0;
-
-        va += cur_chunk_size;
-        prd_index++;
+        total_sectors += chunk_arr[ci].sectors;
     }
 
     if (prd_index > 0)
     {
-        ide.dma[channel].prd[prd_index - 1].flags |= PRD_LAST_BIT;
-        set_prdt_addr(channel, (uint32_t)get_phys_addr(&ide.dma[channel].prd[0]));
+        ide.dma[channel].prdt[prd_index - 1].flags |= PRD_LAST_BIT;
+        set_prdt_addr(channel, (uint32_t)get_phys_addr(ide.dma[channel].prdt));
     }
 
-    return sectors;
+    return total_sectors;
 }
 
-static void ide_read_sectors_async(uintptr_t device, void* virt_buffer, uint64_t lba, uint64_t bytes_amount)
+static void ide_read_sectors_async(uintptr_t device, uint64_t lba, stor_request_chunk_entry_t* chunk_arr, uint64_t chunk_length)
 {
     uint8_t channel = ide.devices[device].channel;
 
@@ -601,7 +656,11 @@ static void ide_read_sectors_async(uintptr_t device, void* virt_buffer, uint64_t
         abort();
     }
 
-    uint64_t sector_count = fill_prdt(channel, virt_buffer, bytes_amount);
+   uint64_t sector_count = fill_prdt(
+        channel, 
+        chunk_arr, 
+        chunk_length
+    );
 
     send_bm_status(channel, ATA_BM_STATUS_IRQ | ATA_BM_STATUS_ERR);
 
@@ -628,7 +687,7 @@ static void ide_read_sectors_async(uintptr_t device, void* virt_buffer, uint64_t
     send_bm_cmd(channel, bm_cmd);
 }
 
-static void ide_write_sectors_async(uintptr_t device, const void* virt_buffer, uint64_t lba, uint64_t bytes_amount)
+static void ide_write_sectors_async(uintptr_t device, uint64_t lba, stor_request_chunk_entry_t* chunk_arr, uint64_t chunk_length)
 {
     uint8_t channel = ide.devices[device].channel;
 
@@ -637,7 +696,13 @@ static void ide_write_sectors_async(uintptr_t device, const void* virt_buffer, u
         abort();
     }
 
-    uint64_t sector_count = fill_prdt(channel, (void*)virt_buffer, bytes_amount); // just for PRDT, we're not modifying the buffer
+    // just for PRDT, we're not modifying the buffer
+    uint64_t sector_count = fill_prdt(
+        channel, 
+        chunk_arr, 
+        chunk_length
+    );
+    assert(sector_count);
 
     send_bm_status(channel, ATA_BM_STATUS_IRQ | ATA_BM_STATUS_ERR);
 
@@ -712,18 +777,16 @@ static ide_request_item_t* ide_pop_queue(uint16_t channel)
 static void make_request(stor_request_t* request)
 {
     ide_device_t* dev = (ide_device_t*) request->dev->dev_data;
-    void* va_buf = request->va_buffer;
     uint64_t lba = request->lba;
-    uint64_t bytes = request->sectors * SECTOR_SIZE;
     
     switch (request->action)
     {
     case STOR_REQ_READ:
-        ide_read_sectors_async(dev->channel, va_buf, lba, bytes);
+        ide_read_sectors_async(dev->channel, lba, request->chunk_list, request->chunk_length);
         break;
     
     case STOR_REQ_WRITE:
-        ide_write_sectors_async(dev->channel, va_buf, lba, bytes);
+        ide_write_sectors_async(dev->channel, lba, request->chunk_list, request->chunk_length);
         break;
     
     default:
@@ -776,7 +839,6 @@ static void primary_irq(irq_frame_t* irq_frame)
     uint32_t bm_status = recv_bm_status(channel);
     uint16_t drv_status = ide_get_status(channel);
 
-    int64_t bytes_count = item->request.sectors * SECTOR_SIZE;
     int64_t result;
     if ((bm_status & ATA_BM_STATUS_ERR) || (drv_status & ATA_STATUS_ERR)) 
     {
@@ -784,7 +846,7 @@ static void primary_irq(irq_frame_t* irq_frame)
     }
     else
     {
-        result = bytes_count;
+        result = 1;
     }
 
     item->request.callback(&item->request, result);
@@ -824,7 +886,6 @@ static void secondary_irq(irq_frame_t* irq_frame)
     uint32_t bm_status = recv_bm_status(channel);
     uint16_t drv_status = ide_get_status(channel);
 
-    int64_t bytes_count = item->request.sectors * SECTOR_SIZE;
     int64_t result;
     if ((bm_status & ATA_BM_STATUS_ERR) || (drv_status & ATA_STATUS_ERR)) 
     {
@@ -832,7 +893,7 @@ static void secondary_irq(irq_frame_t* irq_frame)
     }
     else
     {
-        result = bytes_count;
+        result = 1;
     }
 
     item->request.callback(&item->request, result);
@@ -895,6 +956,8 @@ void init_ide(storage_add_device add_func, pci_driver_t *driver)
     init_ide_channels(driver);
 
     init_ide_devices();
+
+    init_dma_devices();
 
     for (uint32_t i = 0; i < DEVICES; i++)
     {

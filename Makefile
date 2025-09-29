@@ -8,12 +8,13 @@ $(info >>> Makefile is being read!)
 HOST     := $(shell ./scripts/default-host.sh)
 ARCH     := $(shell ./scripts/target-triplet-to-arch.sh $(HOST))
 
-SYSROOT   := $(shell pwd)/imgdir
-DESTDIR   := $(shell pwd)/imgdir
-IMGDIR    := $(shell pwd)/imgdir
-BUILDTYPE ?= release
-BUILDDIR  := $(shell pwd)/build/$(BUILDTYPE)
-IMG       := $(shell pwd)/build/waddleos.img
+SYSROOT      := $(shell pwd)/imgdir
+DESTDIR      := $(shell pwd)/imgdir
+IMGDIR       := $(shell pwd)/imgdir
+BUILDTYPE    ?= release
+ALL_BUILDDIR := $(shell pwd)/build/
+BUILDDIR     := $(ALL_BUILDDIR)/$(BUILDTYPE)
+IMG          := $(shell pwd)/build/waddleos.img
 
 PREFIX        := /root/usr
 EXEC_PREFIX   := $(PREFIX)
@@ -82,6 +83,7 @@ clean:
 		$(MAKE) -C $$PROJECT clean || exit 1; \
 	done
 	@rm -rf $(IMG) 
+	@rm -rf $(ALL_BUILDDIR) 
 
 img: all
 	@mkdir -p "$(BOOTDIR)/grub"

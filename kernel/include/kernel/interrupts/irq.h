@@ -12,4 +12,6 @@ void irq_restore(uintptr_t flags);
 void irq_register_handler(uint32_t vector, void (*handle)(irq_frame_t*));
 void irq_dispatch();
 
+uintptr_t irq_frame_get_error(irq_frame_t* frame);
+
 // callback = function called after

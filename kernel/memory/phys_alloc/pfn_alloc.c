@@ -179,7 +179,7 @@ void free_phys_pages_pfn(phys_alloc_t free_params)
     page_desc_free_ll = cur_head;
 }
 
-static void identity_map_page_region(void* start_pa, void* end_pa)
+static void reserve_map_page_region(void* start_pa, void* end_pa)
 {
     uint64_t begin = (uint64_t)(uintptr_t)start_pa;
     uint64_t end = (uint64_t)(uintptr_t)end_pa;
@@ -243,7 +243,7 @@ void init_pfn_allocator(boot_data_t* boot_data)
     // Make the free descriptor list
     page_desc_free_ll = NULL;
 
-    boot_foreach_reserved_region(boot_data, identity_map_page_region);
+    boot_foreach_reserved_region(boot_data, reserve_map_page_region);
     
     // builds the free list based on each page couple
     build_free_list();

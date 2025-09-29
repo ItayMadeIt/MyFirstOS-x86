@@ -1,6 +1,6 @@
+#include "arch/i386/core/paging.h"
 #include "drivers/pci.h"
 #include "drivers/storage.h"
-#include "services/storage/block_device.h"
 #include <stdio.h>
 #include <core/defs.h>
 #include <drivers/tty.h>
@@ -97,7 +97,10 @@ static void dummy_time_event(int_timer_event_t time_event)
         time_event.frequency_hz
     );
 }
-
+static void mark_done(stor_request_t* request, int64_t result)
+{
+    *(bool*)request->user_data = true;
+}
 
 
 void kernel_main(boot_data_t* boot_data)
@@ -121,25 +124,8 @@ void kernel_main(boot_data_t* boot_data)
 
 	irq_enable();
 
-    uint8_t* buffer = stor_get_sync(main_stor_device(), 0);
-    for (uintptr_t i = 0; i < 512; i++)
-    {
-        printf("%02X ", (uint32_t)(buffer)[i]);
-    }
-    stor_flush_all(main_stor_device());
+    stor_device_t* dev = main_stor_device();
+    
 
-    buffer[0] = 0x10;
-
-    buffer = stor_get_sync(main_stor_device(), 0);
-    for (uintptr_t i = 0; i < 512; i++)
-    {
-        printf("%02X ", (uint32_t)(buffer)[i]);
-    }
-
-    stor_flush_all(main_stor_device());
-
-	while(1)
-    {
-
-    }
+    while(1);
 }

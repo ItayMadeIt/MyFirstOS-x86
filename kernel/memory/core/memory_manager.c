@@ -1,4 +1,3 @@
-#include "arch/i386/memory/paging_utils.h"
 #include "core/defs.h"
 #include "memory/phys_alloc/phys_alloc.h"
 #include "string.h"
@@ -105,17 +104,4 @@ void init_memory(boot_data_t* boot_data)
         (void*)heap_interval.end, 
         "Heap"
     );
-
-    uint8_t* pages0 = kvalloc_pages(
-        0x10*8, 
-        PAGETYPE_KERNEL, 
-        PAGEFLAG_KERNEL);
-    memcpy(
-        pages0, 
-        "I'm writing something here lol",
-        strlen("I'm writing something here lol")+1
-    ); 
-    printf("%s\n", pages0);
-
-    kvfree_pages(pages0);
 }

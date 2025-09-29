@@ -577,15 +577,21 @@ void* kalloc(uintptr_t size)
     return alloc_slab(&heap.free_slabs[order]);
 }
 
-void* kalloc_pages(uintptr_t pages)
-{
-    uintptr_t size = pages * PAGE_SIZE;
+void *kalloc_aligned(uintptr_t alignment, uintptr_t size) 
+{ 
+    // the size is always the alignment
+    uintptr_t alloc_size = max(alignment, size);
+    return kalloc(alloc_size); 
+}
 
-    size = align_up_pow2(size);
+void *kalloc_pages(uintptr_t pages) {
+  uintptr_t size = pages * PAGE_SIZE;
 
-    assert(log2_u32(size) <= BUDDY_EXPON_MAX);
+  size = align_up_pow2(size);
 
-    return alloc_buddy(size);
+  assert(log2_u32(size) <= BUDDY_EXPON_MAX);
+
+  return alloc_buddy(size);
 }
 
 static inline heap_slab_order_t* get_slab_order(void* obj_addr)

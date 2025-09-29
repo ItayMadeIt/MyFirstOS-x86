@@ -8,6 +8,7 @@
 #define INVALID_MEMORY ~0
 
 void* kalloc(uintptr_t size);
+void* kalloc_aligned(uintptr_t alignment, uintptr_t size);
 void* kalloc_pages(uintptr_t pages);
 void* krealloc(void* addr, uintptr_t new_size);
 void kfree(void* addr);

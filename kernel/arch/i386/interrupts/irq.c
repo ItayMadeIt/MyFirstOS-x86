@@ -85,6 +85,10 @@ void irq_register_handler(uint32_t vector, void (*handle)(irq_frame_t*))
     interrupt_callback_entries[vector] = handle;
 }
 
+uintptr_t irq_frame_get_error(irq_frame_t *frame)
+{
+    return frame->err_code;
+}
 
 void init_irq()
 {

@@ -33,14 +33,13 @@ static uintptr_t add_stor_device(void* data, uint64_t sector_size, void (*submit
     storage.dev_arr[storage.count].dev_data = data;
     storage.dev_arr[storage.count].dev_id = storage.count;
     storage.dev_arr[storage.count].sector_size = sector_size;
-    storage.dev_arr[storage.count].sector_mask = ~(sector_size-1);
     storage.dev_arr[storage.count].submit = submit;
     storage.dev_arr[storage.count].disk_size = disk_size;
 
     uint64_t block_size = max(sector_size, PAGE_SIZE);
     storage.dev_arr[storage.count].block_size = block_size;
+    storage.dev_arr[storage.count].max_blocks = disk_size & (block_size-1);
     storage.dev_arr[storage.count].pages_per_block = block_size / PAGE_SIZE;
-    storage.dev_arr[storage.count].cache_mask = ~(block_size-1);
 
     if (disk_size > main_device_disk_size)
     {

@@ -16,19 +16,23 @@ typedef enum stor_request_action
     STOR_REQ_WRITE,
 } stor_request_action_t;
 
+typedef struct stor_request_chunk_entry
+{
+    void* va_buffer;
+    uint64_t sectors;
+} stor_request_chunk_entry_t;
+
+
 typedef struct stor_request 
 {
     stor_device_t* dev;
 
     uint64_t lba;
-    uint64_t sectors;
-
-    void* va_buffer;
+    uint64_t chunk_length;
+    stor_request_chunk_entry_t* chunk_list;
     
     stor_request_action_t action;
-
     stor_callback_t callback;
-
     void* user_data;
 
 } stor_request_t;
@@ -42,11 +46,10 @@ struct stor_device
     void (*submit)(stor_request_t* req);    
    
     uint64_t sector_size;
-    uint64_t sector_mask;
-    
+    uint64_t max_blocks;
+
     uint64_t block_size; // max(page_size, sector_size)
     uint64_t pages_per_block; 
-    uint64_t cache_mask; 
 
     block_device_data_t cache;
 };
