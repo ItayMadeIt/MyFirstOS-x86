@@ -1,18 +1,22 @@
+#include <services/storage/block_device.h>
+#include <stdatomic.h>
 #include <stddef.h>
 #include <drivers/storage.h>
+#include "core/defs.h"
 #include "memory/core/virt_alloc.h"
 #include "memory/heap/heap.h"
 #include <kernel/memory/paging.h>
 #include "utils/data_structs/flat_hashmap.h"
 #include "utils/data_structs/rb_tree.h"
-#include <services/storage/block_device.h>
 #include <kernel/core/cpu.h>
 #include <memory/phys_alloc/phys_alloc.h>
+#include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 #define MBR_SECTOR_SIZE 512
 #define INIT_BLOCK_BUCKETS 1
-#define CACHE_MULT 4
+#define CACHE_MULT 4 // has to be 2^n
 #define MAX_BYTES_DIVIDOR 4
 
 #define MAX_READAHEAD_BLOCKS 2
@@ -62,7 +66,7 @@ static void reset_entry(cache_entry_t* entry)
     entry->q_next = NULL;
 }
 
-static intptr_t hashmap_insert_entry(stor_device_t* device, cache_entry_t* entry)
+static intptr_t hashmap_pin_insert_entry(stor_device_t* device, cache_entry_t* entry)
 {
     return fhashmap_insert(
         &device->cache.pin_hashmap, 
@@ -72,15 +76,29 @@ static intptr_t hashmap_insert_entry(stor_device_t* device, cache_entry_t* entry
         0
     );
 }
-static intptr_t hashmap_remove_entry(stor_device_t* device, cache_entry_t* entry)
+
+static cache_entry_t* hashmap_pin_get_entry(stor_device_t* device, uint64_t block_lba)
 {
-    return fhashmap_delete(
-        &device->cache.pin_hashmap,
-        &entry->lba,
-        sizeof(entry->lba)
-    ).succeed ? 1 : -1;
+    cache_entry_t* return_value = NULL;
+
+    flat_hashmap_result_t hashmap_result = fhashmap_get_data(
+        &device->cache.pin_hashmap, &block_lba, sizeof(block_lba)
+    );
+
+    if (hashmap_result.succeed)
+        return_value = hashmap_result.value;
+
+    return return_value;
 }
 
+static bool hashmap_pin_del_entry(stor_device_t* device, uint64_t block_lba)
+{
+    flat_hashmap_result_t hashmap_result = fhashmap_delete(
+        &device->cache.pin_hashmap, &block_lba, sizeof(block_lba)
+    );
+
+    return hashmap_result.succeed;
+}
 
 static intptr_t tree_insert_entry(stor_device_t* device, cache_entry_t* entry)
 {
@@ -94,7 +112,6 @@ static intptr_t tree_remake_entry(stor_device_t* device, cache_entry_t* entry, u
 {
     rb_remove_node(&device->cache.lba_tree, &entry->node);
 
-    reset_entry(entry);
     entry->lba = new_lba;
 
     intptr_t result = rb_insert(&device->cache.lba_tree, &entry->node) == NULL ? -1 : 1;
@@ -104,7 +121,10 @@ static intptr_t tree_remake_entry(stor_device_t* device, cache_entry_t* entry, u
 
 static void* block_request_buffer(stor_device_t* device)
 {   
-    assert(device->cache.used_bytes + device->block_size <= device->cache.max_bytes);
+    assert((device->cache.bucket_size % device->block_size) == 0);
+    
+    if (device->cache.used_bytes + device->block_size > device->cache.max_bytes)
+        return NULL;
 
     uint64_t bucket_index     = device->cache.used_bytes / device->cache.bucket_size;
     uint64_t inner_block_offs = device->cache.used_bytes % device->cache.bucket_size;
@@ -150,6 +170,7 @@ static void init_block_cache(stor_device_t* device)
     rb_init_tree(&device->cache.lba_tree, lba_node_cmp, NULL);
 
     device->cache.max_bytes = max_memory / MAX_BYTES_DIVIDOR;
+    // (dummy limit for debug) : device->cache.max_bytes = device->block_size * CACHE_MULT;
     device->cache.used_bytes = 0;
 
     device->cache.buckets = kalloc(sizeof(void*) * INIT_BLOCK_BUCKETS);
@@ -163,7 +184,10 @@ static void init_block_cache(stor_device_t* device)
 
     for (uintptr_t i = 0; i < device->cache.buckets_length; i++)
     {
-        device->cache.buckets[i] = kalloc(device->cache.bucket_size);
+        device->cache.buckets[i] = kvalloc_pages (
+            device->cache.bucket_size/PAGE_SIZE, 
+            PAGETYPE_DISK_CACHE, PAGEFLAG_KERNEL | PAGEFLAG_NOEXEC
+        );
     }    
 }
 
@@ -186,27 +210,6 @@ static void block_queue_insert_mru(stor_device_t* device, cache_entry_t* entry)
     }
 
     device->cache.cache_queue.mru = entry;
-}
-
-static void block_queue_insert_lru(stor_device_t* device, cache_entry_t* entry)
-{
-    cache_entry_t* old_lru = device->cache.cache_queue.lru;
-    
-    entry->q_next = NULL;
-    entry->q_prev = old_lru; 
-
-    // Old lru switches
-    if (old_lru)
-    {
-        old_lru->q_next = entry;
-    }
-    // Is first element? Switch MRU
-    else
-    {
-        device->cache.cache_queue.mru = entry;
-    }
-
-    device->cache.cache_queue.lru = entry;
 }
 
 static void block_queue_remove_entry(stor_device_t* device, cache_entry_t* entry)
@@ -244,22 +247,38 @@ static void block_queue_remove_entry(stor_device_t* device, cache_entry_t* entry
 
 static cache_entry_t* block_queue_pop(stor_device_t* device, cache_entry_t* entry)
 {
+    cache_queue_t* q = &device->cache.cache_queue;
+
     if (entry->q_next)
         entry->q_next->q_prev = entry->q_prev;
-    // was mru
+    // was lru
     else
-        device->cache.cache_queue.mru = entry->q_prev;
+        q->lru = entry->q_prev;
 
     if (entry->q_prev)
         entry->q_prev->q_next = entry->q_next;
-    // was lru
+    // was mru
     else
-        device->cache.cache_queue.lru = entry->q_next;
+        q->mru = entry->q_next;
     
     entry->q_prev = NULL; 
     entry->q_next = NULL; 
 
     return entry;
+}
+
+static void block_queue_for_each(stor_device_t* device, void (*callback)(cache_entry_t*, void*), void* ctx)
+{
+    assert(device);
+    assert(callback);
+
+    cache_entry_t* current = device->cache.cache_queue.mru; // start from MRU
+    while (current)
+    {
+        callback(current, ctx);
+        cache_entry_t* next = current->q_next;
+        current = next;
+    }
 }
 
 static cache_entry_t* block_queue_evict(stor_device_t* device)
@@ -270,20 +289,12 @@ static cache_entry_t* block_queue_evict(stor_device_t* device)
     return block_queue_pop(device, device->cache.cache_queue.lru);
 }
 
-
-static void sync_set_done(stor_request_t* request, int64_t result)
+static void clear_dirty(stor_device_t* device, cache_entry_t* entry)
 {
-    (void)request; (void)result;
-
-    bool* done = request->user_data;
-    *done = true;
-}
-
-static void clean_dirty(stor_device_t* device, void* buffer)
-{
+    entry->dirty = false;
     for (uint32_t i = 0; i < device->pages_per_block; i++)
     {
-        clear_phys_flags(buffer + PAGE_SIZE * i, VIRT_PHYS_FLAG_DIRTY);
+        clear_phys_flags(entry->buffer + PAGE_SIZE * i, VIRT_PHYS_FLAG_DIRTY);
     }
 }
 
@@ -292,6 +303,7 @@ static bool is_entry_dirty(stor_device_t* device, cache_entry_t* entry)
 {
     bool reset_dirty = false;
 
+    // Goes over pages dirty (will be removed in the near future)
     for (uint32_t i = 0; i < device->pages_per_block; i++)
     {
         if (reset_dirty)
@@ -308,450 +320,469 @@ static bool is_entry_dirty(stor_device_t* device, cache_entry_t* entry)
         }
     }
     
-    return reset_dirty | entry->dirty;
+    return reset_dirty || (entry->state == CACHE_STATE_DIRTY);
 }
 
-static void flush_stor_entry_sync(stor_device_t* device, cache_entry_t* entry)
+void stor_mark_dirty(cache_entry_t *entry)
 {
-    // Maybe change it to scan next LBA to write into
-    bool dirty = is_entry_dirty(device, entry);
-    if (!dirty)
-        return;
-
-    stor_request_chunk_entry_t chunk = {
-        .va_buffer = entry->buffer,
-        .sectors = device->block_size/device->sector_size,
-    };
-
-    bool done = false;
-    stor_request_t request = {
-        .action = STOR_REQ_WRITE,
-        .dev = device,
-        
-        .lba = entry->lba,
-        .chunk_list = &chunk,
-        .chunk_length = 1,
-        
-        .callback = sync_set_done,
-        .user_data = &done,
-    };
-
-    device->submit(&request);
-    while(!done)
+    if (entry->cur_ref_count && entry->state == CACHE_STATE_CLEAN)
     {
-        cpu_halt();
+        entry->state = CACHE_STATE_DIRTY;
     }
-}
 
-static void stor_iterate_queue(
-    stor_device_t* device, void (*callback)(stor_device_t* device, cache_entry_t* entry))
-{
-    cache_entry_t* entry = device->cache.cache_queue.mru;
-    while (entry)
-    {
-        callback(device, entry);
-        entry = entry->q_next;
-    }
-}
-
-void stor_mark_dirty(cache_entry_t * entry)
-{
     entry->dirty = true;
 }
 
-void stor_flush_all(stor_device_t* device)
-{
-    stor_iterate_queue(device, flush_stor_entry_sync);
-}
-
-static cache_entry_t* evict_cache_entry_sync(stor_device_t* device)
-{
-    cache_entry_t* entry = block_queue_evict(device);
-    if (!entry)
-    {
-        return NULL;
-    }
-
-    flush_stor_entry_sync(device, entry);
-    entry->cur_ref_count = 1;
-    entry->lba_next = NULL;
-
-    flat_hashmap_result_t result = fhashmap_delete(
-        &device->cache.pin_hashmap, 
-        &entry->lba, 
-        sizeof(entry->lba)
-    );
-
-    if (result.succeed)
-    {
-        return NULL;
-    }
-    
-    return entry;
-}
-
-static cache_entry_t* create_cache_entry(stor_device_t* device, uint64_t cache_lba, void* buffer)
+static cache_entry_t *create_cache_entry(stor_device_t *device,
+                                         uint64_t block_lba, void *buffer,
+                                         enum cache_state state, uint32_t init_ref_count)
 {
     cache_entry_t* entry = kalloc(sizeof(cache_entry_t));
 
     reset_entry(entry);
 
-    entry->lba = cache_lba;
+    entry->lba    = block_lba;
     entry->buffer = buffer;
+    entry->state  = state;
+    entry->cur_ref_count = init_ref_count;
+    entry->dirty = false;
 
     tree_insert_entry(device, entry);
 
     return entry;
 }
 
-static cache_entry_t* create_speculative_entry(stor_device_t* device, uint64_t lba) 
+static cache_entry_t* tree_get_entry(stor_device_t* device, uint64_t lba)
 {
-    // already cached
-    if (fhashmap_get_data(&device->cache.pin_hashmap, &lba, sizeof(lba)).succeed) 
-    {
-        return NULL; 
-    }
+    cache_entry_t key = {.lba=lba};
+    rb_node_t* result_node = rb_search(&device->cache.lba_tree, &key.node);
 
-    void* buffer = block_request_buffer(device);
-    cache_entry_t* entry;
-    if (!buffer) 
-    {
-        entry = evict_cache_entry_sync(device);
-        assert(entry);
-        clean_dirty(device, entry->buffer);
-        
-        tree_remake_entry(device, entry, lba);
-    }
-    else 
-    {
-        entry = create_cache_entry(device, lba, buffer);
-    }
-
-    hashmap_insert_entry(device, entry);
-
-    entry->cur_ref_count = 0; // speculative
-    block_queue_insert_lru(device, entry);
-
-    return entry;
-}
-
-
-
-
-
-
-
-static cache_entry_t* find_or_repin_entry(stor_device_t* dev, uint64_t lba) 
-{
-    flat_hashmap_result_t result = fhashmap_get_data(
-        &dev->cache.pin_hashmap, 
-        &lba, 
-        sizeof(lba)
-    );
-
-    if (!result.succeed) 
-    {
+    if (result_node)
+        return container_of(result_node, cache_entry_t, node);
+    else
         return NULL;
-    }
-
-    cache_entry_t* entry = result.value;
-
-    if (entry->cur_ref_count == 0) 
-    {
-        entry->cur_ref_count = 1;
-        block_queue_pop(dev, entry);
-    } 
-    else 
-    {
-        entry->cur_ref_count++;
-    }
-
-    return entry;
 }
-static cache_entry_t* alloc_or_evict_entry(stor_device_t* device, uint64_t lba) 
+
+static void unpin_entry(stor_device_t* device, uint64_t block_lba)
 {
-    void* buffer = block_request_buffer(device);
-    cache_entry_t* entry;
+    cache_entry_t* entry = hashmap_pin_get_entry(device, block_lba);
+    assert(entry);
 
-    if (!buffer) 
-    {
-        entry = evict_cache_entry_sync(device);
-        assert(entry);
-        clean_dirty(device, entry->buffer);
+    entry->cur_ref_count--;
+    if (entry->cur_ref_count > 0)
+        return; 
 
-        reset_entry(entry);
+    hashmap_pin_del_entry(device, entry->lba);
+    block_queue_insert_mru(device, entry);
+}
 
-        entry->lba = lba;
-        tree_insert_entry(device, entry);
-    } 
-    else 
-    {
-        entry = create_cache_entry(device, lba, buffer);
-    }
-
-    entry->cur_ref_count = 1;
-
-    hashmap_insert_entry(device, entry);
+typedef struct pin_range
+{
+    uint64_t block_lba;
+    uint64_t block_count;
     
-    return entry;
-}
+    uint64_t remaining_to_evict;
 
+    uint64_t range_index;
+} pin_range_t;
 
-
-
-
-
-
-
-
-
-static void fetch_entry_sync(stor_device_t* device, cache_entry_t* entry, uint64_t cache_lba)
+typedef struct pin_range_fn_metadata
 {
-    stor_request_chunk_entry_t chunk_entry = {
-        .va_buffer = entry->buffer,
-        .sectors = device->block_size/device->sector_size,
-    };
+    stor_device_t* device;
+    uint64_t block_lba;
+    uint64_t block_count;
+    uint64_t fix_ranges_count;
+    uint64_t total_evict_count; // all evict count
 
-    bool done = false;
+    bool can_done; // is the main call done (workaround until mutex, still not perfect)
+
+    stor_pin_range_cb_t cb;
+    void* ctx;
+
+    cache_entry_t** entries;
+
+    uint64_t ranges_count;
+    pin_range_t ranges[];
+
+
+} pin_range_fn_metadata_t;
+
+static void read_range_cb_async(stor_request_t* request, int64_t status)
+{
+    assert(status>=0);
+
+    pin_range_t* range = request->user_data;
+    pin_range_fn_metadata_t* metadata = container_of(range, pin_range_fn_metadata_t, ranges[range->range_index]);
+
+    metadata->fix_ranges_count--;
+    if (metadata->fix_ranges_count == 0 && metadata->can_done)
+    {
+        metadata->cb(metadata->ctx, 0, metadata->entries, metadata->block_count);
+        kfree(metadata);
+    }
+}
+static void call_read_range_async(stor_device_t* device, pin_range_t* range)
+{
+    stor_request_chunk_entry_t chunks[range->block_count];
+    for (uint64_t i = 0; i < range->block_count; i++)
+    {
+        cache_entry_t* entry = hashmap_pin_get_entry(device, range->block_lba + i);
+
+        assert(entry);
+
+        chunks[i].va_buffer = entry->buffer;
+        chunks[i].sectors   = device->block_size / device->sector_size;
+    }
+
     stor_request_t request = {
         .action = STOR_REQ_READ,
-        .callback = sync_set_done,
+        .callback = read_range_cb_async,
         .dev = device,
-        .lba = cache_block_to_lba(device, cache_lba),
-        .user_data = &done,
-        .chunk_list = &chunk_entry,
+
+        .chunk_list = chunks,
+        .chunk_length = range->block_count,
+
+        .lba = cache_block_to_lba(device, range->block_lba),
+        .user_data = range,
+    };
+
+    device->submit(&request);
+}
+
+static void write_entry_cb_async(stor_request_t* request, int64_t status)
+{
+    assert(status>=0);
+    
+    pin_range_t* range = request->user_data;
+    pin_range_fn_metadata_t* metadata = container_of(range, pin_range_fn_metadata_t, ranges[range->range_index]);
+
+    range->remaining_to_evict--;
+    if (range->remaining_to_evict == 0)
+    {
+        call_read_range_async(metadata->device, range);
+    }
+}
+
+static void call_evict_async(stor_device_t* device, pin_range_t* range, uint64_t index_in_range)
+{
+    pin_range_fn_metadata_t* metadata = container_of(range, pin_range_fn_metadata_t, ranges[range->range_index]);
+
+    uint64_t begin_range_entry_index = range->block_lba - metadata->block_lba;
+    uint64_t entry_index = begin_range_entry_index + index_in_range;
+    uint64_t entry_lba   = range->block_lba + index_in_range;
+
+    // Evict entry
+    assert(metadata->entries[entry_index] == NULL);
+    
+    cache_entry_t* evict_entry = block_queue_evict(device);
+    uint64_t evict_lba   = evict_entry->lba;
+
+    assert(evict_entry);
+
+    // Rebrand it to the new entry
+    tree_remake_entry(device, evict_entry, entry_lba);
+    hashmap_pin_insert_entry(device, evict_entry);
+    metadata->entries[entry_index] = evict_entry;
+
+    // No need to flush
+    if (! is_entry_dirty(device, evict_entry))
+    {
+        range->remaining_to_evict--;
+        if (range->remaining_to_evict == 0)
+        {
+            call_read_range_async(metadata->device, range);
+        }
+        return;
+    }
+    // Flush entry and continue
+    clear_dirty(device, evict_entry);
+
+    stor_request_chunk_entry_t chunk = {
+        .va_buffer = evict_entry->buffer,
+        .sectors = device->block_size / device->sector_size
+    };
+    stor_request_t request = {
+        .action = STOR_REQ_WRITE,
+        .callback = write_entry_cb_async,
+        .dev = device,
+
+        .chunk_list = &chunk,
         .chunk_length = 1,
+
+        .lba = cache_block_to_lba(device, evict_lba),
+        .user_data = range,
     };
     device->submit(&request);
 
-    while (! done)
-    {
-        cpu_halt();
-    }
+    // Make it usable in the future
+    evict_entry->cur_ref_count = 1;
 }
 
-static void fetch_entries_sync(stor_device_t* device, cache_entry_t* first, 
-                                uint64_t cache_lba, const uint64_t count)
+void stor_pin_range_async(
+    stor_device_t * device, uint64_t block_lba, 
+    uint64_t count, cache_entry_t ** out_cache_arr, 
+    stor_pin_range_cb_t cb, void* ctx)
 {
-    stor_request_chunk_entry_t chunk_entries[count];
-    cache_entry_t* entry = first;
+    pin_range_fn_metadata_t* metadata = 
+        kalloc(sizeof(pin_range_fn_metadata_t) + sizeof(pin_range_t) * count);
+
+    metadata->block_lba = block_lba;
+    metadata->block_count = count;
+    metadata->device = device;
+    
+    metadata->fix_ranges_count = 0;
+    metadata->ranges_count = 0;
+    metadata->total_evict_count = 0;
+
+    metadata->can_done = false;
+
+    metadata->cb = cb;
+    metadata->ctx = ctx;
+    metadata->entries = out_cache_arr;
+
+    uint64_t range_begin_index = 0;
+    bool is_in_range = false;
+    
     for (uint64_t i = 0; i < count; i++)
     {
-        assert(entry);
-
-        chunk_entries[i] = (stor_request_chunk_entry_t) {
-            .va_buffer = entry->buffer,
-            .sectors   = device->block_size/device->sector_size,
-        };
-
-        entry = entry->lba_next;
-    }
-
-    bool done = false;
-    stor_request_t request = {
-        .dev = device,
-        .action = STOR_REQ_READ,
-        .lba = cache_block_to_lba(device, cache_lba),
-        
-        .callback = sync_set_done,
-        .user_data = &done,
-
-        .chunk_list = chunk_entries,
-        .chunk_length = count,
-    };
-    device->submit(&request);
-
-    while (! done)
-    {
-        cpu_halt();
-    }
-}
-
-cache_entry_t* stor_pin_sync(stor_device_t* device, uint64_t cache_lba)
-{
-    flat_hashmap_result_t result = fhashmap_get_data(
-        &device->cache.pin_hashmap, 
-        &cache_lba, 
-        sizeof(cache_lba)
-    );
-
-    // if found
-    if (result.succeed)
-    {
-        cache_entry_t* entry = result.value; 
-        // Was evicted (not in queue)
-        if (entry->cur_ref_count == 0)
-        {
-            entry->cur_ref_count = 1;
-            block_queue_remove_entry(device, entry);
-        }
-        // In queue
-        else
+        // Add to pinned 
+        cache_entry_t* entry = hashmap_pin_get_entry(device, block_lba + i);
+        if (entry)
         {
             entry->cur_ref_count++;
+            out_cache_arr[i] = entry;
+
+            if (is_in_range)
+            {
+                uint64_t block_count = i - range_begin_index; // not including this entry
+                metadata->ranges[metadata->ranges_count].block_count = block_count;
+                metadata->ranges[metadata->ranges_count].remaining_to_evict = block_count;
+                metadata->total_evict_count += block_count;
+                metadata->ranges_count++;
+            }
+            is_in_range = false;
+
+            continue;
         }
 
-        return entry;
+        // If unpinned but allocated, re-pin it
+        entry = tree_get_entry(device, block_lba + i);
+        if (entry)
+        {
+            block_queue_remove_entry(device, entry);
+            hashmap_pin_insert_entry(device, entry);
+            entry->cur_ref_count = 1;
+            out_cache_arr[i] = entry;
+
+            if (is_in_range)
+            {
+                uint64_t block_count = i - range_begin_index; // not including this entry
+                metadata->ranges[metadata->ranges_count].block_count = block_count;
+                metadata->ranges[metadata->ranges_count].remaining_to_evict = block_count;
+                metadata->total_evict_count += block_count;
+                metadata->ranges_count++;
+            }
+            is_in_range = false;
+
+            continue;
+        }
+
+        // 2 expensive options from now on:
+        //
+        // 1. Allocate buffers and read data
+        // 2. First evict/write to disk buffers & then use them to read data
+        // 
+        // Will just mark the range in the ranges value in metadata (will be used in the second loop) 
+        if (is_in_range)
+        {
+            out_cache_arr[i] = NULL;
+            continue;
+        }
+
+        range_begin_index = i;
+        is_in_range = true;
+
+        out_cache_arr[i] = NULL;
+
+        metadata->ranges[metadata->ranges_count].range_index = metadata->ranges_count;
+        metadata->ranges[metadata->ranges_count].block_lba = block_lba + i;
+
+        metadata->ranges[metadata->ranges_count].remaining_to_evict = ~0; // not known yet
+    }
+    
+    if (is_in_range)
+    {
+        uint64_t block_count = count - range_begin_index;
+        metadata->ranges[metadata->ranges_count].block_count = block_count;
+        metadata->ranges[metadata->ranges_count].remaining_to_evict = block_count;
+
+        metadata->total_evict_count += metadata->ranges[ metadata->ranges_count ].remaining_to_evict;
+        metadata->ranges_count++;
+        is_in_range = false;
+    }
+    
+    metadata->fix_ranges_count = metadata->ranges_count;
+
+    // For each range, call async handle (handle eviction if neccesary & batch read)
+    for (uint64_t i = 0; i < metadata->ranges_count; i++)
+    {
+        pin_range_t* range = &metadata->ranges[i];
+
+        bool did_evict = false;
+
+        uint64_t range_arr_offset = range->block_lba - block_lba;
+
+        for (uint64_t j = 0; j < range->block_count; j++)
+        {
+            void* block_buffer = block_request_buffer(device);
+            if (block_buffer)
+            {
+                cache_entry_t* entry = create_cache_entry(
+                    device, 
+                    range->block_lba + j, 
+                    block_buffer, 
+                    CACHE_STATE_UNUSED, 1
+                );
+                out_cache_arr[range_arr_offset + j] = entry;
+                hashmap_pin_insert_entry(device, entry);
+                range->remaining_to_evict--;
+            }
+            else
+            {
+                did_evict = true;
+
+                call_evict_async(device, range, j);
+            }
+        }
+
+        if (! did_evict)
+        {
+            // call async READ
+            // which will: metadata->fix_ranges_count--;
+            // if fix_ranges_count == 0, it's done, call callback
+            call_read_range_async(device, range);
+        }
     }
 
-    void* buffer = block_request_buffer(device);
-    
-    cache_entry_t* entry;
- 
-    // No buffer == has to evict
-    if (buffer == NULL)
+    if (metadata->fix_ranges_count == 0)
     {
-        entry = evict_cache_entry_sync(device);
+        metadata->cb(metadata->ctx, 0, metadata->entries, metadata->block_count);
+        kfree(metadata);
     }
-    // create entry
     else
     {
-        entry = create_cache_entry(device, cache_lba, buffer);
-    }
-    (void)buffer;
-    
-    clean_dirty(device, entry->buffer);
-
-    entry->lba = cache_lba;
-    entry->cur_ref_count = 1;
-    hashmap_insert_entry(device, entry);
-    
-    fetch_entry_sync(device, entry, cache_lba);
-
-    return entry;
-}
-
-void stor_unpin_sync(stor_device_t* device, cache_entry_t* cache_entry)
-{
-    assert(cache_entry);
-    assert(cache_entry->cur_ref_count > 0);
-
-    cache_entry->cur_ref_count--;
-    if (cache_entry->cur_ref_count == 0)
-    {
-        hashmap_remove_entry(device, cache_entry);
-        block_queue_insert_mru(device, cache_entry);
+        metadata->can_done = true;
     }
 }
 
-cache_entry_t* stor_pin_range_sync(stor_device_t* device, uint64_t cache_lba, uint64_t count)
+void stor_unpin_range_async(
+    stor_device_t* device,
+    cache_entry_t** arr,
+    uint64_t count,
+    stor_unpin_range_cb_t cb,
+    void* ctx)
 {
-    cache_entry_t* first = NULL;
-    cache_entry_t* prev  = NULL;
-
-    cache_entry_t* first_fetch = NULL;
-    uint64_t fetch_count = 0;
-
-    // Gather all the cache blocks
     for (uint64_t i = 0; i < count; i++)
     {
-        uint64_t cur_lba = cache_lba + i;
-
-        cache_entry_t* entry = find_or_repin_entry(device, cur_lba);
-
-        // Existing entry
-        if (entry) 
-        {
-            if (prev) 
-                prev->lba_next = entry;
-            prev = entry;
-
-            if (!first) 
-                first = entry;
-            
-            if (fetch_count > 0) 
-            {
-                fetch_entries_sync(device, first_fetch, first_fetch->lba, fetch_count);
-                first_fetch = NULL;
-                fetch_count = 0;
-            }
-        } 
-        // New entry (allocate or evict)
-        else 
-        {
-            // (currently evict one by one instead of chunks)
-            entry = alloc_or_evict_entry(device, cur_lba);
-
-            if (!first_fetch) 
-                first_fetch = entry;
-
-            if (prev) 
-                prev->lba_next = entry;
-            prev = entry;
-
-            if (!first) 
-                first = entry;
-
-            fetch_count++;
-        }
-    }
-    if (prev) 
-        prev->lba_next = NULL;
-
-
-    // Handle last fetch / read ahead blocks
-    if (fetch_count > 0) 
-    {
-        // Handle read ahead
-        uint64_t read_ahead_blocks = min(
-            MAX_READAHEAD_BLOCKS, 
-            device->max_blocks - (first_fetch->lba + fetch_count)
-        );
-
-        uint64_t ra_count = 0;
-
-        while (ra_count < read_ahead_blocks)
-        {
-            uint64_t ra_lba = first_fetch->lba + fetch_count + ra_count;
-
-            flat_hashmap_result_t result = fhashmap_get_data(
-                &device->cache.pin_hashmap,
-                &ra_lba,
-                sizeof(ra_lba)
-            );
-
-            // ra_lba exists, stop fetch count
-            if (result.succeed)
-                break;
-
-            cache_entry_t* spec_entry = create_speculative_entry(device, ra_lba);
-            ra_count++;
-            if (prev)
-                prev->lba_next = spec_entry;
-            prev = spec_entry;
-        }
-
-        fetch_entries_sync(device, first_fetch, first_fetch->lba, fetch_count + ra_count);
+        unpin_entry(device, arr[i]->lba);
+        arr[i] = NULL;
     }
     
-    return first;
+    cb(ctx, 1);   
 }
 
-void stor_unpin_range_sync(stor_device_t* device, cache_entry_t* first_entry, uint64_t count)
+static void mark_pin_range_done(void* data, int status, cache_entry_t** entries, uint64_t count)
 {
-    cache_entry_t* entry_it = first_entry;
-    for (size_t i = 0; i < count; i++)
+    (void)status;(void)entries;(void)count;
+
+    bool* done = data;
+    *done = true;
+}
+
+void stor_pin_range_sync(stor_device_t *device, uint64_t block_lba, uint64_t count, cache_entry_t **out_entries)
+{
+    bool done = false;
+
+    stor_pin_range_async(
+        device, 
+        block_lba, 
+        count,
+        out_entries, 
+        mark_pin_range_done, 
+        &done    
+    );
+
+    while (!done)
     {
-        assert(entry_it);
-        assert(entry_it->cur_ref_count > 0);
+        cpu_halt();
+    }
+} 
 
-        entry_it->cur_ref_count--;
-        if (entry_it->cur_ref_count == 0)
-        {
-            hashmap_remove_entry(device, entry_it);
-            block_queue_insert_mru(device, entry_it);
-        }
+static void mark_unpin_range_done(void* data, int status)
+{
+    (void)status;
 
-        entry_it = entry_it->lba_next;
+    bool* done = data;
+    *done = true;
+}
+void stor_unpin_range_sync(stor_device_t* device, cache_entry_t** arr,  uint64_t count)
+{
+    bool done = false;
+
+    stor_unpin_range_async(
+        device, 
+        arr, 
+        count,
+        mark_unpin_range_done, 
+        &done    
+    );
+
+    while (!done)
+    {
+        cpu_halt();
     }
 }
-// TEST TEST & TEST, first test that the sync layer is perfect, only then do shit
-// TEST TEST & TEST, first test that the sync layer is perfect, only then do shit
-// TEST TEST & TEST, first test that the sync layer is perfect, only then do shit
-// TEST TEST & TEST, first test that the sync layer is perfect, only then do shit
-// TEST TEST & TEST, first test that the sync layer is perfect, only then do shit
-// TEST TEST & TEST, first test that the sync layer is perfect, only then do shit
-// TEST TEST & TEST, first test that the sync layer is perfect, only then do shit
+static void flush_callback(stor_request_t* request, int64_t status)
+{
+    (void)request;
+    assert(status >= 0);
+}
+static void flush_entry(cache_entry_t* entry, void* ctx)
+{
+    stor_device_t* device = ctx;
+
+    // No need to flush
+    if (! is_entry_dirty(device, entry))
+    {
+        return;
+    }
+
+    // Flush entry and continue
+    clear_dirty(device, entry);
+
+    stor_request_chunk_entry_t chunk = {
+        .va_buffer = entry->buffer,
+        .sectors = device->block_size / device->sector_size
+    };
+    stor_request_t request = {
+        .action = STOR_REQ_WRITE,
+        .callback = flush_callback,
+        .dev = device,
+
+        .chunk_list = &chunk,
+        .chunk_length = 1,
+
+        .lba = cache_block_to_lba(device, entry->lba),
+        .user_data = NULL,
+    };
+    device->submit(&request);
+}
+
+void stor_flush_unpinned(stor_device_t *device)
+{
+    block_queue_for_each(device, flush_entry, device);
+}
+
 
 void init_block_device(stor_device_t* device)
 {   

@@ -42,7 +42,19 @@ void irq_disable()
     );
 }
 
-void idt_c_handler(irq_frame_t* frame)
+bool irq_is_enabled()
+{
+    uintptr_t flags;
+    
+    asm volatile(
+        "pushf\n\t"
+        "pop %0"
+        : "=r"(flags)
+    );
+
+    return flags & (1 << 9); 
+}
+void idt_c_handler(irq_frame_t *frame)
 {
     uint32_t v = frame->irq_index;
 

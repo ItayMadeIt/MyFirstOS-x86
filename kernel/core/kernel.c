@@ -1,6 +1,7 @@
 #include "arch/i386/core/paging.h"
 #include "drivers/pci.h"
 #include "drivers/storage.h"
+#include "services/storage/block_device.h"
 #include <stdio.h>
 #include <core/defs.h>
 #include <drivers/tty.h>
@@ -17,6 +18,7 @@ void init_memory(boot_data_t* data);
 void abort()
 {
     // for now
+    irq_disable();
     cpu_halt();
 }
 
@@ -97,11 +99,6 @@ static void dummy_time_event(int_timer_event_t time_event)
         time_event.frequency_hz
     );
 }
-static void mark_done(stor_request_t* request, int64_t result)
-{
-    *(bool*)request->user_data = true;
-}
-
 
 void kernel_main(boot_data_t* boot_data)
 {
@@ -124,8 +121,58 @@ void kernel_main(boot_data_t* boot_data)
 
 	irq_enable();
 
-    stor_device_t* dev = main_stor_device();
-    
+    const uint64_t count = 4;
 
+    stor_device_t* dev = main_stor_device();
+    cache_entry_t* entries0[count];
+    {
+        stor_pin_range_sync(
+            dev, 
+            0, 
+            count, 
+            entries0
+        );
+        
+        for (uint64_t i = 0; i < count; i++)
+        {
+            uint8_t* buffer = entries0[i]->buffer;
+            
+            buffer[i] = 'a' + i;
+
+            stor_mark_dirty(entries0[i]);
+
+            printf("%02X %02X %02X %02X buffer: %X\n", buffer[0], buffer[1], buffer[2], buffer[3], buffer);
+        }
+    }
+    stor_unpin_range_sync(
+        dev,
+        entries0, 
+        count
+    );
+    printf("\n\n");
+    cache_entry_t* entries1[count];
+    {
+        stor_pin_range_sync(
+            dev, 
+            2, 
+            count, 
+            entries1
+        );
+
+        for (uint64_t i = 0; i < count; i++)
+        {
+            uint8_t* buffer = entries1[i]->buffer;
+
+            buffer[i] = 'A' + i;
+
+            stor_mark_dirty(entries1[i]);
+
+            printf("%02X %02X %02X %02X buffer: %X\n", buffer[0], buffer[1], buffer[2], buffer[3], buffer);
+        }
+    }
+    stor_unpin_range_sync(dev, entries1, count);
+    // CHECK IF IT ALL FLUSHED CORRECTLY
+    stor_flush_unpinned(dev);
+    
     while(1);
 }

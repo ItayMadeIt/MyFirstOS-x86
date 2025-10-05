@@ -656,7 +656,7 @@ static void ide_read_sectors_async(uintptr_t device, uint64_t lba, stor_request_
         abort();
     }
 
-   uint64_t sector_count = fill_prdt(
+    uint64_t sector_count = fill_prdt(
         channel, 
         chunk_arr, 
         chunk_length
@@ -848,9 +848,12 @@ static void primary_irq(irq_frame_t* irq_frame)
     {
         result = 1;
     }
-
-    item->request.callback(&item->request, result);
-
+    
+    if (item->request.callback)
+    {
+        item->request.callback(&item->request, result);
+    }
+    
     if (ide.queue[channel].head)
     {
         make_request(&ide.queue[channel].head->request);

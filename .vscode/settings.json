@@ -54,7 +54,9 @@
         "bitmap_alloc.h": "c",
         "rb_tree.h": "c",
         "virt_alloc.h": "c",
-        "linker_vars.h": "c"
+        "linker_vars.h": "c",
+        "stddef.h": "c",
+        "stdatomic.h": "c"
     },
     "C_Cpp.errorSquiggles": "disabled"
 }
