@@ -75,6 +75,11 @@ typedef struct block_device_data
     uint64_t max_bytes;        // max amount of bytes for the entire buckets
     uint64_t used_bytes;       // track current usage
 
+    uint64_t max_blocks;
+
+    uint64_t block_size; // max(page_size, sector_size)
+    uint64_t pages_per_block; 
+
 } block_device_data_t;
 
 typedef void (*stor_pin_cb_t)(void* ctx, int status, cache_entry_t* entry);
@@ -127,6 +132,7 @@ void stor_mark_dirty(cache_entry_t* entry);
 
 void stor_flush_unpinned(stor_device_t* device);
 
+uint64_t calc_blocks_per_bytes(stor_device_t* device, uint64_t offset, uint64_t amount);
 
 void init_block_device(stor_device_t* device);
 

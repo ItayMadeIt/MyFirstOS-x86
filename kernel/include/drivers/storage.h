@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <services/storage/block_device.h>
+#include <services/storage/partition.h>
 #include <utils/data_structs/flat_hashmap.h>
 
 typedef struct stor_device stor_device_t; 
@@ -44,14 +45,11 @@ struct stor_device
     uint64_t disk_size;
 
     void (*submit)(stor_request_t* req);    
-   
-    uint64_t sector_size;
-    uint64_t max_blocks;
 
-    uint64_t block_size; // max(page_size, sector_size)
-    uint64_t pages_per_block; 
+    uint64_t sector_size;
 
     block_device_data_t cache;
+    partition_table_t partition_table;
 };
 
 stor_device_t* main_stor_device();
@@ -68,7 +66,7 @@ typedef uintptr_t (*storage_add_device)(
 
 static inline uint64_t cache_block_to_lba(stor_device_t *dev, uint64_t cache_index) 
 {
-    uint64_t byte_offset = cache_index * dev->block_size;
+    uint64_t byte_offset = cache_index * dev->cache.block_size;
 
     return byte_offset / dev->sector_size; 
 }

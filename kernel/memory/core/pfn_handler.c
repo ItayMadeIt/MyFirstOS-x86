@@ -204,6 +204,9 @@ static void init_phys_pages(boot_data_t* boot_data)
 }
 void init_pfn_descriptors(void** alloc_addr, boot_data_t* boot_data)
 {
+    pfn_data.count = 0;
+    pfn_data.descs = NULL;
+    
     init_bump(*alloc_addr);
 
     pfn_data.count = max_memory / PAGE_SIZE;

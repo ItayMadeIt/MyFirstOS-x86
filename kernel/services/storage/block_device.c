@@ -121,9 +121,9 @@ static intptr_t tree_remake_entry(stor_device_t* device, cache_entry_t* entry, u
 
 static void* block_request_buffer(stor_device_t* device)
 {   
-    assert((device->cache.bucket_size % device->block_size) == 0);
+    assert((device->cache.bucket_size % device->cache.block_size) == 0);
     
-    if (device->cache.used_bytes + device->block_size > device->cache.max_bytes)
+    if (device->cache.used_bytes + device->cache.block_size > device->cache.max_bytes)
         return NULL;
 
     uint64_t bucket_index     = device->cache.used_bytes / device->cache.bucket_size;
@@ -152,7 +152,7 @@ static void* block_request_buffer(stor_device_t* device)
 
     // Give out a buffer
     void* result_buffer = (uint8_t*)device->cache.buckets[bucket_index] + inner_block_offs;
-    device->cache.used_bytes += device->block_size;
+    device->cache.used_bytes += device->cache.block_size;
 
     return result_buffer;
 }
@@ -175,7 +175,7 @@ static void init_block_cache(stor_device_t* device)
 
     device->cache.buckets = kalloc(sizeof(void*) * INIT_BLOCK_BUCKETS);
     device->cache.buckets_length = INIT_BLOCK_BUCKETS;
-    device->cache.bucket_size = CACHE_MULT * device->block_size;
+    device->cache.bucket_size = CACHE_MULT * device->cache.block_size;
 
     device->cache.cache_queue.mru = NULL;
     device->cache.cache_queue.lru = NULL;
@@ -292,7 +292,7 @@ static cache_entry_t* block_queue_evict(stor_device_t* device)
 static void clear_dirty(stor_device_t* device, cache_entry_t* entry)
 {
     entry->dirty = false;
-    for (uint32_t i = 0; i < device->pages_per_block; i++)
+    for (uint32_t i = 0; i < device->cache.pages_per_block; i++)
     {
         clear_phys_flags(entry->buffer + PAGE_SIZE * i, VIRT_PHYS_FLAG_DIRTY);
     }
@@ -304,7 +304,7 @@ static bool is_entry_dirty(stor_device_t* device, cache_entry_t* entry)
     bool reset_dirty = false;
 
     // Goes over pages dirty (will be removed in the near future)
-    for (uint32_t i = 0; i < device->pages_per_block; i++)
+    for (uint32_t i = 0; i < device->cache.pages_per_block; i++)
     {
         if (reset_dirty)
         {
@@ -417,7 +417,10 @@ static void read_range_cb_async(stor_request_t* request, int64_t status)
     metadata->fix_ranges_count--;
     if (metadata->fix_ranges_count == 0 && metadata->can_done)
     {
-        metadata->cb(metadata->ctx, 0, metadata->entries, metadata->block_count);
+        if (metadata->cb)
+        {
+            metadata->cb(metadata->ctx, 0, metadata->entries, metadata->block_count);
+        }
         kfree(metadata);
     }
 }
@@ -431,7 +434,7 @@ static void call_read_range_async(stor_device_t* device, pin_range_t* range)
         assert(entry);
 
         chunks[i].va_buffer = entry->buffer;
-        chunks[i].sectors   = device->block_size / device->sector_size;
+        chunks[i].sectors   = device->cache.block_size / device->sector_size;
     }
 
     stor_request_t request = {
@@ -499,7 +502,7 @@ static void call_evict_async(stor_device_t* device, pin_range_t* range, uint64_t
 
     stor_request_chunk_entry_t chunk = {
         .va_buffer = evict_entry->buffer,
-        .sectors = device->block_size / device->sector_size
+        .sectors = device->cache.block_size / device->sector_size
     };
     stor_request_t request = {
         .action = STOR_REQ_WRITE,
@@ -666,7 +669,10 @@ void stor_pin_range_async(
 
     if (metadata->fix_ranges_count == 0)
     {
-        metadata->cb(metadata->ctx, 0, metadata->entries, metadata->block_count);
+        if (metadata->cb)
+        {
+            metadata->cb(metadata->ctx, 0, metadata->entries, metadata->block_count);
+        }
         kfree(metadata);
     }
     else
@@ -688,7 +694,10 @@ void stor_unpin_range_async(
         arr[i] = NULL;
     }
     
-    cb(ctx, 1);   
+    if (cb)
+    {
+        cb(ctx, 1);   
+    }
 }
 
 static void mark_pin_range_done(void* data, int status, cache_entry_t** entries, uint64_t count)
@@ -762,7 +771,7 @@ static void flush_entry(cache_entry_t* entry, void* ctx)
 
     stor_request_chunk_entry_t chunk = {
         .va_buffer = entry->buffer,
-        .sectors = device->block_size / device->sector_size
+        .sectors = device->cache.block_size / device->sector_size
     };
     stor_request_t request = {
         .action = STOR_REQ_WRITE,
@@ -783,6 +792,11 @@ void stor_flush_unpinned(stor_device_t *device)
     block_queue_for_each(device, flush_entry, device);
 }
 
+uint64_t calc_blocks_per_bytes(stor_device_t *device, uint64_t offset, uint64_t amount)
+{
+    return (amount + device->cache.block_size - 1) / device->cache.block_size
+        + (offset % device->cache.block_size != 0 ? 1 : 0);
+}
 
 void init_block_device(stor_device_t* device)
 {   
