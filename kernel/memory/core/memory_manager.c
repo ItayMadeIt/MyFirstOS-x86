@@ -73,10 +73,10 @@ void init_memory(boot_data_t* boot_data)
     init_pfn_allocator(boot_data);
     pfn_interval.end = (uintptr_t) free_virt_addr;
 
-    alloc_phys_page  = alloc_phys_page_pfn;
-    alloc_phys_pages = alloc_phys_pages_pfn;
-    free_phys_page   = free_phys_page_pfn;
-    free_phys_pages  = free_phys_pages_pfn;
+    alloc_phys_page  = pfn_alloc_phys_page;
+    alloc_phys_pages = pfn_alloc_phys_pages;
+    free_phys_page   = pfn_free_phys_page;
+    free_phys_pages  = pfn_free_phys_pages;
 
     uintptr_t heap_begin = round_page_up(free_virt_addr);
     uintptr_t heap_init_size = clamp(max_memory / 16, STOR_8MiB, STOR_128MiB);
@@ -89,19 +89,22 @@ void init_memory(boot_data_t* boot_data)
     
     // Handle the virtual allocator 
     init_virt_alloc();
-    virt_mark_region(
+    kvmark_region(
         (void*)KERNEL_VIRT_ADDR, 
         (void*)(KERNEL_VIRT_ADDR + kernel_size + STOR_2MiB + STOR_128KiB),
+        VREGION_KERNEL,
         "Kernel"
     );
-    virt_mark_region(
+    kvmark_region(
         (void*)pfn_interval.begin, 
         (void*)pfn_interval.end, 
+        VREGION_PFN,
         "Page Descriptors"
     );
-    virt_mark_region(
+    kvmark_region(
         (void*)heap_interval.begin, 
-        (void*)heap_interval.end, 
+        (void*)heap_interval.end,
+        VREGION_HEAP, 
         "Heap"
     );
 }

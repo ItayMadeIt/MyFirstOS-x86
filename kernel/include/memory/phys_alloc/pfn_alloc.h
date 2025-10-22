@@ -5,12 +5,17 @@
 #include <memory/core/pfn_desc.h>
 #include <kernel/boot/boot_data.h>
 #include <memory/phys_alloc/phys_alloc.h>
+#include <stddef.h>
+#include <stdint.h>
 
-void* alloc_phys_page_pfn ();
-phys_alloc_t alloc_phys_pages_pfn(uintptr_t count);
+void* pfn_alloc_phys_page ();
+phys_alloc_t pfn_alloc_phys_pages(uintptr_t count);
 
-void free_phys_page_pfn(void* pa);
-void free_phys_pages_pfn(phys_alloc_t free_params);
+void pfn_free_phys_page(void* pa);
+void pfn_free_phys_pages(phys_alloc_t free_params);
+
+phys_run_vec_t pfn_alloc_phys_run_vector(uintptr_t count);
+void pfn_free_phys_pages_vector(phys_run_vec_t vector);
 
 void init_pfn_allocator(boot_data_t* boot_data);
 #endif // __PFN_ALLOC_H__

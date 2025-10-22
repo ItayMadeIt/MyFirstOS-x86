@@ -1,13 +1,17 @@
+#include "arch/i386/memory/paging_utils.h"
 #include "memory/core/pfn_desc.h"
+#include "memory/heap/heap.h"
 #include <memory/phys_alloc/pfn_alloc.h>
 #include <kernel/memory/paging.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 
 phys_page_descriptor_t* page_desc_free_ll;
 
-void* alloc_phys_page_pfn()
+void* pfn_alloc_phys_page()
 {
-    phys_alloc_t alloc = alloc_phys_pages_pfn(1);
+    phys_alloc_t alloc = pfn_alloc_phys_pages(1);
 
     return alloc.count ? alloc.addr : NULL;
 }
@@ -25,7 +29,7 @@ static inline void mark_pages(phys_page_descriptor_t* begin,
     }
 } 
 
-phys_alloc_t alloc_phys_pages_pfn(uintptr_t request_count)
+phys_alloc_t pfn_alloc_phys_pages(uintptr_t request_count)
 {
     if (!page_desc_free_ll)
     {
@@ -48,7 +52,7 @@ phys_alloc_t alloc_phys_pages_pfn(uintptr_t request_count)
         phys_page_descriptor_t* result_end_desc = &pfn_data.descs[page_index + page_desc_free_ll->u.free_page.count];
         mark_pages(
             result_begin_desc, result_end_desc, 
-            PAGETYPE_PHYS_ALLOC, PAGEFLAG_NONE, 
+            PAGETYPE_NONE, PAGEFLAG_NONE, 
             0 // not yet mapped
         );        
 
@@ -73,7 +77,7 @@ phys_alloc_t alloc_phys_pages_pfn(uintptr_t request_count)
         phys_page_descriptor_t* result_end_desc   = &pfn_data.descs[page_index + page_desc_free_ll->u.free_page.count];
         mark_pages(
             result_begin_desc, result_end_desc, 
-            PAGETYPE_PHYS_ALLOC, PAGEFLAG_NONE, 
+            PAGETYPE_NONE, PAGEFLAG_NONE, 
             0 // not yet mapped
         );
 
@@ -94,14 +98,14 @@ phys_alloc_t alloc_phys_pages_pfn(uintptr_t request_count)
     }
 }
 
-void free_phys_page_pfn(void* addr_ptr)
+void pfn_free_phys_page(void* addr_ptr)
 {   
-    free_phys_pages_pfn(
+    pfn_free_phys_pages(
         (phys_alloc_t){.addr=addr_ptr, .count=1}
     );
 }
 
-void free_phys_pages_pfn(phys_alloc_t free_params)
+void pfn_free_phys_pages(phys_alloc_t free_params)
 {
     uintptr_t start = (uintptr_t) free_params.addr;
     uintptr_t end   = start + free_params.count * PAGE_SIZE;
@@ -184,11 +188,13 @@ static void reserve_map_page_region(void* start_pa, void* end_pa)
     uint64_t begin = (uint64_t)(uintptr_t)start_pa;
     uint64_t end = (uint64_t)(uintptr_t)end_pa;
 
+    uint16_t pfn_flags = PAGEFLAG_KERNEL | PAGEFLAG_READONLY | PAGEFLAG_IDEN_MAP;
+
     identity_map_pages(
         (void*)begin, (end-begin)/PAGE_SIZE, 
-        PAGETYPE_RESERVED, 
-        PAGEFLAG_KERNEL | PAGEFLAG_READONLY | PAGEFLAG_IDEN_MAP
+        pfn_to_hw_flags(pfn_flags)
     );
+    pfn_mark_range((void*)begin, (end-begin)/PAGE_SIZE, PAGETYPE_RESERVED, pfn_flags);
 }
 
 
@@ -237,6 +243,38 @@ static void build_free_list()
         page_desc_free_ll = head;
     }
 }
+
+phys_run_vec_t pfn_alloc_phys_run_vector(uintptr_t count)
+{
+    phys_run_vec_t vector = {
+        .runs = NULL,
+        .run_count = 0,
+        .total_pages = 0
+    };
+
+    while (vector.total_pages< count)
+    {
+        size_t cur_index = vector.run_count;
+        vector.run_count++;
+
+        vector.runs = krealloc(vector.runs, sizeof(phys_alloc_t) * vector.run_count);
+        
+        vector.runs[cur_index] = pfn_alloc_phys_pages(count - vector.total_pages);
+        vector.total_pages += vector.runs[cur_index].count;
+    }
+
+    return vector;
+}
+
+void pfn_free_phys_pages_vector(phys_run_vec_t vector)
+{
+    for (size_t i = 0; i < vector.run_count; i++) 
+    {
+        free_phys_pages(vector.runs[i]);
+    }
+    kfree(vector.runs);
+}
+
 
 void init_pfn_allocator(boot_data_t* boot_data)
 {

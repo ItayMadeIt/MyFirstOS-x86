@@ -178,11 +178,11 @@ static void add_heap_region(uintptr_t add_size)
         return;
     }
 
-    assert(map_pages(
+    pfn_alloc_map_pages(
         heap.cur_max_addr, add_size/PAGE_SIZE, 
         PAGETYPE_HEAP, 
         PAGEFLAG_VFREE | PAGEFLAG_BUDDY | PAGEFLAG_KERNEL
-    ));
+    );
     
     add_buddies((uintptr_t)heap.cur_max_addr, add_size, false);
 
@@ -616,6 +616,11 @@ static uintptr_t get_buddy_size(void* buddy_addr)
 
 void* krealloc(void* addr, uintptr_t new_size)
 {
+    if (!addr)
+    {
+        return kalloc(new_size);
+    }
+    
     phys_page_descriptor_t* desc = virt_to_pfn(addr);
     if (desc->flags & PAGEFLAG_BUDDY)
     {
@@ -727,12 +732,12 @@ void init_heap(void* heap_addr, uintptr_t max_size, uintptr_t init_size)
 
     init_heap_vars(init_size, max_size, (uintptr_t)heap_addr);
 
-    assert(map_pages(
+    pfn_alloc_map_pages(
         heap_addr, 
         init_size/PAGE_SIZE,
         PAGETYPE_HEAP, 
         PAGEFLAG_VFREE|PAGEFLAG_BUDDY|PAGEFLAG_KERNEL
-    ));
+    );
 
     add_buddies((uintptr_t)heap_addr, init_size, true);
 }

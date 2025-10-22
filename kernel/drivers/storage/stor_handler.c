@@ -39,7 +39,6 @@ static uintptr_t add_stor_device(void* data, uint64_t sector_size, void (*submit
 
     uint64_t block_size = max(sector_size, PAGE_SIZE);
     storage.dev_arr[storage.count].cache.block_size = block_size;
-    storage.dev_arr[storage.count].cache.max_blocks = disk_size & (block_size-1);
     storage.dev_arr[storage.count].cache.pages_per_block = block_size / PAGE_SIZE;
 
     if (disk_size > main_device_disk_size)

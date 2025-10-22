@@ -29,6 +29,8 @@ enum cache_state {
     */
 };
 
+typedef struct pin_range pin_range_t;
+
 typedef struct cache_entry 
 {
     // data
@@ -37,6 +39,13 @@ typedef struct cache_entry
     uint32_t cur_ref_count;
     uint8_t  state;
     bool dirty;
+
+    // data for IO op
+    struct {
+        pin_range_t* own_range;      // e.g., pin_range_t*
+        uint64_t new_lba;     // where to recycle after writeback
+        uint64_t new_index;   // index in out array (or in-range offset)
+    } io;
     
     // tree
     rb_node_t node;
@@ -68,17 +77,14 @@ typedef struct block_device_data
     rb_tree_t lba_tree;
     cache_queue_t cache_queue; // Queue
 
-    void** buckets;            // array of bucket base pointers
-    uint64_t buckets_length;   // number of allocated buckets
-    uint64_t bucket_size;      // cache_size * constant
+    void**   blocks_arr;      // array of buckets, each one virt addr
+    uint64_t blocks_length;   // number of allocated buckets
+    uint64_t block_size;      // max(page_size, sector_size)
+    uint64_t pages_per_block; // block_size / PAGE_SIZE
 
     uint64_t max_bytes;        // max amount of bytes for the entire buckets
     uint64_t used_bytes;       // track current usage
 
-    uint64_t max_blocks;
-
-    uint64_t block_size; // max(page_size, sector_size)
-    uint64_t pages_per_block; 
 
 } block_device_data_t;
 

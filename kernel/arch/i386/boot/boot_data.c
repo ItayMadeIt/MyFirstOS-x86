@@ -145,7 +145,7 @@ void boot_foreach_reserved_region(const boot_data_t* boot_data,
 
 void boot_foreach_page_struct(void(*callback)(void* pa))
 {
-    uintptr_t pd_pa = (uintptr_t)get_phys_addr(&page_directory);
+    uintptr_t pd_pa = (uintptr_t)virt_to_phys(&page_directory);
     callback((void*)pd_pa);
     
     for (uint32_t pdi = 0; pdi < ENTRIES_AMOUNT; ++pdi) 
@@ -156,7 +156,7 @@ void boot_foreach_page_struct(void(*callback)(void* pa))
             continue;
         }
 
-        uint32_t pt_pa = (uint32_t)get_phys_addr(pt);
+        uint32_t pt_pa = (uint32_t)virt_to_phys(pt);
         callback((void*)pt_pa);
     }
 }

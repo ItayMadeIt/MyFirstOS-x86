@@ -80,7 +80,7 @@ void* get_page_phys_base(page_table_t *table, uint32_t index)
         ((uint32_t)table->entries[index] & ~0xFFF) 
     );
 }
-void* get_phys_addr(void* virt_addr_ptr)
+void* virt_to_phys(void* virt_addr_ptr)
 {
     uint32_t virt_addr = (uint32_t)virt_addr_ptr;
 
@@ -201,7 +201,7 @@ uint32_t get_page_entry(void* virt_addr_ptr)
     return (uint32_t)page_table->entries[page_table_index];
 }
 
-uint16_t pfn_flags_to_hw_flags(uint16_t flags)
+uint16_t pfn_to_hw_flags(uint16_t flags)
 {
     uint16_t result = PAGE_ENTRY_FLAG_PRESENT;
     if ((flags & PAGEFLAG_KERNEL) == false)

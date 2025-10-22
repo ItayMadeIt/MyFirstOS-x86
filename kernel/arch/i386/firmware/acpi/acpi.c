@@ -1,3 +1,4 @@
+#include "memory/core/virt_alloc.h"
 #include <arch/i386/drivers/io/io.h>
 #include <arch/i386/firmware/acpi/acpi.h>
 #include <memory/phys_alloc/phys_alloc.h>
@@ -71,12 +72,13 @@ void setup_acpi()
         uint32_t pa = fadt->X_PM_timer_block.address & ~(unit - 1);
         const uint32_t off = (uint32_t)(gas->address & (unit - 1));
         
-        void* va = identity_map_pages(
+        void* va = vmap_identity(
             (void*)pa, 
             1, 
-            PAGETYPE_MMIO, 
+            VREGION_MMIO, 
             PAGEFLAG_KERNEL | PAGEFLAG_DRIVER  | PAGEFLAG_READONLY
         );
+        
 
         acpi_timer.mmio.unit = unit;
         acpi_timer.mmio.addr = (void*)((uint32_t)va + off);

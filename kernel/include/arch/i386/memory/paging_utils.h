@@ -12,7 +12,7 @@ void* get_page_phys_base(page_table_t* table, uint32_t index);
 
 uint32_t get_table_entry(void* virt_addr);
 uint32_t get_page_entry(void* virt_addr);
-void* get_phys_addr(void* virt_addr);
+void* virt_to_phys(void* virt_addr);
 
 
 void set_page_entry(void* virt_addr, uint32_t entry);
@@ -23,7 +23,7 @@ bool map_table_entry(void* phys_addr, void* virt_addr, uint16_t flags);
 
 bool map_page_entry(void* phys_addr, void* virt_addr, uint16_t flags);
 
-uint16_t pfn_flags_to_hw_flags(uint16_t flags);
+uint16_t pfn_to_hw_flags(uint16_t flags);
 
 static inline void invlpg(void* va) 
 {

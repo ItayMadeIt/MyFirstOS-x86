@@ -5,16 +5,14 @@
 #include <kernel/core/paging.h>
 #include <memory/phys_alloc/phys_alloc.h>
 
-bool map_pages(void* va_ptr, uintptr_t count, enum phys_page_type page_type, uint16_t page_flags);
-bool map_phys_pages(void* pa_ptr, void* va_ptr, uintptr_t count, enum phys_page_type page_type, uint16_t page_flags);
-void* identity_map_pages(void* pa_ptr, uintptr_t count, enum phys_page_type page_type, uint16_t page_flags);
+bool map_phys_pages(void* pa, void* va, uintptr_t count, uint16_t hw_flags);
+bool map_phys_page (void* pa, void* va, uint16_t hw_flags);
+void* identity_map_pages(void* pa_ptr, uintptr_t count, uint16_t hw_flags);
 
-bool map_page(void* va, enum phys_page_type page_type, uint16_t page_flags);
-bool map_phys_page(void* pa, void* va, enum phys_page_type page_type, uint16_t page_flags);
 bool unmap_page(void* va);
 bool unmap_pages(void* va, uintptr_t count);
 
-void* get_phys_addr(void* va);
+void* virt_to_phys(void* va);
 
 typedef enum virt_phys_flags
 {

@@ -57,7 +57,9 @@
         "linker_vars.h": "c",
         "stddef.h": "c",
         "stdatomic.h": "c",
-        "partition.h": "c"
+        "partition.h": "c",
+        "partition_device.h": "c"
     },
+    "C_Cpp.intelliSenseEngine": "disabled",
     "C_Cpp.errorSquiggles": "disabled"
 }

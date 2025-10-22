@@ -562,7 +562,7 @@ static void prdt_iterate_chunk_prd(uint64_t prd_index, ide_dma_vars_t* dma, uint
     }
 
     uintptr_t cur_chunk_size = 0;
-    uintptr_t start_pa = (uintptr_t)get_phys_addr((void*)*va);
+    uintptr_t start_pa = (uintptr_t)virt_to_phys((void*)*va);
     uintptr_t cur_pa   = start_pa;
 
     // Until no bytes remain, or some policy stopped this prd entry
@@ -592,7 +592,7 @@ static void prdt_iterate_chunk_prd(uint64_t prd_index, ide_dma_vars_t* dma, uint
 
         // phys must be continous
         uintptr_t next_pa =
-            (uintptr_t)get_phys_addr((void*)(*va + cur_chunk_size));
+            (uintptr_t)virt_to_phys((void*)(*va + cur_chunk_size));
         if (next_pa != (cur_pa & PAGE_MASK) + PAGE_SIZE)
             break;
 
@@ -641,7 +641,7 @@ static uint64_t fill_prdt(uint8_t channel, stor_request_chunk_entry_t* chunk_arr
     if (prd_index > 0)
     {
         ide.dma[channel].prdt[prd_index - 1].flags |= PRD_LAST_BIT;
-        set_prdt_addr(channel, (uint32_t)get_phys_addr(ide.dma[channel].prdt));
+        set_prdt_addr(channel, (uint32_t)virt_to_phys(ide.dma[channel].prdt));
     }
 
     return total_sectors;

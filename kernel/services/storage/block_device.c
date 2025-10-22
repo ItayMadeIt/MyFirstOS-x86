@@ -121,37 +121,42 @@ static intptr_t tree_remake_entry(stor_device_t* device, cache_entry_t* entry, u
 
 static void* block_request_buffer(stor_device_t* device)
 {   
-    assert((device->cache.bucket_size % device->cache.block_size) == 0);
-    
+    assert(device);
+
     if (device->cache.used_bytes + device->cache.block_size > device->cache.max_bytes)
         return NULL;
 
-    uint64_t bucket_index     = device->cache.used_bytes / device->cache.bucket_size;
-    uint64_t inner_block_offs = device->cache.used_bytes % device->cache.bucket_size;
+    uint64_t block_index     = device->cache.used_bytes / device->cache.block_size;
 
-    // Create more buckets
-    if (bucket_index >= device->cache.buckets_length)
+    // Create more blocks
+    if (block_index >= device->cache.blocks_length)
     {
-        size_t new_len = device->cache.buckets_length * 2;
-        device->cache.buckets = krealloc(
-            device->cache.buckets,
+        size_t old_len = device->cache.blocks_length;
+        size_t new_len = old_len ? old_len * 2 : 4;
+
+        device->cache.blocks_arr = krealloc(
+            device->cache.blocks_arr,
             new_len * sizeof(void*)
         );
-        assert(device->cache.buckets);
+        assert(device->cache.blocks_arr);
 
-        for (size_t i = device->cache.buckets_length; i < new_len; i++)
+        // Allocate blocks
+        for (size_t i = old_len; i < new_len; i++)
         {
-            device->cache.buckets[i] = kvalloc_pages(
-                device->cache.bucket_size / PAGE_SIZE, 
-                PAGETYPE_DISK_CACHE, 
+            void* block_va = kvalloc_pages(
+                device->cache.pages_per_block,
+                VREGION_CACHE,
                 PAGEFLAG_KERNEL | PAGEFLAG_NOEXEC
             );
+            assert(block_va);
+            device->cache.blocks_arr[i] = block_va;
         }
-        device->cache.buckets_length = new_len;
+
+        device->cache.blocks_length = new_len;
     }
 
     // Give out a buffer
-    void* result_buffer = (uint8_t*)device->cache.buckets[bucket_index] + inner_block_offs;
+    void* result_buffer = (uint8_t*)device->cache.blocks_arr[block_index];
     device->cache.used_bytes += device->cache.block_size;
 
     return result_buffer;
@@ -161,7 +166,14 @@ static intptr_t lba_node_cmp(const rb_node_t* a_node, const rb_node_t* b_node)
 {
     const cache_entry_t* a = container_of(a_node, cache_entry_t, node);
     const cache_entry_t* b = container_of(b_node, cache_entry_t, node);
-    return a->lba - b->lba;
+    
+    if (a->lba < b->lba) 
+        return -1;
+    
+    if (a->lba > b->lba) 
+        return  1;
+    
+    return 0;
 }
 
 static void init_block_cache(stor_device_t* device)
@@ -173,20 +185,20 @@ static void init_block_cache(stor_device_t* device)
     // (dummy limit for debug) : device->cache.max_bytes = device->block_size * CACHE_MULT;
     device->cache.used_bytes = 0;
 
-    device->cache.buckets = kalloc(sizeof(void*) * INIT_BLOCK_BUCKETS);
-    device->cache.buckets_length = INIT_BLOCK_BUCKETS;
-    device->cache.bucket_size = CACHE_MULT * device->cache.block_size;
+    device->cache.blocks_arr = kalloc(sizeof(void*) * INIT_BLOCK_BUCKETS);
+    device->cache.blocks_length = INIT_BLOCK_BUCKETS;
 
     device->cache.cache_queue.mru = NULL;
     device->cache.cache_queue.lru = NULL;
 
     // max buckets_length == device->cache.max_bytes / device->cache.bucket_size
 
-    for (uintptr_t i = 0; i < device->cache.buckets_length; i++)
+    for (uintptr_t i = 0; i < device->cache.blocks_length; i++)
     {
-        device->cache.buckets[i] = kvalloc_pages (
-            device->cache.bucket_size/PAGE_SIZE, 
-            PAGETYPE_DISK_CACHE, PAGEFLAG_KERNEL | PAGEFLAG_NOEXEC
+        device->cache.blocks_arr[i] = kvalloc_pages (
+            device->cache.pages_per_block, 
+            VREGION_CACHE, 
+            PAGEFLAG_KERNEL | PAGEFLAG_NOEXEC
         );
     }    
 }
@@ -376,7 +388,7 @@ static void unpin_entry(stor_device_t* device, uint64_t block_lba)
     block_queue_insert_mru(device, entry);
 }
 
-typedef struct pin_range
+typedef struct pin_range 
 {
     uint64_t block_lba;
     uint64_t block_count;
@@ -456,9 +468,17 @@ static void write_entry_cb_async(stor_request_t* request, int64_t status)
 {
     assert(status>=0);
     
-    pin_range_t* range = request->user_data;
+    cache_entry_t* entry = request->user_data;
+    pin_range_t* range = entry->io.own_range;
     pin_range_fn_metadata_t* metadata = container_of(range, pin_range_fn_metadata_t, ranges[range->range_index]);
 
+    // Rebanrd evicted entry
+    metadata->entries[entry->io.new_index] = entry;
+    tree_remake_entry(metadata->device, entry, entry->io.new_lba);
+    hashmap_pin_insert_entry(metadata->device, entry);
+    entry->cur_ref_count = 1;
+    
+    // Check if range is finished
     range->remaining_to_evict--;
     if (range->remaining_to_evict == 0)
     {
@@ -483,9 +503,9 @@ static void call_evict_async(stor_device_t* device, pin_range_t* range, uint64_t
     assert(evict_entry);
 
     // Rebrand it to the new entry
-    tree_remake_entry(device, evict_entry, entry_lba);
-    hashmap_pin_insert_entry(device, evict_entry);
-    metadata->entries[entry_index] = evict_entry;
+    evict_entry->io.new_lba = entry_lba;
+    evict_entry->io.new_index = entry_index;
+    evict_entry->io.own_range = range;
 
     // No need to flush
     if (! is_entry_dirty(device, evict_entry))
@@ -513,12 +533,10 @@ static void call_evict_async(stor_device_t* device, pin_range_t* range, uint64_t
         .chunk_length = 1,
 
         .lba = cache_block_to_lba(device, evict_lba),
-        .user_data = range,
+        .user_data = evict_entry,
     };
     device->submit(&request);
 
-    // Make it usable in the future
-    evict_entry->cur_ref_count = 1;
 }
 
 void stor_pin_range_async(
