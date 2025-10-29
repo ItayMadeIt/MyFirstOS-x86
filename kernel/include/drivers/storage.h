@@ -9,7 +9,7 @@
 typedef struct stor_device stor_device_t; 
 typedef struct stor_request stor_request_t; 
 
-typedef void (*stor_callback_t)(stor_request_t* request, int64_t result);
+typedef void (*stor_callback_t)(stor_request_t* request, i64 result);
 
 typedef enum stor_request_action 
 {
@@ -20,7 +20,7 @@ typedef enum stor_request_action
 typedef struct stor_request_chunk_entry
 {
     void* va_buffer;
-    uint64_t sectors;
+    u64 sectors;
 } stor_request_chunk_entry_t;
 
 
@@ -28,8 +28,8 @@ typedef struct stor_request
 {
     stor_device_t* dev;
 
-    uint64_t lba;
-    uint64_t chunk_length;
+    usize lba;
+    usize_ptr chunk_length;
     stor_request_chunk_entry_t* chunk_list;
     
     stor_request_action_t action;
@@ -40,9 +40,9 @@ typedef struct stor_request
 
 struct stor_device 
 {
-    uint64_t dev_id;
+    usize dev_id;
     void* dev_data;
-    uint64_t disk_size;
+    usize disk_size;
 
     void (*submit)(stor_request_t* req);    
 

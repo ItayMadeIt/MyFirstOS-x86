@@ -33,6 +33,7 @@ enum phys_page_type {
     PAGETYPE_DRIVER,
     PAGETYPE_PHYS_PAGES,
     PAGETYPE_DISK_CACHE,
+    PAGETYPE_DISK_CACHE_CLONE,
 };
 
 

@@ -1,3 +1,4 @@
+#include <core/atomic_defs.h>
 #include <services/storage/block_device.h>
 #include <stdatomic.h>
 #include <stddef.h>
@@ -13,6 +14,8 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+
+#include "kernel/interrupts/irq.h"
 
 #define MBR_SECTOR_SIZE 512
 #define INIT_BLOCK_BUCKETS 1
@@ -77,7 +80,7 @@ static intptr_t hashmap_pin_insert_entry(stor_device_t* device, cache_entry_t* e
     );
 }
 
-static cache_entry_t* hashmap_pin_get_entry(stor_device_t* device, uint64_t block_lba)
+static cache_entry_t* hashmap_pin_get_entry(stor_device_t* device, usize block_lba)
 {
     cache_entry_t* return_value = NULL;
 
@@ -91,7 +94,7 @@ static cache_entry_t* hashmap_pin_get_entry(stor_device_t* device, uint64_t bloc
     return return_value;
 }
 
-static bool hashmap_pin_del_entry(stor_device_t* device, uint64_t block_lba)
+static bool hashmap_pin_del_entry(stor_device_t* device, usize block_lba)
 {
     flat_hashmap_result_t hashmap_result = fhashmap_delete(
         &device->cache.pin_hashmap, &block_lba, sizeof(block_lba)
@@ -108,7 +111,7 @@ static intptr_t tree_insert_entry(stor_device_t* device, cache_entry_t* entry)
     ) == NULL ? -1 : 1;
 }
 
-static intptr_t tree_remake_entry(stor_device_t* device, cache_entry_t* entry, uint64_t new_lba)
+static intptr_t tree_remake_entry(stor_device_t* device, cache_entry_t* entry, usize new_lba)
 {
     rb_remove_node(&device->cache.lba_tree, &entry->node);
 
@@ -126,7 +129,7 @@ static void* block_request_buffer(stor_device_t* device)
     if (device->cache.used_bytes + device->cache.block_size > device->cache.max_bytes)
         return NULL;
 
-    uint64_t block_index     = device->cache.used_bytes / device->cache.block_size;
+    usize block_index     = device->cache.used_bytes / device->cache.block_size;
 
     // Create more blocks
     if (block_index >= device->cache.blocks_length)
@@ -301,9 +304,11 @@ static cache_entry_t* block_queue_evict(stor_device_t* device)
     return block_queue_pop(device, device->cache.cache_queue.lru);
 }
 
-static void clear_dirty(stor_device_t* device, cache_entry_t* entry)
+static void stor_clear_dirty(stor_device_t* device, cache_entry_t* entry)
 {
     entry->dirty = false;
+
+    // Goes over pages dirty (will be removed in the near future)
     for (uint32_t i = 0; i < device->cache.pages_per_block; i++)
     {
         clear_phys_flags(entry->buffer + PAGE_SIZE * i, VIRT_PHYS_FLAG_DIRTY);
@@ -311,7 +316,7 @@ static void clear_dirty(stor_device_t* device, cache_entry_t* entry)
 }
 
 // checks if the block is dirty, and if so makes it clean but returns true, otherwise false
-static bool is_entry_dirty(stor_device_t* device, cache_entry_t* entry)
+static bool consume_cache_dirty(stor_device_t* device, cache_entry_t* entry)
 {
     bool reset_dirty = false;
 
@@ -326,27 +331,35 @@ static bool is_entry_dirty(stor_device_t* device, cache_entry_t* entry)
 
         uint32_t flags = get_phys_flags(entry->buffer + PAGE_SIZE * i);
         if (flags & VIRT_PHYS_FLAG_DIRTY)
-        {   
+        {
             reset_dirty = true;
             clear_phys_flags(entry->buffer + PAGE_SIZE * i, VIRT_PHYS_FLAG_DIRTY);
         }
     }
     
-    return reset_dirty || (entry->state == CACHE_STATE_DIRTY);
+    bool result = entry->dirty;
+
+    entry->dirty = false;
+
+    return result;
 }
 
 void stor_mark_dirty(cache_entry_t *entry)
 {
+    entry->dirty = true;
+
+    uptr irq = irq_save();
+
     if (entry->cur_ref_count && entry->state == CACHE_STATE_CLEAN)
     {
         entry->state = CACHE_STATE_DIRTY;
     }
 
-    entry->dirty = true;
+    irq_restore(irq);
 }
 
 static cache_entry_t *create_cache_entry(stor_device_t *device,
-                                         uint64_t block_lba, void *buffer,
+                                         usize block_lba, void *buffer,
                                          enum cache_state state, uint32_t init_ref_count)
 {
     cache_entry_t* entry = kalloc(sizeof(cache_entry_t));
@@ -364,7 +377,7 @@ static cache_entry_t *create_cache_entry(stor_device_t *device,
     return entry;
 }
 
-static cache_entry_t* tree_get_entry(stor_device_t* device, uint64_t lba)
+static cache_entry_t* tree_get_entry(stor_device_t* device, usize lba)
 {
     cache_entry_t key = {.lba=lba};
     rb_node_t* result_node = rb_search(&device->cache.lba_tree, &key.node);
@@ -375,14 +388,14 @@ static cache_entry_t* tree_get_entry(stor_device_t* device, uint64_t lba)
         return NULL;
 }
 
-static void unpin_entry(stor_device_t* device, uint64_t block_lba)
+static void unpin_entry(stor_device_t* device, usize block_lba)
 {
     cache_entry_t* entry = hashmap_pin_get_entry(device, block_lba);
     assert(entry);
 
     entry->cur_ref_count--;
     if (entry->cur_ref_count > 0)
-        return; 
+        return;
 
     hashmap_pin_del_entry(device, entry->lba);
     block_queue_insert_mru(device, entry);
@@ -390,30 +403,28 @@ static void unpin_entry(stor_device_t* device, uint64_t block_lba)
 
 typedef struct pin_range 
 {
-    uint64_t block_lba;
-    uint64_t block_count;
+    usize block_lba;
+    usize block_count;
     
-    uint64_t remaining_to_evict;
+    usize remaining_to_evict;
 
-    uint64_t range_index;
+    usize range_index;
 } pin_range_t;
 
 typedef struct pin_range_fn_metadata
 {
     stor_device_t* device;
-    uint64_t block_lba;
-    uint64_t block_count;
-    uint64_t fix_ranges_count;
-    uint64_t total_evict_count; // all evict count
-
-    bool can_done; // is the main call done (workaround until mutex, still not perfect)
+    usize block_lba;
+    usize block_count;
+    usize fix_ranges_count;
+    usize total_evict_count; // all evict count
 
     stor_pin_range_cb_t cb;
     void* ctx;
 
     cache_entry_t** entries;
 
-    uint64_t ranges_count;
+    usize ranges_count;
     pin_range_t ranges[];
 
 
@@ -424,10 +435,21 @@ static void read_range_cb_async(stor_request_t* request, int64_t status)
     assert(status>=0);
 
     pin_range_t* range = request->user_data;
+    for (usize i = 0; i < range->block_count; i++)
+    {
+        cache_entry_t* entry = hashmap_pin_get_entry(request->dev, range->block_lba + i);
+        assert(entry);
+        
+        if (entry->dirty) // shouldn't happen
+            entry->state = CACHE_STATE_DIRTY;
+        else
+            entry->state = CACHE_STATE_CLEAN;
+    }
+
     pin_range_fn_metadata_t* metadata = container_of(range, pin_range_fn_metadata_t, ranges[range->range_index]);
 
     metadata->fix_ranges_count--;
-    if (metadata->fix_ranges_count == 0 && metadata->can_done)
+    if (metadata->fix_ranges_count == 0)
     {
         if (metadata->cb)
         {
@@ -436,14 +458,17 @@ static void read_range_cb_async(stor_request_t* request, int64_t status)
         kfree(metadata);
     }
 }
+
 static void call_read_range_async(stor_device_t* device, pin_range_t* range)
 {
     stor_request_chunk_entry_t chunks[range->block_count];
-    for (uint64_t i = 0; i < range->block_count; i++)
+    for (usize i = 0; i < range->block_count; i++)
     {
         cache_entry_t* entry = hashmap_pin_get_entry(device, range->block_lba + i);
 
         assert(entry);
+
+        entry->state = CACHE_STATE_READING;
 
         chunks[i].va_buffer = entry->buffer;
         chunks[i].sectors   = device->cache.block_size / device->sector_size;
@@ -477,7 +502,12 @@ static void write_entry_cb_async(stor_request_t* request, int64_t status)
     tree_remake_entry(metadata->device, entry, entry->io.new_lba);
     hashmap_pin_insert_entry(metadata->device, entry);
     entry->cur_ref_count = 1;
-    
+
+    if (entry->dirty)
+        entry->state = CACHE_STATE_DIRTY;
+    else
+        entry->state = CACHE_STATE_CLEAN;
+
     // Check if range is finished
     range->remaining_to_evict--;
     if (range->remaining_to_evict == 0)
@@ -486,19 +516,19 @@ static void write_entry_cb_async(stor_request_t* request, int64_t status)
     }
 }
 
-static void call_evict_async(stor_device_t* device, pin_range_t* range, uint64_t index_in_range)
+static void call_evict_async(stor_device_t* device, pin_range_t* range, usize index_in_range)
 {
     pin_range_fn_metadata_t* metadata = container_of(range, pin_range_fn_metadata_t, ranges[range->range_index]);
 
-    uint64_t begin_range_entry_index = range->block_lba - metadata->block_lba;
-    uint64_t entry_index = begin_range_entry_index + index_in_range;
-    uint64_t entry_lba   = range->block_lba + index_in_range;
+    usize begin_range_entry_index = range->block_lba - metadata->block_lba;
+    usize entry_index = begin_range_entry_index + index_in_range;
+    usize entry_lba   = range->block_lba + index_in_range;
 
     // Evict entry
     assert(metadata->entries[entry_index] == NULL);
     
     cache_entry_t* evict_entry = block_queue_evict(device);
-    uint64_t evict_lba   = evict_entry->lba;
+    usize evict_lba   = evict_entry->lba;
 
     assert(evict_entry);
 
@@ -508,7 +538,7 @@ static void call_evict_async(stor_device_t* device, pin_range_t* range, uint64_t
     evict_entry->io.own_range = range;
 
     // No need to flush
-    if (! is_entry_dirty(device, evict_entry))
+    if (! consume_cache_dirty(device, evict_entry))
     {
         range->remaining_to_evict--;
         if (range->remaining_to_evict == 0)
@@ -517,8 +547,11 @@ static void call_evict_async(stor_device_t* device, pin_range_t* range, uint64_t
         }
         return;
     }
+
     // Flush entry and continue
-    clear_dirty(device, evict_entry);
+    stor_clear_dirty(device, evict_entry);
+
+    evict_entry->state = CACHE_STATE_FLUSHING;
 
     stor_request_chunk_entry_t chunk = {
         .va_buffer = evict_entry->buffer,
@@ -540,10 +573,12 @@ static void call_evict_async(stor_device_t* device, pin_range_t* range, uint64_t
 }
 
 void stor_pin_range_async(
-    stor_device_t * device, uint64_t block_lba, 
-    uint64_t count, cache_entry_t ** out_cache_arr, 
+    stor_device_t * device, usize block_lba, 
+    usize count, cache_entry_t ** out_cache_arr, 
     stor_pin_range_cb_t cb, void* ctx)
 {
+    uptr irq = irq_save();
+
     pin_range_fn_metadata_t* metadata = 
         kalloc(sizeof(pin_range_fn_metadata_t) + sizeof(pin_range_t) * count);
 
@@ -555,16 +590,14 @@ void stor_pin_range_async(
     metadata->ranges_count = 0;
     metadata->total_evict_count = 0;
 
-    metadata->can_done = false;
-
     metadata->cb = cb;
     metadata->ctx = ctx;
     metadata->entries = out_cache_arr;
 
-    uint64_t range_begin_index = 0;
+    usize range_begin_index = 0;
     bool is_in_range = false;
     
-    for (uint64_t i = 0; i < count; i++)
+    for (usize i = 0; i < count; i++)
     {
         // Add to pinned 
         cache_entry_t* entry = hashmap_pin_get_entry(device, block_lba + i);
@@ -575,7 +608,7 @@ void stor_pin_range_async(
 
             if (is_in_range)
             {
-                uint64_t block_count = i - range_begin_index; // not including this entry
+                usize block_count = i - range_begin_index; // not including this entry
                 metadata->ranges[metadata->ranges_count].block_count = block_count;
                 metadata->ranges[metadata->ranges_count].remaining_to_evict = block_count;
                 metadata->total_evict_count += block_count;
@@ -597,7 +630,7 @@ void stor_pin_range_async(
 
             if (is_in_range)
             {
-                uint64_t block_count = i - range_begin_index; // not including this entry
+                usize block_count = i - range_begin_index; // not including this entry
                 metadata->ranges[metadata->ranges_count].block_count = block_count;
                 metadata->ranges[metadata->ranges_count].remaining_to_evict = block_count;
                 metadata->total_evict_count += block_count;
@@ -633,7 +666,7 @@ void stor_pin_range_async(
     
     if (is_in_range)
     {
-        uint64_t block_count = count - range_begin_index;
+        usize block_count = count - range_begin_index;
         metadata->ranges[metadata->ranges_count].block_count = block_count;
         metadata->ranges[metadata->ranges_count].remaining_to_evict = block_count;
 
@@ -645,15 +678,15 @@ void stor_pin_range_async(
     metadata->fix_ranges_count = metadata->ranges_count;
 
     // For each range, call async handle (handle eviction if neccesary & batch read)
-    for (uint64_t i = 0; i < metadata->ranges_count; i++)
+    for (usize i = 0; i < metadata->ranges_count; i++)
     {
         pin_range_t* range = &metadata->ranges[i];
 
         bool did_evict = false;
 
-        uint64_t range_arr_offset = range->block_lba - block_lba;
+        usize range_arr_offset = range->block_lba - block_lba;
 
-        for (uint64_t j = 0; j < range->block_count; j++)
+        for (usize j = 0; j < range->block_count; j++)
         {
             void* block_buffer = block_request_buffer(device);
             if (block_buffer)
@@ -685,28 +718,17 @@ void stor_pin_range_async(
         }
     }
 
-    if (metadata->fix_ranges_count == 0)
-    {
-        if (metadata->cb)
-        {
-            metadata->cb(metadata->ctx, 0, metadata->entries, metadata->block_count);
-        }
-        kfree(metadata);
-    }
-    else
-    {
-        metadata->can_done = true;
-    }
+    irq_restore(irq);
 }
 
 void stor_unpin_range_async(
     stor_device_t* device,
     cache_entry_t** arr,
-    uint64_t count,
+    usize count,
     stor_unpin_range_cb_t cb,
     void* ctx)
 {
-    for (uint64_t i = 0; i < count; i++)
+    for (usize i = 0; i < count; i++)
     {
         unpin_entry(device, arr[i]->lba);
         arr[i] = NULL;
@@ -718,7 +740,7 @@ void stor_unpin_range_async(
     }
 }
 
-static void mark_pin_range_done(void* data, int status, cache_entry_t** entries, uint64_t count)
+static void mark_pin_range_done(void* data, int status, cache_entry_t** entries, usize count)
 {
     (void)status;(void)entries;(void)count;
 
@@ -726,7 +748,7 @@ static void mark_pin_range_done(void* data, int status, cache_entry_t** entries,
     *done = true;
 }
 
-void stor_pin_range_sync(stor_device_t *device, uint64_t block_lba, uint64_t count, cache_entry_t **out_entries)
+void stor_pin_range_sync(stor_device_t *device, usize block_lba, usize count, cache_entry_t **out_entries)
 {
     bool done = false;
 
@@ -752,7 +774,7 @@ static void mark_unpin_range_done(void* data, int status)
     bool* done = data;
     *done = true;
 }
-void stor_unpin_range_sync(stor_device_t* device, cache_entry_t** arr,  uint64_t count)
+void stor_unpin_range_sync(stor_device_t* device, cache_entry_t** arr,  usize count)
 {
     bool done = false;
 
@@ -769,23 +791,31 @@ void stor_unpin_range_sync(stor_device_t* device, cache_entry_t** arr,  uint64_t
         cpu_halt();
     }
 }
-static void flush_callback(stor_request_t* request, int64_t status)
+static void flush_entry_callback(stor_request_t* request, i64 status)
 {
     (void)request;
-    assert(status >= 0);
+    cache_entry_t* entry = request->user_data;
+    assert(status >= 0 && entry);
+
+    if (entry->dirty)
+        entry->state = CACHE_STATE_DIRTY;
+    else
+        entry->state = CACHE_STATE_CLEAN;
 }
 static void flush_entry(cache_entry_t* entry, void* ctx)
 {
     stor_device_t* device = ctx;
 
     // No need to flush
-    if (! is_entry_dirty(device, entry))
+    if (! consume_cache_dirty(device, entry))
     {
         return;
     }
 
     // Flush entry and continue
-    clear_dirty(device, entry);
+    stor_clear_dirty(device, entry);
+
+    entry->state = CACHE_STATE_FLUSHING;
 
     stor_request_chunk_entry_t chunk = {
         .va_buffer = entry->buffer,
@@ -793,28 +823,67 @@ static void flush_entry(cache_entry_t* entry, void* ctx)
     };
     stor_request_t request = {
         .action = STOR_REQ_WRITE,
-        .callback = flush_callback,
+        .callback = flush_entry_callback,
         .dev = device,
 
         .chunk_list = &chunk,
         .chunk_length = 1,
 
         .lba = cache_block_to_lba(device, entry->lba),
-        .user_data = NULL,
+        .user_data = entry,
     };
     device->submit(&request);
 }
 
 void stor_flush_unpinned(stor_device_t *device)
 {
+    uptr irq = irq_save();
+
     block_queue_for_each(device, flush_entry, device);
+
+    irq_restore(irq);
 }
 
-uint64_t calc_blocks_per_bytes(stor_device_t *device, uint64_t offset, uint64_t amount)
+usize calc_blocks_per_bytes(stor_device_t *device, usize offset, usize amount)
 {
     return (amount + device->cache.block_size - 1) / device->cache.block_size
         + (offset % device->cache.block_size != 0 ? 1 : 0);
 }
+
+void* block_dev_vbuffer(cache_entry_t* entry)
+{
+    return entry->buffer;
+}
+
+usize_ptr block_dev_bufsize(stor_device_t* device)
+{
+    return device->cache.block_size; 
+}
+
+void* stor_clone_vrange(stor_device_t* device, cache_entry_t** entries, usize count)
+{
+    usize total_bytes = count * device->cache.block_size;
+    usize total_pages = (total_bytes + PAGE_SIZE - 1) / PAGE_SIZE;
+
+    void* clone_base = kvalloc_pages(
+        total_pages,
+        VREGION_CACHE_CLONE,
+        PAGEFLAG_KERNEL | PAGEFLAG_NOEXEC
+    );
+    assert(clone_base);
+
+    uint8_t* dst_cursor = clone_base;
+
+    for (usize i = 0; i < count; i++) 
+    {
+        void* src_va = entries[i]->buffer;
+        pfn_clone_map(dst_cursor, src_va, device->cache.pages_per_block);
+        dst_cursor += device->cache.block_size;
+    }
+
+    return clone_base;
+}
+
 
 void init_block_device(stor_device_t* device)
 {   

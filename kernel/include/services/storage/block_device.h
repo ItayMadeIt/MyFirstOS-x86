@@ -4,6 +4,8 @@
 #include "utils/data_structs/flat_hashmap.h"
 #include "utils/data_structs/rb_tree.h"
 #include <stdint.h>
+#include "core/num_defs.h"
+
 typedef struct stor_device stor_device_t;
 typedef struct cache_entry cache_entry_t;
 
@@ -34,17 +36,17 @@ typedef struct pin_range pin_range_t;
 typedef struct cache_entry 
 {
     // data
-    uint64_t lba;
+    usize lba;
     void* buffer;
-    uint32_t cur_ref_count;
-    uint8_t  state;
+    u32 cur_ref_count;
+    u8  state;
     bool dirty;
 
     // data for IO op
     struct {
         pin_range_t* own_range;      // e.g., pin_range_t*
-        uint64_t new_lba;     // where to recycle after writeback
-        uint64_t new_index;   // index in out array (or in-range offset)
+        usize new_lba;     // where to recycle after writeback
+        usize new_index;   // index in out array (or in-range offset)
     } io;
     
     // tree
@@ -78,26 +80,25 @@ typedef struct block_device_data
     cache_queue_t cache_queue; // Queue
 
     void**   blocks_arr;      // array of buckets, each one virt addr
-    uint64_t blocks_length;   // number of allocated buckets
-    uint64_t block_size;      // max(page_size, sector_size)
-    uint64_t pages_per_block; // block_size / PAGE_SIZE
+    usize_ptr blocks_length;  // number of allocated buckets
+    usize_ptr block_size;     // max(page_size, sector_size)
+    usize_ptr pages_per_block; // block_size / PAGE_SIZE
 
-    uint64_t max_bytes;        // max amount of bytes for the entire buckets
-    uint64_t used_bytes;       // track current usage
-
+    usize_ptr max_bytes;        // max amount of bytes for the entire buckets
+    usize_ptr used_bytes;       // track current usage
 
 } block_device_data_t;
 
 typedef void (*stor_pin_cb_t)(void* ctx, int status, cache_entry_t* entry);
 typedef void (*stor_unpin_cb_t)(void* ctx, int status);
 
-typedef void (*stor_pin_range_cb_t)(void* ctx, int status, cache_entry_t** entries, uint64_t count);
+typedef void (*stor_pin_range_cb_t)(void* ctx, int status, cache_entry_t** entries, u64 count);
 typedef void (*stor_unpin_range_cb_t)(void* ctx, int status);
 
 
 // void stor_pin_async(
 //     stor_device_t* device,
-//     uint64_t block_lba,
+//     u64 block_lba,
 //     cache_entry_t** out_entry, 
 //     stor_pin_cb_t cb,
 //     void* ctx);
@@ -110,8 +111,8 @@ typedef void (*stor_unpin_range_cb_t)(void* ctx, int status);
 
 void stor_pin_range_async(
     stor_device_t* device,
-    uint64_t block_lba,
-    uint64_t count,
+    usize block_lba,
+    usize count,
     cache_entry_t** out_entries, 
     stor_pin_range_cb_t cb,
     void* ctx);
@@ -119,26 +120,31 @@ void stor_pin_range_async(
 void stor_unpin_range_async(
     stor_device_t* device,
     cache_entry_t** arr,
-    uint64_t count,
+    usize count,
     stor_unpin_range_cb_t cb,
     void* ctx);
 
 void stor_pin_range_sync(
     stor_device_t* device,
-    uint64_t block_lba,
-    uint64_t count,
+    usize block_lba,
+    usize count,
     cache_entry_t** out_entries);
 
 void stor_unpin_range_sync(
     stor_device_t* device,
     cache_entry_t** arr,
-    uint64_t count);
+    usize count);
 
 void stor_mark_dirty(cache_entry_t* entry);
 
 void stor_flush_unpinned(stor_device_t* device);
 
-uint64_t calc_blocks_per_bytes(stor_device_t* device, uint64_t offset, uint64_t amount);
+usize calc_blocks_per_bytes(stor_device_t* device, usize offset, usize amount);
+
+void* block_dev_vbuffer(cache_entry_t* entry);
+usize_ptr block_dev_bufsize(stor_device_t* device);
+
+void* stor_clone_vrange(stor_device_t* device, cache_entry_t** entries, usize count);
 
 void init_block_device(stor_device_t* device);
 
