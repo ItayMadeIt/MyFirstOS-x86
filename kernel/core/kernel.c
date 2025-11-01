@@ -128,11 +128,11 @@ void kernel_main(boot_data_t* boot_data)
     cache_entry_t* entries[count];
     stor_pin_range_sync(dev, 0, count, entries);
 
-    uint8_t* va_buffer = stor_clone_vrange(dev, entries, count);
+    u8* va_buffer = stor_clone_vrange(dev, entries, count);
 
     for (usize i = 0; i < 0x200; ++i) 
     {
-        printf("%02x ", (uint32_t)*(va_buffer + i));
+        printf("%02x ", (u32)*(va_buffer + i));
         if ((i + 1) % 0x8 == 0)
         {
             printf("\n");

@@ -7,7 +7,7 @@
 #include <arch/i386/drivers/pci/ide.h>
 #include <kernel/devices/storage.h>
 #include <kernel/drivers/pci_ops.h>
-#include <stdint.h>
+#include "core/num_defs.h"
 #include <stdio.h>
 #include <kernel/interrupts/irq.h>
 #include <drivers/storage.h>
@@ -38,12 +38,12 @@
 
 typedef struct ide_channel 
 {
-    uint16_t base;       // BAR0 or BAR2
-    uint16_t ctrl;       // BAR1 or BAR3
-    uint32_t bus_master; // BAR4 + 0x0 (primary) or +0x8 (secondary)
+    u16 base;       // BAR0 or BAR2
+    u16 ctrl;       // BAR1 or BAR3
+    u32 bus_master; // BAR4 + 0x0 (primary) or +0x8 (secondary)
     bool has_dma;        // does this channel support DMA?
     bool dma_io;         // is DMA IO or MMIO? True - IO, MMIO - False
-    uint32_t irq;        // irq number
+    u32 irq;        // irq number
     bool pic_enabled;    // enabled PIC on this channel
 } ide_channel_t;
 
@@ -58,31 +58,31 @@ typedef struct ide_device
 {
     bool present;                           // did IDENTIFY succeed?
     bool slave;                             // 0 = master, 1 = slave
-    uint8_t size_type;                      // 0 = chs (not supported), 1 = LBA28, 2 = LBA48
+    u8 size_type;                      // 0 = chs (not supported), 1 = LBA28, 2 = LBA48
     union {
         struct {
-            uint16_t cylinders;
-            uint8_t heads;
-            uint8_t sectors;
+            u16 cylinders;
+            u8 heads;
+            u8 sectors;
         } chs;
     };
     bool supports_dma;                      // supports DMA? Yes true, No false
-    uint8_t channel;                        // 0 = primary, 1 = secondary
-    uint8_t type;                           // ATA or ATAPI
-    uint16_t signature;                     // Drive signature
-    uint16_t features;                      // device capabilities
-    uint32_t command_sets;                  // command sets supported
-    uint64_t size;                          // in sectors 
+    u8 channel;                        // 0 = primary, 1 = secondary
+    u8 type;                           // ATA or ATAPI
+    u16 signature;                     // Drive signature
+    u16 features;                      // device capabilities
+    u32 command_sets;                  // command sets supported
+    u64 size;                          // in sectors 
     char model[IDE_STR_INDEN_LENGTH + 1];   // from IDENTIFY string
 
-    uint64_t external_dev_id;
+    u64 external_dev_id;
 } ide_device_t;
 
 typedef struct __attribute__((packed)) ide_prd_entry
 {
-    uint32_t phys_addr;
-    uint16_t bytes_size;
-    uint16_t flags; // reserved except MSB
+    u32 phys_addr;
+    u16 bytes_size;
+    u16 flags; // reserved except MSB
 
 } ide_prd_entry_t; 
 
@@ -95,15 +95,15 @@ typedef struct __attribute__((packed)) ide_prd_entry
 typedef struct __attribute__((aligned(SECTOR_SIZE))) ide_dma_vars
 {   
     ide_prd_entry_t* prdt;   // dynamic 
-    uint64_t prdt_capacity;  // allocated (not used)
+    u64 prdt_capacity;  // allocated (not used)
     
     // only needed for first entry if not aligned
-    uint16_t head_offset;
-    uint16_t head_size;
-    uint16_t tail_valid;
+    u16 head_offset;
+    u16 head_size;
+    u16 tail_valid;
 
-    __attribute__((aligned(2))) uint8_t head_buffer[SECTOR_SIZE];
-    __attribute__((aligned(2))) uint8_t tail_buffer[SECTOR_SIZE];  
+    __attribute__((aligned(2))) u8 head_buffer[SECTOR_SIZE];
+    __attribute__((aligned(2))) u8 tail_buffer[SECTOR_SIZE];  
 
 } ide_dma_vars_t;
 
@@ -168,46 +168,46 @@ static ide_vars_t ide;
 #define ATA_CTRL_SRST 0x04
 
 
-static inline uint8_t ide_cmd_inb(uintptr_t channel, uint8_t reg) 
+static inline u8 ide_cmd_inb(usize_ptr channel, u8 reg) 
 {
     return inb(ide.channels[channel].base + reg);
 }
 
-static inline void ide_cmd_outb(uintptr_t channel, uint8_t reg, uint8_t val) 
+static inline void ide_cmd_outb(usize_ptr channel, u8 reg, u8 val) 
 {
     outb(ide.channels[channel].base + reg, val);
 }
 
-static inline void ide_select(uint8_t channel, bool slave, uint8_t lba_high4) 
+static inline void ide_select(u8 channel, bool slave, u8 lba_high4) 
 {
-    uint8_t val = 0xE0                     // mandatory bits
+    u8 val = 0xE0                     // mandatory bits
                 | (slave ? 0x10 : 0x00)    // bit 4: master/slave
                 | (lba_high4 & 0x0F);      // upper 4 bits of LBA28
     ide_cmd_outb(channel, REG_OFF_HDDEVSEL, val);
     io_wait(); io_wait(); // spec requires delay
 }
 
-static inline void ide_send_cmd(uint8_t channel, uint8_t cmd) 
+static inline void ide_send_cmd(u8 channel, u8 cmd) 
 {
     ide_cmd_outb(channel, REG_OFF_COMMAND, cmd);
 }
 
-static inline uint8_t ide_get_status(uint8_t channel) 
+static inline u8 ide_get_status(u8 channel) 
 {
     return ide_cmd_inb(channel, REG_OFF_STATUS);
 }
 
-static inline void ide_set_lba28(uint8_t channel, bool slave, uint32_t lba, uint8_t sector_count) 
+static inline void ide_set_lba28(u8 channel, bool slave, u32 lba, u8 sector_count) 
 {
     ide_select(channel, slave, (lba >> 24) & 0x0F);
 
     ide_cmd_outb(channel, REG_OFF_SECCOUNT0, sector_count); 
-    ide_cmd_outb(channel, REG_OFF_LBA0, (uint8_t)(lba & 0xFF));
-    ide_cmd_outb(channel, REG_OFF_LBA1, (uint8_t)((lba >> 8) & 0xFF));
-    ide_cmd_outb(channel, REG_OFF_LBA2, (uint8_t)((lba >> 16) & 0xFF));
+    ide_cmd_outb(channel, REG_OFF_LBA0, (u8)(lba & 0xFF));
+    ide_cmd_outb(channel, REG_OFF_LBA1, (u8)((lba >> 8) & 0xFF));
+    ide_cmd_outb(channel, REG_OFF_LBA2, (u8)((lba >> 16) & 0xFF));
 }
 
-static inline void ide_set_lba48(uint8_t channel, bool slave, uint64_t lba, uint16_t sector_count) 
+static inline void ide_set_lba48(u8 channel, bool slave, u64 lba, u16 sector_count) 
 {
     ide_select(channel, slave, (lba >> 24) & 0x0F);
 
@@ -224,7 +224,7 @@ static inline void ide_set_lba48(uint8_t channel, bool slave, uint64_t lba, uint
     ide_cmd_outb(channel, REG_OFF_LBA2, (lba >> 16) & 0xFF);
 }
 
-static inline void ide_read_buffer(uintptr_t channel, void* buf, unsigned words) 
+static inline void ide_read_buffer(usize_ptr channel, void* buf, unsigned words) 
 {
     insw(ide.channels[channel].base + REG_OFF_DATA, buf, words);
 }
@@ -244,9 +244,9 @@ static inline void ide_read_buffer(uintptr_t channel, void* buf, unsigned words)
 
 #define ATA_IDENT_SIZE         512
 
-static inline void get_channel_identity(uintptr_t channel, uint16_t output[ATA_IDENT_SIZE / sizeof(uint16_t)])
+static inline void get_channel_identity(usize_ptr channel, u16 output[ATA_IDENT_SIZE / sizeof(u16)])
 {
-    ide_read_buffer(channel, output, ATA_IDENT_SIZE / sizeof(uint16_t));
+    ide_read_buffer(channel, output, ATA_IDENT_SIZE / sizeof(u16));
 }
 
 #define ATA_BM_OFF_CMD    0x00
@@ -260,7 +260,7 @@ static inline void get_channel_identity(uintptr_t channel, uint16_t output[ATA_I
 #define ATA_BM_STATUS_IRQ   0x02
 #define ATA_BM_STATUS_ERR   0x01
 
-static inline void send_bm_cmd(uintptr_t channel, uint8_t cmd)
+static inline void send_bm_cmd(usize_ptr channel, u8 cmd)
 {
     if (ide.channels[channel].dma_io)
     {
@@ -273,7 +273,7 @@ static inline void send_bm_cmd(uintptr_t channel, uint8_t cmd)
     }
 }
 
-static inline uint8_t recv_bm_status(uintptr_t channel)
+static inline u8 recv_bm_status(usize_ptr channel)
 {
     if (ide.channels[channel].dma_io)
     {
@@ -287,7 +287,7 @@ static inline uint8_t recv_bm_status(uintptr_t channel)
     }
 }
 
-static inline void send_bm_status(uintptr_t channel, uint8_t status)
+static inline void send_bm_status(usize_ptr channel, u8 status)
 {
     if (ide.channels[channel].dma_io)
     {
@@ -300,7 +300,7 @@ static inline void send_bm_status(uintptr_t channel, uint8_t status)
     }
 }
 
-static inline void set_prdt_addr(uintptr_t channel, uint32_t prdt_phys_addr)
+static inline void set_prdt_addr(usize_ptr channel, u32 prdt_phys_addr)
 {
     if (ide.channels[channel].dma_io)
     {
@@ -329,7 +329,7 @@ static void init_ide_channels(pci_driver_t* driver)
     bool support_dma = driver->device_header.header.progif & (1 << 7);
     
     // Set both channel's common vars
-    uint32_t bus_master_base = driver->device_header.base_addr[4] & ~0xF; 
+    u32 bus_master_base = driver->device_header.base_addr[4] & ~0xF; 
     ide.channels[ATA_PRIMARY  ].bus_master = bus_master_base + 0;
     ide.channels[ATA_SECONDARY].bus_master = bus_master_base + 8;
     ide.channels[ATA_PRIMARY  ].has_dma    = support_dma;
@@ -339,20 +339,20 @@ static void init_ide_channels(pci_driver_t* driver)
 
     // Set primary channel vars
     ide.channels[ATA_PRIMARY].base = pri_compat ? 
-        COMPABILITY_PRIMARY_PORT : (uint16_t) (driver->device_header.base_addr[0] & (~0b1));
+        COMPABILITY_PRIMARY_PORT : (u16) (driver->device_header.base_addr[0] & (~0b1));
     ide.channels[ATA_PRIMARY].ctrl = pri_compat ? 
-        COMPABILITY_PRIMARY_CTRL_PORT : (uint16_t) (driver->device_header.base_addr[1] & (~0b1));
+        COMPABILITY_PRIMARY_CTRL_PORT : (u16) (driver->device_header.base_addr[1] & (~0b1));
     ide.channels[ATA_PRIMARY].irq = pri_compat ?
-                                    COMPABILITY_PRIMARY_IRQ : (uint16_t)(driver->device_header.interrupt_line);
+                                    COMPABILITY_PRIMARY_IRQ : (u16)(driver->device_header.interrupt_line);
     ide.channels[ATA_PRIMARY].irq += PIC_IRQ_OFFSET;
 
     // Set secondary channel vars
     ide.channels[ATA_SECONDARY].base = sec_compat ? 
-        COMPABILITY_SECOND_PORT : (uint16_t) (driver->device_header.base_addr[2] & (~0b1));
+        COMPABILITY_SECOND_PORT : (u16) (driver->device_header.base_addr[2] & (~0b1));
     ide.channels[ATA_SECONDARY].ctrl = sec_compat ? 
-        COMPABILITY_SECOND_CTRL_PORT : (uint16_t) (driver->device_header.base_addr[3] & (~0b1));
+        COMPABILITY_SECOND_CTRL_PORT : (u16) (driver->device_header.base_addr[3] & (~0b1));
     ide.channels[ATA_SECONDARY].irq = sec_compat ?
-                                    COMPABILITY_SECOND_IRQ : (uint16_t)(driver->device_header.interrupt_line);
+                                    COMPABILITY_SECOND_IRQ : (u16)(driver->device_header.interrupt_line);
     ide.channels[ATA_SECONDARY].irq += PIC_IRQ_OFFSET;
 
     if (ide.channels[ATA_PRIMARY].has_dma)
@@ -375,15 +375,15 @@ static void init_ide_channels(pci_driver_t* driver)
     ide.queue[ATA_SECONDARY].tail = NULL;
 }
 
-static uint8_t ide_ident_buffer[2048] = {0};
+static u8 ide_ident_buffer[2048] = {0};
 
-static void init_ide_device(uintptr_t device_index, uintptr_t channel_index, uintptr_t drive_select)
+static void init_ide_device(usize_ptr device_index, usize_ptr channel_index, usize_ptr drive_select)
 {
     ide.devices[device_index].external_dev_id = INVALID_ID;
 
-    uint8_t err = 0;
-    uint8_t type = IDE_ATA;
-    uint8_t status;
+    u8 err = 0;
+    u8 type = IDE_ATA;
+    u8 status;
     ide.devices[device_index].present = false; // Assuming no drive
     ide.devices[device_index].slave = drive_select == ATA_SLAVE;
 
@@ -424,8 +424,8 @@ static void init_ide_device(uintptr_t device_index, uintptr_t channel_index, uin
         return;
         // keep it if ever ATAPI will be implemented 
         
-        uint8_t lba1 = ide_cmd_inb(channel_index, REG_OFF_LBA1);
-        uint8_t lba2 = ide_cmd_inb(channel_index, REG_OFF_LBA2);
+        u8 lba1 = ide_cmd_inb(channel_index, REG_OFF_LBA1);
+        u8 lba2 = ide_cmd_inb(channel_index, REG_OFF_LBA2);
 
         if ((lba1 == 0x14 && lba2== 0xEB) ||
             (lba1 == 0x69 && lba2 == 0x96))
@@ -442,23 +442,23 @@ static void init_ide_device(uintptr_t device_index, uintptr_t channel_index, uin
     }
 
     // (V) Read Identification Space of the Device:
-    get_channel_identity(channel_index, (uint16_t*)ide_ident_buffer);
+    get_channel_identity(channel_index, (u16*)ide_ident_buffer);
 
     // (VI) Read Device Parameters:
     ide.devices[device_index].present      = true;
     ide.devices[device_index].type         = type;
     ide.devices[device_index].channel      = channel_index;
     ide.devices[device_index].slave        = drive_select == ATA_SLAVE;
-    ide.devices[device_index].signature    = *((uint16_t*)(ide_ident_buffer + ATA_IDENT_DEVICETYPE));
-    ide.devices[device_index].features     = *((uint16_t*)(ide_ident_buffer + ATA_IDENT_CAPABILITIES));
-    ide.devices[device_index].command_sets = *((uint32_t*)(ide_ident_buffer + ATA_IDENT_COMMANDSETS));
+    ide.devices[device_index].signature    = *((u16*)(ide_ident_buffer + ATA_IDENT_DEVICETYPE));
+    ide.devices[device_index].features     = *((u16*)(ide_ident_buffer + ATA_IDENT_CAPABILITIES));
+    ide.devices[device_index].command_sets = *((u32*)(ide_ident_buffer + ATA_IDENT_COMMANDSETS));
     ide.devices[device_index].supports_dma = (ide.devices[device_index].features & (1 << 8)) != 0;
     
     // (VII) Get Size:
     if (ide.devices[device_index].command_sets & (1 << 26))
     {
         // Device uses 48-Bit Addressing:
-        uint64_t lba48 = *((uint64_t*)(ide_ident_buffer + ATA_IDENT_MAX_LBA_EXT)) & ((1ull<<48)-1);
+        u64 lba48 = *((u64*)(ide_ident_buffer + ATA_IDENT_MAX_LBA_EXT)) & ((1ull<<48)-1);
         ide.devices[device_index].size = lba48;
 
         ide.devices[device_index].size_type = IDE_SIZE_LBA48;
@@ -466,27 +466,27 @@ static void init_ide_device(uintptr_t device_index, uintptr_t channel_index, uin
     else if(ide.devices[device_index].features & 0x200) // does support LBA
     {
         // Device uses CHS or 28-bit Addressing::
-        uint32_t lba28 = *((uint32_t*)(ide_ident_buffer + ATA_IDENT_MAX_LBA));
+        u32 lba28 = *((u32*)(ide_ident_buffer + ATA_IDENT_MAX_LBA));
         ide.devices[device_index].size = lba28 & ((1<<28)-1);
 
         ide.devices[device_index].size_type = IDE_SIZE_LBA28;
     }
     else // get using chs 
     {
-        ide.devices[device_index].chs.heads     = *((uint8_t* )(ide_ident_buffer + ATA_IDENT_HEADS));
-        ide.devices[device_index].chs.sectors   = *((uint8_t* )(ide_ident_buffer + ATA_IDENT_SECTORS));
-        ide.devices[device_index].chs.cylinders = *((uint16_t*)(ide_ident_buffer + ATA_IDENT_CYLINDERS));
+        ide.devices[device_index].chs.heads     = *((u8* )(ide_ident_buffer + ATA_IDENT_HEADS));
+        ide.devices[device_index].chs.sectors   = *((u8* )(ide_ident_buffer + ATA_IDENT_SECTORS));
+        ide.devices[device_index].chs.cylinders = *((u16*)(ide_ident_buffer + ATA_IDENT_CYLINDERS));
 
         ide.devices[device_index].size = 
-            (uint64_t)ide.devices[device_index].chs.cylinders *
+            (u64)ide.devices[device_index].chs.cylinders *
             ide.devices[device_index].chs.heads *
             ide.devices[device_index].chs.sectors;
 
         ide.devices[device_index].size_type = IDE_SIZE_CHS;
     }
     // String indicates model of device (like Western Digital HDD and SONY DVD-RW...):
-    uint16_t* ident_data = (uint16_t*) ide_ident_buffer;
-    for (uint32_t i = 0; i < IDE_STR_INDEN_LENGTH / 2; ++i)
+    u16* ident_data = (u16*) ide_ident_buffer;
+    for (u32 i = 0; i < IDE_STR_INDEN_LENGTH / 2; ++i)
     {
         ide.devices[device_index].model[i * 2 + 0] = (ident_data[ATA_IDENT_MODEL/2 + i] >> 8) & 0xFF;
         ide.devices[device_index].model[i * 2 + 1] = (ident_data[ATA_IDENT_MODEL/2 + i] >> 0) & 0xFF;
@@ -498,15 +498,15 @@ static void init_ide_device(uintptr_t device_index, uintptr_t channel_index, uin
 static void init_ide_devices()
 {
     // 3- Detect ATA-ATAPI Devices:
-    for (uintptr_t device_index = 0; device_index < DEVICES; device_index++)
+    for (usize_ptr device_index = 0; device_index < DEVICES; device_index++)
     {
-        uintptr_t channel_index = device_index / DEVS_PER_CHANNEL;
-        uintptr_t drive_select  = device_index % DEVS_PER_CHANNEL;
+        usize_ptr channel_index = device_index / DEVS_PER_CHANNEL;
+        usize_ptr drive_select  = device_index % DEVS_PER_CHANNEL;
 
         init_ide_device(device_index, channel_index, drive_select);
     }     
 
-    for (uint32_t i = 0; i < DEVICES; i++)
+    for (u32 i = 0; i < DEVICES; i++)
     {
         if (ide.devices[i].present)
         {
@@ -522,10 +522,10 @@ static void init_ide_devices()
 static void init_dma_devices()
 {
     // Init dma per channel
-    for (uintptr_t ch = 0; ch < CHANNELS; ch++)
+    for (usize_ptr ch = 0; ch < CHANNELS; ch++)
     {
         bool dev_supports_dma = false;
-        for (uintptr_t dev = 0; dev < DEVS_PER_CHANNEL; dev++)
+        for (usize_ptr dev = 0; dev < DEVS_PER_CHANNEL; dev++)
         {
             if (ide.devices[ch*DEVS_PER_CHANNEL + dev].supports_dma)
             {
@@ -551,29 +551,29 @@ static void init_dma_devices()
 #define PRD_MAX_BOUNDARY STOR_64KiB
 #define PRD_LAST_BIT     0x8000
 
-static void prdt_iterate_chunk_prd(uint64_t prd_index, ide_dma_vars_t* dma, uintptr_t* remaining, uintptr_t* va)
+static void prdt_iterate_chunk_prd(u64 prd_index, ide_dma_vars_t* dma, usize_ptr* remaining, usize_ptr* va)
 {
     if (prd_index >= dma->prdt_capacity) 
     {
         // grow dynamically
-        uint64_t new_capacity = dma->prdt_capacity * 2;
+        u64 new_capacity = dma->prdt_capacity * 2;
         dma->prdt = krealloc(dma->prdt, sizeof(ide_prd_entry_t) * new_capacity);
         dma->prdt_capacity = new_capacity;
     }
 
-    uintptr_t cur_chunk_size = 0;
-    uintptr_t start_pa = (uintptr_t)virt_to_phys((void*)*va);
-    uintptr_t cur_pa   = start_pa;
+    usize_ptr cur_chunk_size = 0;
+    usize_ptr start_pa = (usize_ptr)virt_to_phys((void*)*va);
+    usize_ptr cur_pa   = start_pa;
 
     // Until no bytes remain, or some policy stopped this prd entry
     while (*remaining > 0) 
     {
-        uintptr_t page_offset = ((*va) + cur_chunk_size) & (PAGE_SIZE - 1);
-        uintptr_t page_space  = PAGE_SIZE - page_offset;
+        usize_ptr page_offset = ((*va) + cur_chunk_size) & (PAGE_SIZE - 1);
+        usize_ptr page_space  = PAGE_SIZE - page_offset;
 
-        uintptr_t take = (*remaining < page_space) ? *remaining : page_space;
+        usize_ptr take = (*remaining < page_space) ? *remaining : page_space;
 
-        uintptr_t boundary = PRD_MAX_BOUNDARY -
+        usize_ptr boundary = PRD_MAX_BOUNDARY -
                                 ((cur_pa + cur_chunk_size) &
                                 (PRD_MAX_BOUNDARY - 1));
         if (take > boundary)
@@ -591,40 +591,40 @@ static void prdt_iterate_chunk_prd(uint64_t prd_index, ide_dma_vars_t* dma, uint
             break;
 
         // phys must be continous
-        uintptr_t next_pa =
-            (uintptr_t)virt_to_phys((void*)(*va + cur_chunk_size));
+        usize_ptr next_pa =
+            (usize_ptr)virt_to_phys((void*)(*va + cur_chunk_size));
         if (next_pa != (cur_pa & PAGE_MASK) + PAGE_SIZE)
             break;
 
         // Must not pass the MAX BOUNDARY
-        uintptr_t cur_prd_max_boundary  = cur_pa  & (~(PRD_MAX_BOUNDARY-1));
-        uintptr_t next_prd_max_boundary = next_pa & (~(PRD_MAX_BOUNDARY-1));
+        usize_ptr cur_prd_max_boundary  = cur_pa  & (~(PRD_MAX_BOUNDARY-1));
+        usize_ptr next_prd_max_boundary = next_pa & (~(PRD_MAX_BOUNDARY-1));
         if (cur_prd_max_boundary != next_prd_max_boundary)
             break;
 
         cur_pa = next_pa;
     }
 
-    dma->prdt[prd_index].phys_addr  = (uint32_t)start_pa;
+    dma->prdt[prd_index].phys_addr  = (u32)start_pa;
     dma->prdt[prd_index].bytes_size =
         (cur_chunk_size == PRD_MAX_BOUNDARY ? 
-            0 : (uint16_t)cur_chunk_size);
+            0 : (u16)cur_chunk_size);
     dma->prdt[prd_index].flags = 0;
 
     *va += cur_chunk_size;
 }
 
 // Returns the amount of sectors that are needed to be copied
-static uint64_t fill_prdt(uint8_t channel, stor_request_chunk_entry_t* chunk_arr, uint64_t chunk_length) 
+static u64 fill_prdt(u8 channel, stor_request_chunk_entry_t* chunk_arr, u64 chunk_length) 
 {
     ide_dma_vars_t* dma = &ide.dma[channel];
-    uint64_t total_sectors = 0;
-    uint64_t prd_index = 0;
+    u64 total_sectors = 0;
+    u64 prd_index = 0;
 
-    for (uint64_t ci = 0; ci < chunk_length; ci++) 
+    for (u64 ci = 0; ci < chunk_length; ci++) 
     {
-        uintptr_t va        = (uintptr_t)chunk_arr[ci].va_buffer;
-        uintptr_t remaining = chunk_arr[ci].sectors * SECTOR_SIZE;
+        usize_ptr va        = (usize_ptr)chunk_arr[ci].va_buffer;
+        usize_ptr remaining = chunk_arr[ci].sectors * SECTOR_SIZE;
 
         assert((va % SECTOR_SIZE) == 0);
 
@@ -641,22 +641,22 @@ static uint64_t fill_prdt(uint8_t channel, stor_request_chunk_entry_t* chunk_arr
     if (prd_index > 0)
     {
         ide.dma[channel].prdt[prd_index - 1].flags |= PRD_LAST_BIT;
-        set_prdt_addr(channel, (uint32_t)virt_to_phys(ide.dma[channel].prdt));
+        set_prdt_addr(channel, (u32)virt_to_phys(ide.dma[channel].prdt));
     }
 
     return total_sectors;
 }
 
-static void ide_read_sectors_async(uintptr_t device, uint64_t lba, stor_request_chunk_entry_t* chunk_arr, uint64_t chunk_length)
+static void ide_read_sectors_async(usize_ptr device, u64 lba, stor_request_chunk_entry_t* chunk_arr, u64 chunk_length)
 {
-    uint8_t channel = ide.devices[device].channel;
+    u8 channel = ide.devices[device].channel;
 
     if (!ide.channels[channel].has_dma)
     {    
         abort();
     }
 
-    uint64_t sector_count = fill_prdt(
+    u64 sector_count = fill_prdt(
         channel, 
         chunk_arr, 
         chunk_length
@@ -664,7 +664,7 @@ static void ide_read_sectors_async(uintptr_t device, uint64_t lba, stor_request_
 
     send_bm_status(channel, ATA_BM_STATUS_IRQ | ATA_BM_STATUS_ERR);
 
-    uint8_t command = ~0;
+    u8 command = ~0;
     if (ide.devices[device].size_type == IDE_SIZE_LBA48) 
     {
         ide_set_lba48(channel, ide.devices[device].slave, lba, sector_count);
@@ -683,13 +683,13 @@ static void ide_read_sectors_async(uintptr_t device, uint64_t lba, stor_request_
 
     ide_send_cmd(channel, command);
 
-    uint8_t bm_cmd = ATA_BM_CMD_READ | ATA_BM_CMD_START;
+    u8 bm_cmd = ATA_BM_CMD_READ | ATA_BM_CMD_START;
     send_bm_cmd(channel, bm_cmd);
 }
 
-static void ide_write_sectors_async(uintptr_t device, uint64_t lba, stor_request_chunk_entry_t* chunk_arr, uint64_t chunk_length)
+static void ide_write_sectors_async(usize_ptr device, u64 lba, stor_request_chunk_entry_t* chunk_arr, u64 chunk_length)
 {
-    uint8_t channel = ide.devices[device].channel;
+    u8 channel = ide.devices[device].channel;
 
     if (!ide.channels[channel].has_dma)
     {
@@ -697,7 +697,7 @@ static void ide_write_sectors_async(uintptr_t device, uint64_t lba, stor_request
     }
 
     // just for PRDT, we're not modifying the buffer
-    uint64_t sector_count = fill_prdt(
+    u64 sector_count = fill_prdt(
         channel, 
         chunk_arr, 
         chunk_length
@@ -706,7 +706,7 @@ static void ide_write_sectors_async(uintptr_t device, uint64_t lba, stor_request
 
     send_bm_status(channel, ATA_BM_STATUS_IRQ | ATA_BM_STATUS_ERR);
 
-    uint8_t command = ~0;
+    u8 command = ~0;
     if (ide.devices[device].size_type == IDE_SIZE_LBA48) 
     {
         ide_set_lba48(channel, ide.devices[device].slave, lba, sector_count);
@@ -725,14 +725,14 @@ static void ide_write_sectors_async(uintptr_t device, uint64_t lba, stor_request
 
     ide_send_cmd(channel, command);
 
-    uint8_t bm_cmd = ATA_BM_CMD_START; // no READ bit = write
+    u8 bm_cmd = ATA_BM_CMD_START; // no READ bit = write
     send_bm_cmd(channel, bm_cmd);
 }
 
 static void ide_push_queue(stor_request_t* request)
 {
     ide_device_t* dev = (ide_device_t*) request->dev->dev_data;
-    uint16_t channel = dev->channel;
+    u16 channel = dev->channel;
 
     ide_request_item_t* item = kalloc(sizeof(ide_request_item_t));
     assert(item);
@@ -754,7 +754,7 @@ static void ide_push_queue(stor_request_t* request)
 }
 
 // kfree is needed by respondent
-static ide_request_item_t* ide_pop_queue(uint16_t channel)
+static ide_request_item_t* ide_pop_queue(u16 channel)
 {
     if (!ide.queue[channel].head)
     {
@@ -777,7 +777,7 @@ static ide_request_item_t* ide_pop_queue(uint16_t channel)
 static void make_request(stor_request_t* request)
 {
     ide_device_t* dev = (ide_device_t*) request->dev->dev_data;
-    uint64_t lba = request->lba;
+    u64 lba = request->lba;
     
     switch (request->action)
     {
@@ -799,7 +799,7 @@ static void ide_submit(stor_request_t* request)
 {
     ide_device_t* dev = (ide_device_t*) request->dev->dev_data;
     
-    uintptr_t irq_data = irq_save();
+    usize_ptr irq_data = irq_save();
     
     bool empty_queue = ide.queue[dev->channel].head == NULL;
 
@@ -819,7 +819,7 @@ static void primary_irq(irq_frame_t* irq_frame)
 {
     (void)irq_frame;
 
-    uint16_t channel = ATA_PRIMARY;
+    u16 channel = ATA_PRIMARY;
     
     ide_request_item_t* item = ide_pop_queue(channel);
 
@@ -836,8 +836,8 @@ static void primary_irq(irq_frame_t* irq_frame)
     send_bm_cmd(channel, ATA_BM_CMD_STOP);
     send_bm_status(channel, ATA_BM_STATUS_IRQ | ATA_BM_STATUS_ERR);
 
-    uint32_t bm_status = recv_bm_status(channel);
-    uint16_t drv_status = ide_get_status(channel);
+    u32 bm_status = recv_bm_status(channel);
+    u16 drv_status = ide_get_status(channel);
 
     int64_t result;
     if ((bm_status & ATA_BM_STATUS_ERR) || (drv_status & ATA_STATUS_ERR)) 
@@ -869,7 +869,7 @@ static void secondary_irq(irq_frame_t* irq_frame)
 {
     (void)irq_frame;
     
-    uint16_t channel = ATA_SECONDARY;
+    u16 channel = ATA_SECONDARY;
 
     ide_request_item_t* item = ide_pop_queue(channel);
 
@@ -886,8 +886,8 @@ static void secondary_irq(irq_frame_t* irq_frame)
     send_bm_cmd(channel, ATA_BM_CMD_STOP);
     send_bm_status(channel, ATA_BM_STATUS_IRQ | ATA_BM_STATUS_ERR);
 
-    uint32_t bm_status = recv_bm_status(channel);
-    uint16_t drv_status = ide_get_status(channel);
+    u32 bm_status = recv_bm_status(channel);
+    u16 drv_status = ide_get_status(channel);
 
     int64_t result;
     if ((bm_status & ATA_BM_STATUS_ERR) || (drv_status & ATA_STATUS_ERR)) 
@@ -914,9 +914,9 @@ static void secondary_irq(irq_frame_t* irq_frame)
 
 static void enable_pic()
 {
-    for (uint32_t i = 0; i < DEVICES; i++)
+    for (u32 i = 0; i < DEVICES; i++)
     {
-        uint16_t dev_channel = ide.devices[i].channel;
+        u16 dev_channel = ide.devices[i].channel;
         
         // Only channels allowed
         if (dev_channel != ATA_PRIMARY && dev_channel != ATA_SECONDARY)
@@ -945,7 +945,7 @@ static void enable_pic()
 
 void init_ide(storage_add_device add_func, pci_driver_t *driver)
 {
-    uint32_t cmd = pci_config_read_dword(driver->bus, driver->slot, driver->func, 0x4);
+    u32 cmd = pci_config_read_dword(driver->bus, driver->slot, driver->func, 0x4);
     if (!(cmd & PCI_CMD_DMA_BIT)) 
     {
         cmd |= PCI_CMD_DMA_BIT;
@@ -962,7 +962,7 @@ void init_ide(storage_add_device add_func, pci_driver_t *driver)
 
     init_dma_devices();
 
-    for (uint32_t i = 0; i < DEVICES; i++)
+    for (u32 i = 0; i < DEVICES; i++)
     {
         if (ide.devices[i].present)
         {

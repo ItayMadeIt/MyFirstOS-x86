@@ -1,5 +1,6 @@
 #include <arch/i386/boot/early.h>
 #include <early/defs.h>
+#include "core/num_defs.h"
 #include <kernel/core/cpu.h>
 #include <arch/i386/early/irq.h>
 #include <arch/i386/boot/entry_data.h>
@@ -7,7 +8,7 @@
 void kernel_main(boot_data_t* data);
 
 static boot_data_t entry_data;
-void jump_high_kernel(uintptr_t stack_top, boot_data_t data)
+void jump_high_kernel(usize_ptr stack_top, boot_data_t data)
 {
     entry_data = data;
 
@@ -22,13 +23,10 @@ void jump_high_kernel(uintptr_t stack_top, boot_data_t data)
     kernel_main(&entry_data);
 }
 
-// constant offset: virt = phys + off
-extern char __va_pa_off[];
-extern char kernel_stack_top[];
 
 // Entry main acts as a trampoline
 EARLY_TEXT_SECTION
-void entry_main(uint32_t magic, multiboot_info_t* mbd)
+void entry_main(u32 magic, multiboot_info_t* mbd)
 {
     if (magic != MULTIBOOT_BOOTLOADER_MAGIC)
     {
@@ -46,6 +44,6 @@ void entry_main(uint32_t magic, multiboot_info_t* mbd)
         .mbd = mbd
     };
 
-    uint32_t new_stack_top = (uint32_t)kernel_stack_top;
+    u32 new_stack_top = (u32)kernel_stack_top;
     jump_high_kernel(new_stack_top, data);
 }

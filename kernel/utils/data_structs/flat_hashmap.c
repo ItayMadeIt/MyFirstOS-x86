@@ -22,9 +22,9 @@ typedef enum fhashmap_entry_flag
 
 // Finds the first free slot and returns it
 // Assumes empty_count > 0
-static flat_hashmap_entry_t* find_free_slot(flat_hashmap_entry_t* entries, uint64_t capacity, uint64_t hash)
+static flat_hashmap_entry_t* find_free_slot(flat_hashmap_entry_t* entries, u64 capacity, u64 hash)
 {
-    uint64_t pos = hash & (capacity-1);
+    u64 pos = hash & (capacity-1);
 
     while (entries[pos].state == STATE_USED)
     {
@@ -35,9 +35,9 @@ static flat_hashmap_entry_t* find_free_slot(flat_hashmap_entry_t* entries, uint6
 }
 
 // Updates the hashmap with the new capacity (can be the same if just a basic rehash)
-static intptr_t rehash(flat_hashmap_t* hashmap, uint64_t new_capacity)
+static ssize_ptr rehash(flat_hashmap_t* hashmap, u64 new_capacity)
 {
-    uint64_t old_capacity = hashmap->capacity;
+    u64 old_capacity = hashmap->capacity;
     assert(new_capacity >= old_capacity);
     
     // make new entries
@@ -48,13 +48,13 @@ static intptr_t rehash(flat_hashmap_t* hashmap, uint64_t new_capacity)
 
     flat_hashmap_entry_t* old_entries = hashmap->entries;
     
-    uint64_t cur_used_count = 0;
+    u64 cur_used_count = 0;
     // delete count is always 0 (point of the rehash)
     // empty count is always new_capacity - used_count (point of the rehash: used_count + empty_count = new_capacity)
 
-    uint64_t used_count = hashmap->used_count;
+    u64 used_count = hashmap->used_count;
     
-    for (uint64_t pos = 0; pos < old_capacity && cur_used_count < used_count; pos++)
+    for (u64 pos = 0; pos < old_capacity && cur_used_count < used_count; pos++)
     {
         if (old_entries[pos].state != STATE_USED)
         {
@@ -97,12 +97,12 @@ static bool need_rehash(flat_hashmap_t *map)
 }
 
 
-static flat_hashmap_entry_t* find_exact_entry_interval(flat_hashmap_t* hashmap, flat_hashmap_entry_t* from, flat_hashmap_entry_t* to, uint64_t hash, const uint8_t* key_data, uint64_t key_length)
+static flat_hashmap_entry_t* find_exact_entry_interval(flat_hashmap_t* hashmap, flat_hashmap_entry_t* from, flat_hashmap_entry_t* to, u64 hash, const u8* key_data, u64 key_length)
 {
-    uint64_t from_index = from - hashmap->entries;
-    uint64_t to_index   = to - hashmap->entries;
+    u64 from_index = from - hashmap->entries;
+    u64 to_index   = to - hashmap->entries;
 
-    uint64_t cur_index = from_index;
+    u64 cur_index = from_index;
 
     while (cur_index != to_index)
     {
@@ -124,11 +124,11 @@ static flat_hashmap_entry_t* find_exact_entry_interval(flat_hashmap_t* hashmap, 
     return NULL;
 }
 
-static flat_hashmap_entry_t* find_exact_entry(flat_hashmap_t* hashmap, uint64_t hash, const uint8_t* key_data, uint64_t key_length)
+static flat_hashmap_entry_t* find_exact_entry(flat_hashmap_t* hashmap, u64 hash, const u8* key_data, u64 key_length)
 {
     assert(hashmap->empty_count != 0);
 
-    uint64_t pos = hash & (hashmap->capacity - 1);
+    u64 pos = hash & (hashmap->capacity - 1);
 
     while (1)
     {
@@ -153,7 +153,7 @@ static flat_hashmap_entry_t* find_exact_entry(flat_hashmap_t* hashmap, uint64_t 
     return NULL;
 }
 
-static void clean_entry(flat_hashmap_entry_t* entry, uint8_t new_state)
+static void clean_entry(flat_hashmap_entry_t* entry, u8 new_state)
 {
     if (entry->flags & FLAG_ALLOCATED)
     {
@@ -168,11 +168,11 @@ static void clean_entry(flat_hashmap_entry_t* entry, uint8_t new_state)
     entry->state = new_state;
 }
 
-static intptr_t handle_rehash(flat_hashmap_t* hashmap)
+static ssize_ptr handle_rehash(flat_hashmap_t* hashmap)
 {
     if (need_resize(hashmap))
     {
-        intptr_t rehash_result = rehash(hashmap, hashmap->capacity * 2);
+        ssize_ptr rehash_result = rehash(hashmap, hashmap->capacity * 2);
         if (rehash_result < 0)
         {
             return rehash_result;
@@ -180,7 +180,7 @@ static intptr_t handle_rehash(flat_hashmap_t* hashmap)
     }
     else if (need_rehash(hashmap))
     {
-        intptr_t rehash_result = rehash(hashmap, hashmap->capacity);
+        ssize_ptr rehash_result = rehash(hashmap, hashmap->capacity);
         if (rehash_result < 0)
         {
             return rehash_result;
@@ -191,7 +191,7 @@ static intptr_t handle_rehash(flat_hashmap_t* hashmap)
 }
 
 
-flat_hashmap_t init_fhashmap_custom(uint64_t capacity, hash_func hash)
+flat_hashmap_t init_fhashmap_custom(u64 capacity, hash_func hash)
 {
     capacity = align_up_pow2(capacity);
     assert(capacity);
@@ -217,7 +217,7 @@ flat_hashmap_t init_fhashmap_custom(uint64_t capacity, hash_func hash)
     return map;
 }
 
-flat_hashmap_t init_fhashmap_capacity(uint64_t capacity)
+flat_hashmap_t init_fhashmap_capacity(u64 capacity)
 {
     return init_fhashmap_custom(capacity, murmur2_hash64);
 }
@@ -227,9 +227,9 @@ flat_hashmap_t init_fhashmap(void)
     return init_fhashmap_capacity(INIT_CAPACITY);
 }
 
-intptr_t fhashmap_insert(flat_hashmap_t* hashmap, const void *key_data, uint64_t key_length, void *data, uint8_t flags)
+ssize_ptr fhashmap_insert(flat_hashmap_t* hashmap, const void *key_data, u64 key_length, void *data, u8 flags)
 {
-    uint64_t hash = hashmap->hash(key_data, key_length);
+    u64 hash = hashmap->hash(key_data, key_length);
 
     flat_hashmap_entry_t* entry = find_free_slot(
         hashmap->entries, 
@@ -292,9 +292,9 @@ intptr_t fhashmap_insert(flat_hashmap_t* hashmap, const void *key_data, uint64_t
     return handle_rehash(hashmap);
 }
 
-flat_hashmap_result_t fhashmap_get_data(flat_hashmap_t* hashmap, const void *key_data, uint64_t key_length)
+flat_hashmap_result_t fhashmap_get_data(flat_hashmap_t* hashmap, const void *key_data, u64 key_length)
 {
-    uint64_t hash = hashmap->hash(key_data, key_length);
+    u64 hash = hashmap->hash(key_data, key_length);
 
     flat_hashmap_entry_t* same_entry = find_exact_entry(hashmap, hash, key_data, key_length);
 
@@ -314,9 +314,9 @@ flat_hashmap_result_t fhashmap_get_data(flat_hashmap_t* hashmap, const void *key
     }
 }
 
-flat_hashmap_result_t fhashmap_delete(flat_hashmap_t* hashmap, const void *key_data, uint64_t key_length)
+flat_hashmap_result_t fhashmap_delete(flat_hashmap_t* hashmap, const void *key_data, u64 key_length)
 {
-    uint64_t hash = hashmap->hash(key_data, key_length);
+    u64 hash = hashmap->hash(key_data, key_length);
 
     flat_hashmap_entry_t* same_entry = find_exact_entry(hashmap, hash, key_data, key_length);
 
@@ -353,7 +353,7 @@ flat_hashmap_result_t fhashmap_delete(flat_hashmap_t* hashmap, const void *key_d
 
 void fhashmap_clear(flat_hashmap_t* hashmap)
 {
-    for (uint32_t i = 0; i < hashmap->capacity; i++)
+    for (u32 i = 0; i < hashmap->capacity; i++)
     {
         if (hashmap->entries[i].flags & FLAG_ALLOCATED)
         {
@@ -370,7 +370,7 @@ void fhashmap_clear(flat_hashmap_t* hashmap)
 
 void fhashmap_free(flat_hashmap_t* hashmap)
 {
-    for (uint32_t i = 0; i < hashmap->capacity; i++)
+    for (u32 i = 0; i < hashmap->capacity; i++)
     {
         if (hashmap->entries[i].flags & FLAG_ALLOCATED)
         {

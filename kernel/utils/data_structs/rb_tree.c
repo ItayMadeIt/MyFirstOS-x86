@@ -25,18 +25,18 @@ static inline void set_black(rb_node_t* node)
 }
 static inline rb_node_t* get_parent(const rb_node_t* node)
 {
-	uintptr_t parent_addr = node->parent_color & (uintptr_t)(~RB_FLAGS);
+	usize_ptr parent_addr = node->parent_color & (usize_ptr)(~RB_FLAGS);
 	return (rb_node_t*)( parent_addr );
 }
 
 static inline void set_parent(rb_node_t* node, const rb_node_t* new_parent)
 {
-	node->parent_color = (node->parent_color & RB_FLAGS) | (uintptr_t)new_parent;
+	node->parent_color = (node->parent_color & RB_FLAGS) | (usize_ptr)new_parent;
 }
 
 static inline void set_color_to_other(rb_node_t* left, rb_node_t* right)
 {
-	left->parent_color = (uintptr_t)get_parent(left) | (right->parent_color & RB_COLOR);
+	left->parent_color = (usize_ptr)get_parent(left) | (right->parent_color & RB_COLOR);
 }
 
 static inline rb_node_t* get_sibling(const rb_node_t* node)

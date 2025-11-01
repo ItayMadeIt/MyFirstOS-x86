@@ -1,8 +1,9 @@
 #ifndef __VIRT_ALLOC_H__
 #define __VIRT_ALLOC_H__
 
+#include "core/num_defs.h"
 #include "memory/core/pfn_desc.h"
-#include <stdint.h>
+#include "core/num_defs.h"
 #include <stdbool.h>
 #include <kernel/memory/paging.h>
 
@@ -52,22 +53,22 @@ static inline enum virt_region_type phys_to_virt_type(enum phys_page_type p)
     }
 }
 
-void* kvalloc_pages(uintptr_t count, enum virt_region_type vregion, uint16_t page_flags);
+void* kvalloc_pages(usize_ptr count, enum virt_region_type vregion, u16 page_flags);
 void  kvfree_pages(void* va_ptr);
 
-void* kvmap_phys_vec(const phys_run_vec_t* run, enum virt_region_type vregion, uint16_t page_flags);
+void* kvmap_phys_vec(const phys_run_vec_t* run, enum virt_region_type vregion, u16 page_flags);
 void  kvunmap_phys_vec(void* va, const phys_run_vec_t* run);
 
-void* vmap_identity(void* pa, uintptr_t count, enum virt_region_type type, uint16_t flags);
+void* vmap_identity(void* pa, usize_ptr count, enum virt_region_type type, u16 flags);
 
-// need to do it: void* vmap(uintptr_t* phys_pages, uint64_t page_count, uint16_t flags);
-// need to do it: void  vunmap(void* addr, uint64_t page_count);
+// need to do it: void* vmap(usize_ptr* phys_pages, u64 page_count, u16 flags);
+// need to do it: void  vunmap(void* addr, u64 page_count);
 
 void init_virt_alloc();
 void kvmark_region(void* from, void* to, enum virt_region_type vregion, const char* name);
 void kvunmark_region(void* from, void* to);
 
 // (currently not implemented) 
-// void* kvrealloc_pages(void* va_ptr, uintptr_t count, uint16_t page_type, uint16_t page_flags);
+// void* kvrealloc_pages(void* va_ptr, usize_ptr count, u16 page_type, u16 page_flags);
 
 #endif // __VIRT_ALLOC_H__

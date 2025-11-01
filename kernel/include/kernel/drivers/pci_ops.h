@@ -8,12 +8,12 @@
 
 #define PCI_CMD_OFF 0x04
 
-uint8_t pci_config_read_byte(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset);
-uint16_t pci_config_read_word(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset);
-uint32_t pci_config_read_dword(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset);
+u8 pci_config_read_byte(u8 bus, u8 slot, u8 func, u8 offset);
+u16 pci_config_read_word(u8 bus, u8 slot, u8 func, u8 offset);
+u32 pci_config_read_dword(u8 bus, u8 slot, u8 func, u8 offset);
 
-void pci_config_write_byte(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, uint8_t data);
-void pci_config_write_word(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, uint16_t data);
-void pci_config_write_dword(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, uint32_t data);
+void pci_config_write_byte(u8 bus, u8 slot, u8 func, u8 offset, u8 data);
+void pci_config_write_word(u8 bus, u8 slot, u8 func, u8 offset, u16 data);
+void pci_config_write_dword(u8 bus, u8 slot, u8 func, u8 offset, u32 data);
 
 #endif // __PCI_OPS_H__

@@ -1,8 +1,9 @@
 #ifndef __DEFS_H__
 #define __DEFS_H__
 
-#include <stdint.h>
 #include <stdbool.h>
+#include "core/num_defs.h"
+#include "core/atomic_defs.h"
 
 #define max(a, b) (a > b ? a : b)
 #define min(a, b) (a < b ? a : b)
@@ -33,22 +34,22 @@
 #define STOR_512MiB 0x20000000
 #define STOR_GiB    0x40000000
 #define STOR_2GiB   0x80000000
-#define STOR_4GiB   ((uint64_t)0x100000000)
+#define STOR_4GiB   ((u64)0x100000000)
 
 #define container_of(ptr, type, member) \
-    ((type *)((char *)(ptr) - (uintptr_t)&(((type *)0)->member)))
+    ((type *)((char *)(ptr) - (usize_ptr)&(((type *)0)->member)))
 
 #define clamp(v, min, max) (v < min ? min : (v > max ? max : v))
 
-#define MAX_VADDR ((uintptr_t)-1) 
+#define MAX_VADDR ((usize_ptr)-1) 
 #define HIGH_VADDR 0xC0000000
 
 void abort();
 void assert(bool must_be_true);
 
-static inline uint32_t log2_u32(uint32_t x) 
+static inline u32 log2_u32(u32 x) 
 {
-    uint32_t result;
+    u32 result;
     __asm__ (
         "bsr %1, %0"
         : "=r" (result)
@@ -59,13 +60,13 @@ static inline uint32_t log2_u32(uint32_t x)
 }
 
 
-static inline uintptr_t align_to_n(uintptr_t value, uintptr_t alignment/*2^n*/)
+static inline usize_ptr align_to_n(usize_ptr value, usize_ptr alignment/*2^n*/)
 {
     assert((alignment & (alignment-1)) == 0);
 
     return (value + alignment - 1) & ~(alignment - 1);
 }
-static inline uintptr_t align_up_pow2(uintptr_t value)
+static inline usize_ptr align_up_pow2(usize_ptr value)
 {
     if (value == 0) return 1;
 

@@ -6,13 +6,13 @@
 idt_entry_t idt_entries[IDT_ENTRIES];
 void (*interrupt_callback_entries[IDT_ENTRIES]) (irq_frame_t* data);
 
-static void set_idt_entry(uint32_t entry_index, void (*handler_addr_ptr), uint16_t selector, uint8_t type_attr)
+static void set_idt_entry(u32 entry_index, void (*handler_addr_ptr), u16 selector, u8 type_attr)
 {
     idt_entries[entry_index].zero = 0;
     
-    uintptr_t handler_addr = (uintptr_t)handler_addr_ptr;
-    idt_entries[entry_index].offset_low = ((uint32_t)handler_addr) & 0xFFFF;
-    idt_entries[entry_index].offset_high = ((uint32_t)handler_addr >> 16) & 0xFFFF;
+    usize_ptr handler_addr = (usize_ptr)handler_addr_ptr;
+    idt_entries[entry_index].offset_low = ((u32)handler_addr) & 0xFFFF;
+    idt_entries[entry_index].offset_high = ((u32)handler_addr >> 16) & 0xFFFF;
 
     idt_entries[entry_index].segment_selector = selector;
     idt_entries[entry_index].type_attr = type_attr;
@@ -44,7 +44,7 @@ void irq_disable()
 
 bool irq_is_enabled()
 {
-    uintptr_t flags;
+    usize_ptr flags;
     
     asm volatile(
         "pushf\n\t"
@@ -56,7 +56,7 @@ bool irq_is_enabled()
 }
 void idt_c_handler(irq_frame_t *frame)
 {
-    uint32_t v = frame->irq_index;
+    u32 v = frame->irq_index;
 
     void (*callback)(irq_frame_t*) = interrupt_callback_entries[v];
     
@@ -66,9 +66,9 @@ void idt_c_handler(irq_frame_t *frame)
     }
 }
 
-uintptr_t irq_save()
+usize_ptr irq_save()
 {
-    uintptr_t flags;
+    usize_ptr flags;
     asm volatile(
         "pushf\n\t"
         "pop %0\n\t"
@@ -81,7 +81,7 @@ uintptr_t irq_save()
     return flags;
 }
 
-void irq_restore(uintptr_t flags)
+void irq_restore(usize_ptr flags)
 {
     asm volatile(
         "push %0\n\t"
@@ -92,19 +92,19 @@ void irq_restore(uintptr_t flags)
     );
 }
 
-void irq_register_handler(uint32_t vector, void (*handle)(irq_frame_t*))
+void irq_register_handler(u32 vector, void (*handle)(irq_frame_t*))
 {
     interrupt_callback_entries[vector] = handle;
 }
 
-uintptr_t irq_frame_get_error(irq_frame_t *frame)
+usize_ptr irq_frame_get_error(irq_frame_t *frame)
 {
     return frame->err_code;
 }
 
 void init_irq()
 {
-    for (uint16_t i = 0; i < IDT_ENTRIES; ++i) 
+    for (u16 i = 0; i < IDT_ENTRIES; ++i) 
     {
         interrupt_callback_entries[i] = 0;
     
@@ -170,7 +170,7 @@ void init_irq()
 
 
     idt_descriptor_t idt_descriptor;
-    idt_descriptor.base = (uint32_t)&idt_entries;
+    idt_descriptor.base = (u32)&idt_entries;
     idt_descriptor.limit = sizeof(idt_entries)- 1;
 
     load_idt_descriptor(&idt_descriptor);

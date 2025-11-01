@@ -1,7 +1,7 @@
 #ifndef __I386_PAGING_H__
 #define __I386_PAGING_H__
 
-#include <stdint.h>
+#include "core/num_defs.h"
 #define PAGE_ENTRY_FLAG(x) (1 << x)
 
 #define PAGE_ENTRY_FLAG_PRESENT   PAGE_ENTRY_FLAG(0)
@@ -15,20 +15,20 @@
 
 #define PAGE_ENTRY_WRITE_KERNEL_FLAGS (PAGE_ENTRY_FLAG_PRESENT | PAGE_ENTRY_FLAG_WRITE)
 
-#define INVALID_PAGE_MEMORY (uint32_t)(~0)
+#define INVALID_PAGE_MEMORY (u32)(~0)
 
 #define ENTRIES_AMOUNT 1024
 #define PAGE_SIZE STOR_4KiB
 #define PAGE_SHIFT 12
-#define PAGE_MASK (uintptr_t)(~(PAGE_SIZE-1))
+#define PAGE_MASK (usize_ptr)(~(PAGE_SIZE-1))
 
-typedef struct __attribute__((aligned(ENTRIES_AMOUNT * sizeof(uint32_t)))) 
+typedef struct __attribute__((aligned(ENTRIES_AMOUNT * sizeof(u32)))) 
     page_table
 {
     void* entries[ENTRIES_AMOUNT];
 }  page_table_t;
 
-typedef struct __attribute__((aligned(ENTRIES_AMOUNT * sizeof(uint32_t)))) 
+typedef struct __attribute__((aligned(ENTRIES_AMOUNT * sizeof(u32)))) 
     page_directory
 {
     void* entries[ENTRIES_AMOUNT];

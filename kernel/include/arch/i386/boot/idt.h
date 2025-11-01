@@ -3,7 +3,7 @@
 
 #define IDT_ENTRIES 256
 
-void early_set_interrupt_c_callback(uint8_t entry_index, void (*callback) (uint32_t error_code));
+void early_set_interrupt_c_callback(u8 entry_index, void (*callback) (u32 error_code));
 
 void early_isr0();
 void early_isr1();

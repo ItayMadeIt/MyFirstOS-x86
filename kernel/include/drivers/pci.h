@@ -5,109 +5,109 @@
 
 typedef struct __attribute__((packed)) pci_common_header 
 {
-    uint16_t vendor_id;
-    uint16_t device_id;
-    uint16_t command;
-    uint16_t status;
-    uint8_t  revision_id;
-    uint8_t  progif;
-    uint8_t  subclass_code;
-    uint8_t  class_code;
-    uint8_t  cache_line_size;
-    uint8_t  latency_timer;
-    uint8_t  header_type;
-    uint8_t  bist;
+    u16 vendor_id;
+    u16 device_id;
+    u16 command;
+    u16 status;
+    u8  revision_id;
+    u8  progif;
+    u8  subclass_code;
+    u8  class_code;
+    u8  cache_line_size;
+    u8  latency_timer;
+    u8  header_type;
+    u8  bist;
 } pci_common_header_t;
 
 typedef struct __attribute__((packed)) pci_device_header {
     pci_common_header_t header;
 
-    uint32_t base_addr[6];
-    uint32_t cardbus_cis_ptr;
+    u32 base_addr[6];
+    u32 cardbus_cis_ptr;
 
-    uint16_t subsystem_vendor_id;
-    uint16_t subsystem_id;
+    u16 subsystem_vendor_id;
+    u16 subsystem_id;
 
-    uint32_t expansion_rom_base_addr;
+    u32 expansion_rom_base_addr;
 
-    uint8_t  capabilities_ptr;
-    uint8_t  reserved1[3];
-    uint32_t reserved2;
+    u8  capabilities_ptr;
+    u8  reserved1[3];
+    u32 reserved2;
 
-    uint8_t  interrupt_line;
-    uint8_t  interrupt_pin;
-    uint8_t  min_grant;
-    uint8_t  max_latency;
+    u8  interrupt_line;
+    u8  interrupt_pin;
+    u8  min_grant;
+    u8  max_latency;
 } pci_device_header_t;
 
 typedef struct __attribute__((packed)) pci_bridge_header {
     pci_common_header_t header;
 
-    uint32_t base_addr[2];
+    u32 base_addr[2];
 
-    uint8_t  primary_bus_number;
-    uint8_t  secondary_bus_number;
-    uint8_t  subordinate_bus_number;
-    uint8_t  secondary_latency_timer;
+    u8  primary_bus_number;
+    u8  secondary_bus_number;
+    u8  subordinate_bus_number;
+    u8  secondary_latency_timer;
 
-    uint8_t  io_base;
-    uint8_t  io_limit;
-    uint16_t secondary_status;
+    u8  io_base;
+    u8  io_limit;
+    u16 secondary_status;
 
-    uint16_t memory_base;
-    uint16_t memory_limit;
+    u16 memory_base;
+    u16 memory_limit;
 
-    uint16_t prefetchable_memory_base;
-    uint16_t prefetchable_memory_limit;
+    u16 prefetchable_memory_base;
+    u16 prefetchable_memory_limit;
 
-    uint32_t prefetchable_base_upper32;
-    uint32_t prefetchable_limit_upper32;
+    u32 prefetchable_base_upper32;
+    u32 prefetchable_limit_upper32;
 
-    uint16_t io_base_upper16;
-    uint16_t io_limit_upper16;
+    u16 io_base_upper16;
+    u16 io_limit_upper16;
 
-    uint8_t  capabilities_ptr;
-    uint8_t  reserved1[3];
+    u8  capabilities_ptr;
+    u8  reserved1[3];
 
-    uint32_t expansion_rom_base_addr;
+    u32 expansion_rom_base_addr;
 
-    uint8_t  interrupt_line;
-    uint8_t  interrupt_pin;
-    uint16_t bridge_control;
+    u8  interrupt_line;
+    u8  interrupt_pin;
+    u16 bridge_control;
 } pci_bridge_header_t;
 
 typedef struct __attribute__((packed)) pci_cardbus_bridge_header {
     pci_common_header_t header;
 
-    uint32_t cardbus_socket_base_addr;
+    u32 cardbus_socket_base_addr;
 
-    uint8_t  capabilities_list_offset;
-    uint8_t  reserved;
-    uint16_t secondary_status;
+    u8  capabilities_list_offset;
+    u8  reserved;
+    u16 secondary_status;
 
-    uint8_t  pci_bus_number;
-    uint8_t  cardbus_bus_number;
-    uint8_t  subordinate_bus_number;
-    uint8_t  cardbus_latency_timer;
+    u8  pci_bus_number;
+    u8  cardbus_bus_number;
+    u8  subordinate_bus_number;
+    u8  cardbus_latency_timer;
 
-    uint32_t memory_base_addr0;
-    uint32_t memory_limit0;
-    uint32_t memory_base_addr1;
-    uint32_t memory_limit1;
+    u32 memory_base_addr0;
+    u32 memory_limit0;
+    u32 memory_base_addr1;
+    u32 memory_limit1;
 
-    uint32_t io_base_addr0;
-    uint32_t io_limit0;
-    uint32_t io_base_addr1;
-    uint32_t io_limit1;
+    u32 io_base_addr0;
+    u32 io_limit0;
+    u32 io_base_addr1;
+    u32 io_limit1;
 
-    uint8_t  interrupt_line;
-    uint8_t  interrupt_pin;
-    uint16_t bridge_control;
+    u8  interrupt_line;
+    u8  interrupt_pin;
+    u16 bridge_control;
 
-    uint16_t subsystem_device_id;
-    uint16_t subsystem_vendor_id;
+    u16 subsystem_device_id;
+    u16 subsystem_vendor_id;
 
-    uint32_t legacy_base_addr;
+    u32 legacy_base_addr;
 } pci_cardbus_bridge_header_t;
 
 enum header_type 
@@ -118,9 +118,9 @@ enum header_type
 } ;
 
 typedef struct pci_driver {
-    uint8_t func;                // function number (0–7)
-    uint8_t slot;                    // device slot (0-31)
-    uint8_t bus;                     // bus number (0-255)
+    u8 func;                // function number (0–7)
+    u8 slot;                    // device slot (0-31)
+    u8 bus;                     // bus number (0-255)
     union {
         pci_common_header_t         header;
         pci_device_header_t         device_header;
@@ -138,21 +138,21 @@ typedef struct pci_function {
 } pci_function_t;
 
 typedef struct pci_device {
-    uint8_t slot;                    // device slot (0-31)
-    uint8_t bus;                     // bus number (0-255)
+    u8 slot;                    // device slot (0-31)
+    u8 bus;                     // bus number (0-255)
     pci_function_t* func_ll;
     // next device in same bus
     struct pci_device* next;
 } pci_device_t;
 
 typedef struct pci_bus {
-    uint8_t bus;                     // bus number (0–255)
+    u8 bus;                     // bus number (0–255)
     pci_device_t* dev_ll;
     // next bus
     struct pci_bus* next;
 } pci_bus_t;
 
-pci_driver_t* get_pci_device(uint16_t class_code, uint16_t subclass_code);
+pci_driver_t* get_pci_device(u16 class_code, u16 subclass_code);
 
 void init_pci();
 

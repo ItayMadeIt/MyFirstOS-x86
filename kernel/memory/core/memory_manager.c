@@ -16,7 +16,7 @@
 #define HEAP_MAX_SIZE  STOR_256MiB
 
 
-static phys_alloc_t dummy_alloc_phys_pages(uintptr_t count) 
+static phys_alloc_t dummy_alloc_phys_pages(usize_ptr count) 
 {
     (void)count;
     abort();
@@ -46,8 +46,8 @@ static void dummy_free_phys_pages(phys_alloc_t alloc)
 
 typedef struct interval
 {
-    uintptr_t begin;
-    uintptr_t end;
+    usize_ptr begin;
+    usize_ptr end;
 } interval_t;
 
 void init_memory(boot_data_t* boot_data)
@@ -68,19 +68,19 @@ void init_memory(boot_data_t* boot_data)
 
     // Make a PFN based physical allocator
     interval_t pfn_interval;
-    pfn_interval.begin = (uintptr_t) free_virt_addr;
+    pfn_interval.begin = (usize_ptr) free_virt_addr;
     init_pfn_descriptors(&free_virt_addr, boot_data);
     init_pfn_allocator(boot_data);
-    pfn_interval.end = (uintptr_t) free_virt_addr;
+    pfn_interval.end = (usize_ptr) free_virt_addr;
 
     alloc_phys_page  = pfn_alloc_phys_page;
     alloc_phys_pages = pfn_alloc_phys_pages;
     free_phys_page   = pfn_free_phys_page;
     free_phys_pages  = pfn_free_phys_pages;
 
-    uintptr_t heap_begin = round_page_up(free_virt_addr);
-    uintptr_t heap_init_size = clamp(max_memory / 16, STOR_8MiB, STOR_128MiB);
-    uintptr_t heap_max_size = clamp(max_memory/4, STOR_32MiB, STOR_256MiB);
+    usize_ptr heap_begin = round_page_up(free_virt_addr);
+    usize_ptr heap_init_size = clamp(max_memory / 16, STOR_8MiB, STOR_128MiB);
+    usize_ptr heap_max_size = clamp(max_memory/4, STOR_32MiB, STOR_256MiB);
     init_heap((void*)heap_begin, heap_max_size, heap_init_size);
 
     interval_t heap_interval;

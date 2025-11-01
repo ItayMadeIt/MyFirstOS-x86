@@ -6,7 +6,7 @@
 
 extern void ps2_handler();
 
-uint8_t ps2_read_data(void)
+u8 ps2_read_data(void)
 {
     return inb(PS2_DATA);;
 }
@@ -15,8 +15,8 @@ void ps2_send_eoi(void)
     pic_send_eoi_vector(PS2_IRQ_VECTOR);
 }
 
-static uint16_t ps2_kc_map[128];
-static uint16_t ps2_kc_map_ext[128];
+static u16 ps2_kc_map[128];
+static u16 ps2_kc_map_ext[128];
 
 void unmask_ps2_key()
 {
@@ -27,7 +27,7 @@ void unmask_ps2_key()
 
 void ps2_init()
 {
-    for (uint16_t i = 0; i < 128; i++)
+    for (u16 i = 0; i < 128; i++)
     {
         ps2_kc_map[i] = KEYCODE_NONE;
         ps2_kc_map_ext[i] = KEYCODE_NONE;
@@ -164,7 +164,7 @@ void ps2_key_dispatch(irq_frame_t* frame)
 
     static bool extended = false;
 
-    uint8_t ps2_scancode = ps2_read_data();
+    u8 ps2_scancode = ps2_read_data();
 
     // extended key
     if (ps2_scancode == 0xE0)
@@ -182,8 +182,8 @@ void ps2_key_dispatch(irq_frame_t* frame)
     } 
     
     bool released    = ps2_scancode & 0x80;
-    uint8_t code     = ps2_scancode & 0x7F;
-    uint16_t keycode = KEYCODE_NONE;
+    u8 code     = ps2_scancode & 0x7F;
+    u16 keycode = KEYCODE_NONE;
 
     if (extended) 
     {

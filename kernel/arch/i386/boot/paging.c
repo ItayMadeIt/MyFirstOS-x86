@@ -25,18 +25,18 @@ static page_table_t boot_tables[BOOT_TABLES];
 EARLY_TEXT_SECTION
 void zero_page_directory(page_directory_t* page_dir)
 {
-    for (uint32_t i = 0; i < ENTRIES_AMOUNT; ++i) 
+    for (u32 i = 0; i < ENTRIES_AMOUNT; ++i) 
     {
         page_dir->entries[i] = 0;
     }
 }
 
 EARLY_TEXT_SECTION
-void zero_page_table(page_table_t* page_table, uint32_t amount)
+void zero_page_table(page_table_t* page_table, u32 amount)
 {
     do
     {
-        for (uint32_t i = 0; i < ENTRIES_AMOUNT; ++i) 
+        for (u32 i = 0; i < ENTRIES_AMOUNT; ++i) 
         {
             page_table->entries[i] = 0;
         }
@@ -60,31 +60,31 @@ static inline void set_cr3(page_directory_t* page_directory)
 EARLY_TEXT_SECTION
 static void map_span(page_directory_t* pd,
     page_table_t** free_pt,
-    uint32_t vaddr,
-    uint32_t paddr,
-    uint32_t pages,
-    uint16_t flags)
+    u32 vaddr,
+    u32 paddr,
+    u32 pages,
+    u16 flags)
 {
     while (pages)
     {
-        uint32_t dir_index = vaddr >> 22;
-        uint32_t table_index = (vaddr >> 12) & 0x3FF;
+        u32 dir_index = vaddr >> 22;
+        u32 table_index = (vaddr >> 12) & 0x3FF;
 
         // choose the PT this PDE points to (or install a new one)
         page_table_t* pt;
 
-        uint32_t pde_val = (uint32_t)pd->entries[dir_index];
+        u32 pde_val = (u32)pd->entries[dir_index];
         
         if ((pde_val & PAGE_ENTRY_FLAG_PRESENT) == 0)
         {
             // take next free table
             pt = *free_pt;
-            for (uint32_t i = 0; i < ENTRIES_AMOUNT; ++i) 
+            for (u32 i = 0; i < ENTRIES_AMOUNT; ++i) 
             {
                 pt->entries[i] = 0;
             }
 
-            pd->entries[dir_index] = (void*)(((uint32_t)pt & ~0xFFF) | flags);
+            pd->entries[dir_index] = (void*)(((u32)pt & ~0xFFF) | flags);
 
             // advance free list
             (*free_pt)++;
@@ -113,7 +113,7 @@ static void map_span(page_directory_t* pd,
 EARLY_TEXT_SECTION
 static inline void enable_paging()
 {
-    uint32_t cr0;
+    u32 cr0;
     asm volatile(
         "mov %%cr0, %0\n\t"
         "or  $0x80000000, %0\n\t"
@@ -134,13 +134,13 @@ void init_paging()
     zero_page_table(kernel_tables, KERNEL_TABLES);
     zero_page_table(boot_tables, BOOT_TABLES);
 
-    uint32_t pa_boot_base  = STOR_1MiB;
-    uint32_t off    = (uint32_t)__va_pa_off;                      // virt = phys + off
-    uint32_t va_kernel_base = (uint32_t)__kernel_start;           // high VMA start
-    uint32_t pa_kernel_base = (uint32_t)__kernel_phys_base_sym;      // LMA for high start
+    u32 pa_boot_base  = STOR_1MiB;
+    u32 off    = (u32)__va_pa_off;                      // virt = phys + off
+    u32 va_kernel_base = (u32)__kernel_start;           // high VMA start
+    u32 pa_kernel_base = (u32)__kernel_phys_base_sym;      // LMA for high start
     
-    uint32_t kernel_pages = PAGES_UP((uint32_t)(__image_end - __kernel_start));
-    uint32_t boot_pages   = PAGES_UP(pa_kernel_base - pa_boot_base);
+    u32 kernel_pages = PAGES_UP((u32)(__image_end - __kernel_start));
+    u32 boot_pages   = PAGES_UP(pa_kernel_base - pa_boot_base);
 
     // Identity-map first 4 MiB using boot_tables
     page_table_t* free_boot_pt = boot_tables;
@@ -177,7 +177,7 @@ void init_paging()
 
     // Recursive paging
     page_directory.entries[ENTRIES_AMOUNT-1] =
-        (void*)(((uint32_t)&page_directory) | PAGE_ENTRY_WRITE_KERNEL_FLAGS);
+        (void*)(((u32)&page_directory) | PAGE_ENTRY_WRITE_KERNEL_FLAGS);
 
     // Load and continue
     set_cr3(&page_directory);

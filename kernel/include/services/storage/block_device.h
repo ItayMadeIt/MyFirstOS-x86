@@ -1,9 +1,10 @@
 #ifndef __BLOCK_DEVICE_H__
 #define __BLOCK_DEVICE_H__
 
+#include "core/num_defs.h"
 #include "utils/data_structs/flat_hashmap.h"
 #include "utils/data_structs/rb_tree.h"
-#include <stdint.h>
+#include "core/num_defs.h"
 #include "core/num_defs.h"
 
 typedef struct stor_device stor_device_t;

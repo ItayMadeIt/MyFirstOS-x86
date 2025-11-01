@@ -1,7 +1,7 @@
 #ifndef __STORAGE_H__
 #define __STORAGE_H__
 
-#include <stdint.h>
+#include "core/num_defs.h"
 #include <services/storage/block_device.h>
 #include <services/storage/partition.h>
 #include <utils/data_structs/flat_hashmap.h>
@@ -46,7 +46,7 @@ struct stor_device
 
     void (*submit)(stor_request_t* req);    
 
-    uint64_t sector_size;
+    u64 sector_size;
 
     block_device_data_t cache;
     partition_table_t partition_table;
@@ -54,19 +54,19 @@ struct stor_device
 
 stor_device_t* main_stor_device();
 
-stor_device_t* stor_get_device(uint64_t dev_index);
+stor_device_t* stor_get_device(u64 dev_index);
 void init_storage();
 
-typedef uintptr_t (*storage_add_device)(
+typedef uptr (*storage_add_device)(
     void* data, 
-    uint64_t sector_size, 
+    u64 sector_size, 
     void (*submit)(stor_request_t*), 
-    uint64_t disk_size
+    u64 disk_size
 );
 
-static inline uint64_t cache_block_to_lba(stor_device_t *dev, uint64_t cache_index) 
+static inline u64 cache_block_to_lba(stor_device_t *dev, u64 cache_index) 
 {
-    uint64_t byte_offset = cache_index * dev->cache.block_size;
+    u64 byte_offset = cache_index * dev->cache.block_size;
 
     return byte_offset / dev->sector_size; 
 }

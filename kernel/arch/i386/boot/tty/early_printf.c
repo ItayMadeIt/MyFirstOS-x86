@@ -1,8 +1,8 @@
 #include <limits.h>
 #include <stdbool.h>
 #include <stdarg.h>
-#include <stdio.h>
 #include <string.h>
+#include "arch/i386/boot/early_tty.h"
 
 static bool print(const char* data, usize_ptr length) 
 {
@@ -10,7 +10,7 @@ static bool print(const char* data, usize_ptr length)
 
 	for (usize_ptr i = 0; i < length; i++)
 	{	
-		if (putchar(bytes[i]) == EOF)
+		if (early_putchar(bytes[i]) == EOF)
 			return false;
 	}
 	
@@ -21,7 +21,7 @@ static int print_int(int value)
 {
     if (value == 0) 
 	{
-        putchar('0');
+        early_putchar('0');
         return 1;
     }
 
@@ -29,7 +29,7 @@ static int print_int(int value)
 
     if (value < 0) 
 	{
-        putchar('-');
+        early_putchar('-');
         value = -value;
 
 		count++;
@@ -47,7 +47,7 @@ static int print_int(int value)
     // print in reverse order
     while (i--) 
 	{
-        if (putchar(digits[i]) == EOF)
+        if (early_putchar(digits[i]) == EOF)
 		{
 			return -1;
 		}
@@ -61,7 +61,7 @@ static int print_long(long value)
 {
     if (value == 0) 
 	{
-        putchar('0');
+        early_putchar('0');
         return 1;
     }
 
@@ -69,7 +69,7 @@ static int print_long(long value)
 
     if (value < 0) 
 	{
-        putchar('-');
+        early_putchar('-');
         value = -value;
 
 		count++;
@@ -87,7 +87,7 @@ static int print_long(long value)
     // print in reverse order
     while (i--) 
 	{
-        if (putchar(digits[i]) == EOF)
+        if (early_putchar(digits[i]) == EOF)
 		{
 			return -1;
 		}
@@ -102,7 +102,7 @@ static int print_longlong(long long value)
 {
     if (value == 0) 
 	{
-        putchar('0');
+        early_putchar('0');
         return 1;
     }
 
@@ -110,7 +110,7 @@ static int print_longlong(long long value)
 
     if (value < 0) 
 	{
-        putchar('-');
+        early_putchar('-');
         value = -value;
 
 		count++;
@@ -128,7 +128,7 @@ static int print_longlong(long long value)
     // print in reverse order
     while (i--) 
 	{
-        if (putchar(digits[i]) == EOF)
+        if (early_putchar(digits[i]) == EOF)
 		{
 			return -1;
 		}
@@ -142,7 +142,7 @@ static int print_ulong(unsigned long value)
 {
     if (value == 0) 
 	{
-        putchar('0');
+        early_putchar('0');
         return 1;
     }
 
@@ -160,7 +160,7 @@ static int print_ulong(unsigned long value)
     // print in reverse order
     while (i--) 
 	{
-        if (putchar(digits[i]) == EOF)
+        if (early_putchar(digits[i]) == EOF)
 		{
 			return -1;
 		}
@@ -174,7 +174,7 @@ static int print_ulonglong(unsigned long long value)
 {
     if (value == 0) 
 	{
-        putchar('0');
+        early_putchar('0');
         return 1;
     }
 
@@ -192,7 +192,7 @@ static int print_ulonglong(unsigned long long value)
     // print in reverse order
     while (i--) 
 	{
-        if (putchar(digits[i]) == EOF)
+        if (early_putchar(digits[i]) == EOF)
 		{
 			return -1;
 		}
@@ -230,14 +230,14 @@ static int print_hex(unsigned int value, bool uppercase, unsigned int min_digits
     int count = 0;
     while (i--) 
 	{
-        if (putchar(digits[i]) == EOF) return -1;
+        if (early_putchar(digits[i]) == EOF) return -1;
         count++;
     }
     return count;
 }
 
 
-int printf(const char* restrict format, ...) 
+int early_printf(const char* restrict format, ...) 
 {
 	va_list parameters;
 	va_start(parameters, format);
@@ -387,7 +387,7 @@ int printf(const char* restrict format, ...)
 					int i = 0;
 					const char* hex = "0123456789abcdef";
 					if (val == 0) {
-						putchar('0');
+						early_putchar('0');
 						written++;
 					} else {
 						while (val > 0) {
@@ -395,7 +395,7 @@ int printf(const char* restrict format, ...)
 							val /= 16;
 						}
 						while (i--) {
-							putchar(buf[i]);
+							early_putchar(buf[i]);
 							written++;
 						}
 					}
@@ -407,7 +407,7 @@ int printf(const char* restrict format, ...)
 					int i = 0;
 					const char* hex = "0123456789ABCDEF";
 					if (val == 0) {
-						putchar('0');
+						early_putchar('0');
 						written++;
 					} else {
 						while (val > 0) {
@@ -415,7 +415,7 @@ int printf(const char* restrict format, ...)
 							val /= 16;
 						}
 						while (i--) {
-							putchar(buf[i]);
+							early_putchar(buf[i]);
 							written++;
 						}
 					}

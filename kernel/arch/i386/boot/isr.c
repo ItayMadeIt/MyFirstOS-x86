@@ -1,49 +1,49 @@
-#include <stdint.h>
+#include "core/num_defs.h"
 #include <early/defs.h>
-#include <core/debug.h>
 #include <kernel/core/cpu.h>
 #include <kernel/interrupts/irq.h>
 #include <arch/i386/boot/idt.h>
+#include "arch/i386/boot/early_tty.h"
 
 #define DIVIDE_0_INDEX   0
 #define GEN_PROT_INDEX   13
 #define PAGE_FAULT_INDEX 14
 
 EARLY_TEXT_SECTION
-void interrupt_div0(uint32_t _unused_)
+void interrupt_div0(u32 _unused_)
 {
     (void)_unused_;
     
-    debug_print_str("Divide by 0 error\n");
+    early_printf("Divide by 0 error\n");
 
     cpu_halt();
 }
 
 EARLY_TEXT_SECTION
-void interrupt_gen_prot(uint32_t error)
+void interrupt_gen_prot(u32 error)
 {
     (void)error;
 
-    debug_print_str("General Protection Fault\n");
+    early_printf("General Protection Fault\n");
 
     cpu_halt();
 }
 
 EARLY_TEXT_SECTION
-void interrupt_page_fault(uint32_t error)
+void interrupt_page_fault(u32 error)
 {
-    debug_print_str("Page fault error:\n");
+    early_printf("Page fault error:\n");
 
     // write/read
     if (error & 0b10)
-        debug_print_str("Write page error\n");
+        early_printf("Write page error\n");
     else 
-        debug_print_str("Read page error\n");
+        early_printf("Read page error\n");
 
     if (error & 0b100)
-        debug_print_str("CPL == 3\n");
+        early_printf("CPL == 3\n");
     else
-        debug_print_str("CPL != 3\n");
+        early_printf("CPL != 3\n");
 
     cpu_halt();
 }

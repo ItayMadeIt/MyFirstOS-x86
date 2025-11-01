@@ -1,4 +1,5 @@
 #include "core/defs.h"
+#include "core/num_defs.h"
 #include "memory/heap/heap.h"
 #include "services/storage/partition.h"
 #include <services/storage/block_device.h>
@@ -11,16 +12,16 @@ void init_arch_storage(storage_add_device add_func);
 typedef struct stor_vars
 {
     stor_device_t* dev_arr;
-    uintptr_t capacity;
-    uintptr_t count;
+    usize_ptr capacity;
+    usize_ptr count;
 } stor_vars_t;
 
 stor_vars_t storage;
 
 static stor_device_t* main_device;
-static uint64_t main_device_disk_size;
+static u64 main_device_disk_size;
 
-static uintptr_t add_stor_device(void* data, uint64_t sector_size, void (*submit)(stor_request_t*), uint64_t disk_size)
+static usize_ptr add_stor_device(void* data, u64 sector_size, void (*submit)(stor_request_t*), u64 disk_size)
 {
     assert(sector_size == align_up_pow2(sector_size));
 
@@ -37,7 +38,7 @@ static uintptr_t add_stor_device(void* data, uint64_t sector_size, void (*submit
     storage.dev_arr[storage.count].submit = submit;
     storage.dev_arr[storage.count].disk_size = disk_size;
 
-    uint64_t block_size = max(sector_size, PAGE_SIZE);
+    u64 block_size = max(sector_size, PAGE_SIZE);
     storage.dev_arr[storage.count].cache.block_size = block_size;
     storage.dev_arr[storage.count].cache.pages_per_block = block_size / PAGE_SIZE;
 
@@ -55,7 +56,7 @@ stor_device_t* stor_main_device()
     return main_device;
 }
 
-stor_device_t *stor_get_device(uint64_t dev_index)
+stor_device_t *stor_get_device(u64 dev_index)
 {
     if (dev_index >= storage.count)
     {
@@ -84,7 +85,7 @@ void init_storage()
 
     assert(main_device);
 
-    for (uint64_t i = 0; i < storage.count; i++)
+    for (u64 i = 0; i < storage.count; i++)
     {
         init_block_device(&storage.dev_arr[i]);
         device_scan_paritions(&storage.dev_arr[i]);

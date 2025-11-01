@@ -1,17 +1,16 @@
 #ifndef __GAS_H__
 #define __GAS_H__
 
-#include <stdint.h>
-
+#include "core/num_defs.h"
 typedef struct generic_address_struct
 {
-    uint8_t address_space;
-    uint8_t bit_width;
-    uint8_t bit_offset;
-    uint8_t access_size;
-    uint64_t address;
+    u8 address_space;
+    u8 bit_width;
+    u8 bit_offset;
+    u8 access_size;
+    u64 address;
 }  __attribute__((packed))  generic_address_struct_t;
 
-uint32_t gas_unit_size(uint8_t access_size, uint8_t bit_width) ;
+u32 gas_unit_size(u8 access_size, u8 bit_width) ;
 
 #endif // __GAS_H__

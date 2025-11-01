@@ -1,7 +1,7 @@
 #ifndef __GDT_H__
 #define __GDT_H__
 
-#include <stdint.h>
+#include "core/num_defs.h"
 
 // Each define here is for a specific flag in the descriptor.
 // Refer to the intel documentation for a description of what each one does.
@@ -50,18 +50,18 @@
 
 typedef struct gdt_entry 
 {
-    uint16_t limit_low;
-    uint16_t base_low;
-    uint8_t base_middle;
-    uint8_t access;
-    uint8_t granularity;
-    uint8_t base_high;
+    u16 limit_low;
+    u16 base_low;
+    u8 base_middle;
+    u8 access;
+    u8 granularity;
+    u8 base_high;
 } __attribute__((packed)) gdt_entry_t;
 
 typedef struct gdt_description
 {
-    uint16_t limit;
-    uint32_t offset;
+    u16 limit;
+    u32 offset;
 } __attribute__((packed)) gdt_description_t ;
 
 #endif // __GDT_H__

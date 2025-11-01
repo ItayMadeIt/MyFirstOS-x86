@@ -5,12 +5,12 @@
 #include <kernel/core/paging.h>
 #include <memory/phys_alloc/phys_alloc.h>
 
-bool map_phys_pages(void* pa, void* va, uintptr_t count, uint16_t hw_flags);
-bool map_phys_page (void* pa, void* va, uint16_t hw_flags);
-void* identity_map_pages(void* pa_ptr, uintptr_t count, uint16_t hw_flags);
+bool map_phys_pages(void* pa, void* va, usize_ptr count, u16 hw_flags);
+bool map_phys_page (void* pa, void* va, u16 hw_flags);
+void* identity_map_pages(void* pa_ptr, usize_ptr count, u16 hw_flags);
 
 bool unmap_page(void* va);
-bool unmap_pages(void* va, uintptr_t count);
+bool unmap_pages(void* va, usize_ptr count);
 
 void* virt_to_phys(void* va);
 
@@ -25,7 +25,7 @@ typedef enum virt_phys_flags
 
 } virt_phys_flags_t;
 
-uint32_t get_phys_flags(void* va);
-void clear_phys_flags(void* va, uint32_t flags);
+u32 get_phys_flags(void* va);
+void clear_phys_flags(void* va, u32 flags);
 
 #endif // __MEM_PAGING_H__

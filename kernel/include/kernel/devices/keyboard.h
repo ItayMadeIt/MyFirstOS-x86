@@ -1,7 +1,7 @@
 #ifndef __KEYBOARD_H__
 #define __KEYBOARD_H__
 
-#include <stdint.h>
+#include "core/num_defs.h"
 #include <stdbool.h>
 
 enum key_codes
@@ -125,7 +125,7 @@ enum key_codes
 };
 
 typedef struct raw_key_event {
-    uint32_t code;        // keycode
+    u32 code;        // keycode
     bool pressed;         // true = pressed, false = released
 } raw_key_event_t;
 

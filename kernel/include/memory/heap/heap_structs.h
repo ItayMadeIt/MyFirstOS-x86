@@ -1,21 +1,21 @@
 #ifndef __HEAP_STRUCTS_H__
 #define __HEAP_STRUCTS_H__
 
-#include <stdint.h>
+#include "core/num_defs.h"
 
 struct phys_page_descriptor;
 
 typedef struct heap_buddy_order
 {
-    uintptr_t virt_addr;
-    uintptr_t buddy_order;
+    usize_ptr virt_addr;
+    usize_ptr buddy_order;
     struct heap_buddy_order* prev_free;
     struct heap_buddy_order* next_free;
 } heap_buddy_order_t;
 
 typedef struct heap_buddy_page_metadata
 {
-    uintptr_t num_pages; 
+    usize_ptr num_pages; 
     heap_buddy_order_t order;
     struct heap_buddy_order** buddy_cache;
     
@@ -31,9 +31,9 @@ struct heap_slab_page_metadata;
 
 typedef struct heap_slab_order
 {
-    uintptr_t slab_order;
-    uintptr_t obj_size;
-    uintptr_t slab_size;
+    usize_ptr slab_order;
+    usize_ptr obj_size;
+    usize_ptr slab_size;
     struct heap_slab_page_metadata* free_slab;
 } heap_slab_order_t;
 typedef struct heap_slab_cache 
@@ -44,9 +44,9 @@ typedef struct heap_slab_cache
 
 typedef struct heap_slab_page_metadata
 {
-    uint32_t num_pages; // never more than 2^32 pages in order
-    uint16_t obj_count; 
-    uint16_t used_count;
+    u32 num_pages; // never more than 2^32 pages in order
+    u16 obj_count; 
+    u16 used_count;
 
     struct heap_slab_page_metadata* prev_slab;
     struct heap_slab_page_metadata* next_slab;

@@ -6,6 +6,6 @@
 
 extern int_timer_callback_t pit_callback;
 void pit_timer_dispatch(irq_frame_t* frame) ;
-void load_pit(uint32_t desired_hz);
-void set_pit_vars(uint32_t desired_hz);
+void load_pit(u32 desired_hz);
+void set_pit_vars(u32 desired_hz);
 void pit_update_callback(int_timer_callback_t callback);

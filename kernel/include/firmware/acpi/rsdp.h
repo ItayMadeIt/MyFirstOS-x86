@@ -11,25 +11,25 @@
 typedef struct rsdp 
 {
     char signature[8];
-    uint8_t checksum;
+    u8 checksum;
     char oem_id[6];
-    uint8_t revision;
-    uint32_t rsdt_address;
+    u8 revision;
+    u32 rsdt_address;
 } __attribute__ ((packed)) rsdp_t;
 
 
 typedef struct xsdp
 {
     char signature[8];
-    uint8_t checksum;
+    u8 checksum;
     char oem_id[6];
-    uint8_t revision;
-    uint32_t rsdt_address;      // deprecated since version 2.0
+    u8 revision;
+    u32 rsdt_address;      // deprecated since version 2.0
 
-    uint32_t length;
-    uint64_t xsdt_address;
-    uint8_t extended_checksum;
-    uint8_t reserved[3];
+    u32 length;
+    u64 xsdt_address;
+    u8 extended_checksum;
+    u8 reserved[3];
 } __attribute__ ((packed)) xsdp_t;
 
 // can be cast to xsdp

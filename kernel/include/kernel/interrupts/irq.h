@@ -8,12 +8,12 @@ void irq_disable();
 
 bool irq_is_enabled();
 
-uintptr_t irq_save();
-void irq_restore(uintptr_t flags);
+usize_ptr irq_save();
+void irq_restore(usize_ptr flags);
 
-void irq_register_handler(uint32_t vector, void (*handle)(irq_frame_t*));
+void irq_register_handler(u32 vector, void (*handle)(irq_frame_t*));
 void irq_dispatch();
 
-uintptr_t irq_frame_get_error(irq_frame_t* frame);
+usize_ptr irq_frame_get_error(irq_frame_t* frame);
 
 // callback = function called after

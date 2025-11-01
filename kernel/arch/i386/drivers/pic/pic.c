@@ -1,4 +1,4 @@
-#include <stdint.h>
+#include "core/num_defs.h"
 #include <arch/i386/drivers/io/io.h>
 #include <arch/i386/drivers/pic/pic.h>
 #include <kernel/interrupts/irq.h>
@@ -17,8 +17,8 @@
 #define ICW4_SFNM	0x10		/* Special fully nested (not) */
 
 
-static uint8_t pic_master_base;
-static uint8_t pic_slave_base;
+static u8 pic_master_base;
+static u8 pic_slave_base;
 
 /*
 arguments:
@@ -28,8 +28,8 @@ arguments:
 */
 void pic_remap(int offset1, int offset2)
 {
-    pic_master_base = (uint8_t)offset1;
-    pic_slave_base  = (uint8_t)offset2;
+    pic_master_base = (u8)offset1;
+    pic_slave_base  = (u8)offset2;
 
 	outb(PIC1_COMMAND, ICW1_INIT | ICW1_ICW4);  // starts the initialization sequence (in cascade mode)
 	io_wait();
@@ -59,30 +59,30 @@ void pic_remap(int offset1, int offset2)
 #define PIC_READ_ISR                0x0b    /* OCW3 irq service next CMD read */
 
 /* Helper func */
-static uint16_t __pic_get_irq_reg(int ocw3)
+static u16 __pic_get_irq_reg(int ocw3)
 {
     /* OCW3 to PIC CMD to get the register values.  PIC2 is chained, and
      * represents IRQs 8-15.  PIC1 is IRQs 0-7, with 2 being the chain */
     outb(PIC1_COMMAND, ocw3);
     outb(PIC2_COMMAND, ocw3);
-    uint8_t irr1 = inb(PIC1_COMMAND);
-    uint8_t irr2 = inb(PIC2_COMMAND);
-    return ((uint16_t)irr2 << 8) | irr1;
+    u8 irr1 = inb(PIC1_COMMAND);
+    u8 irr2 = inb(PIC2_COMMAND);
+    return ((u16)irr2 << 8) | irr1;
 }
 
 /* Returns the combined value of the cascaded PICs irq request register */
-uint16_t pic_get_irr(void)
+u16 pic_get_irr(void)
 {
     return __pic_get_irq_reg(PIC_READ_IRR);
 }
 
 /* Returns the combined value of the cascaded PICs in-service register */
-uint16_t pic_get_isr(void)
+u16 pic_get_isr(void)
 {
     return __pic_get_irq_reg(PIC_READ_ISR);
 }
 
-void pic_send_eoi_vector(uint8_t vector)
+void pic_send_eoi_vector(u8 vector)
 {
 	if (vector >= pic_slave_base && vector < pic_slave_base + 8)
 	{
@@ -93,12 +93,12 @@ void pic_send_eoi_vector(uint8_t vector)
 
 }
 
-static void pic_unmask_irq(uint8_t irq_line)
+static void pic_unmask_irq(u8 irq_line)
 {
-    uintptr_t irq_data = irq_save();
+    usize_ptr irq_data = irq_save();
 
-    uint8_t bit;
-    uint16_t port;
+    u8 bit;
+    u16 port;
 
     if (irq_line < 8) 
     {
@@ -112,20 +112,20 @@ static void pic_unmask_irq(uint8_t irq_line)
 
         // ensure cascade (IRQ2) on master is unmasked
         // io_wait();
-        // uint8_t new_mask = inb(PIC1_DATA) & ~(1u << 2);
+        // u8 new_mask = inb(PIC1_DATA) & ~(1u << 2);
         // io_wait();
         // outb(PIC1_DATA, new_mask);
     }
 
     io_wait();
-    uint8_t new_mask = inb(port) & ~(1u << bit);
+    u8 new_mask = inb(port) & ~(1u << bit);
     io_wait();
     outb(port, new_mask);
 
     irq_restore(irq_data);
 }
 
-static inline int16_t vector_to_irq(uint8_t vector)
+static inline int16_t vector_to_irq(u8 vector)
 {
     if (vector >= pic_master_base && vector < pic_master_base + 8)
         return (int16_t)(vector - pic_master_base);           // IRQ 0–7
@@ -134,13 +134,13 @@ static inline int16_t vector_to_irq(uint8_t vector)
     return -1; // not a PIC vector
 }
 
-void pic_unmask_vector(uint8_t vector)
+void pic_unmask_vector(u8 vector)
 {
     int16_t irq = vector_to_irq(vector);
 
     if (irq >= 0) 
     {
-        pic_unmask_irq((uint8_t)irq);
+        pic_unmask_irq((u8)irq);
     }
 }
 

@@ -12,15 +12,15 @@ bool boot_has_memory(const boot_data_t* boot_data)
     return mbd->flags & MULTIBOOT_INFO_MEM_MAP;
 }
 
-uintptr_t get_max_memory(const boot_data_t* boot_data)
+usize_ptr get_max_memory(const boot_data_t* boot_data)
 {
-    uint32_t max_memory = 0;
+    u32 max_memory = 0;
     multiboot_info_t* mbd = (multiboot_info_t*)boot_data->mbd;
 
     multiboot_memory_map_t* mmap = (multiboot_memory_map_t*) mbd->mmap_addr;
-    uint32_t mmap_end = mbd->mmap_addr + mbd->mmap_length;
+    u32 mmap_end = mbd->mmap_addr + mbd->mmap_length;
 
-    while ((uint32_t) mmap < mmap_end)
+    while ((u32) mmap < mmap_end)
     {
         max_memory = max(
             max_memory,
@@ -28,16 +28,16 @@ uintptr_t get_max_memory(const boot_data_t* boot_data)
         );
 
         // Get next iteration
-        uint32_t next_mmap_addr = (uint32_t) mmap + (sizeof(mmap->size) + mmap->size);
+        u32 next_mmap_addr = (u32) mmap + (sizeof(mmap->size) + mmap->size);
         mmap = (multiboot_memory_map_t*) (next_mmap_addr);
     }
 
-    return (uintptr_t)max_memory;
+    return (usize_ptr)max_memory;
 }
 
 static inline const multiboot_memory_map_t* next_mmap(const multiboot_memory_map_t* mmap) 
 {
-    return (const multiboot_memory_map_t*)((uint32_t)mmap + sizeof(mmap->size) + mmap->size);
+    return (const multiboot_memory_map_t*)((u32)mmap + sizeof(mmap->size) + mmap->size);
 }
 
 
@@ -46,12 +46,12 @@ void boot_foreach_free_page(const boot_data_t* boot_data, void(*callback)(void* 
     const multiboot_info_t* mbd = (const multiboot_info_t*)boot_data->mbd;
 
     const multiboot_memory_map_t* mmap = (const multiboot_memory_map_t*) mbd->mmap_addr;
-    uint32_t mmap_end = mbd->mmap_addr + mbd->mmap_length;
+    u32 mmap_end = mbd->mmap_addr + mbd->mmap_length;
 
-    while ((uint32_t) mmap < mmap_end)
+    while ((u32) mmap < mmap_end)
     {
-        uint32_t low = round_page_up(mmap->addr_low);
-        uint32_t high = round_page_down(mmap->addr_low + mmap->len_low);
+        u32 low = round_page_up(mmap->addr_low);
+        u32 high = round_page_down(mmap->addr_low + mmap->len_low);
 
         if (mmap->type != MULTIBOOT_MEMORY_AVAILABLE ||
             low >= high)
@@ -90,12 +90,12 @@ void boot_foreach_free_page_region(const boot_data_t* boot_data, void(*callback)
     const multiboot_info_t* mbd = (const multiboot_info_t*)boot_data->mbd;
 
     const multiboot_memory_map_t* mmap = (const multiboot_memory_map_t*) mbd->mmap_addr;
-    uint32_t mmap_end = mbd->mmap_addr + mbd->mmap_length;
+    u32 mmap_end = mbd->mmap_addr + mbd->mmap_length;
 
-    while ((uint32_t) mmap < mmap_end)
+    while ((u32) mmap < mmap_end)
     {
-        uint32_t low  = round_page_up(mmap->addr_low);
-        uint32_t high = round_page_down(mmap->addr_low + mmap->len_low);
+        u32 low  = round_page_up(mmap->addr_low);
+        u32 high = round_page_down(mmap->addr_low + mmap->len_low);
 
         if (mmap->type == MULTIBOOT_MEMORY_AVAILABLE &&
             low < high)
@@ -114,17 +114,17 @@ void boot_foreach_reserved_region(const boot_data_t* boot_data,
     const multiboot_info_t* mbd = (const multiboot_info_t*)boot_data->mbd;
 
     const multiboot_memory_map_t* mmap = (const multiboot_memory_map_t*) mbd->mmap_addr;
-    uint32_t mmap_end = mbd->mmap_addr + mbd->mmap_length;
+    u32 mmap_end = mbd->mmap_addr + mbd->mmap_length;
 
-    while ((uint32_t)mmap < mmap_end)
+    while ((u32)mmap < mmap_end)
     {
-        uint32_t low  = round_page_down(mmap->addr_low);
-        uint32_t high = round_page_up(mmap->addr_low + mmap->len_low);
+        u32 low  = round_page_down(mmap->addr_low);
+        u32 high = round_page_up(mmap->addr_low + mmap->len_low);
 
         if (mmap->type == MULTIBOOT_MEMORY_AVAILABLE || low >= high)
         {
             mmap = next_mmap(mmap);
-            continue;      
+            continue;
         }
         if (high <= STOR_1MiB)
         {
@@ -145,10 +145,10 @@ void boot_foreach_reserved_region(const boot_data_t* boot_data,
 
 void boot_foreach_page_struct(void(*callback)(void* pa))
 {
-    uintptr_t pd_pa = (uintptr_t)virt_to_phys(&page_directory);
+    usize_ptr pd_pa = (usize_ptr)virt_to_phys(&page_directory);
     callback((void*)pd_pa);
     
-    for (uint32_t pdi = 0; pdi < ENTRIES_AMOUNT; ++pdi) 
+    for (u32 pdi = 0; pdi < ENTRIES_AMOUNT; ++pdi) 
     {
         page_table_t* pt = get_page_table(pdi);
         if (!pt)
@@ -156,7 +156,7 @@ void boot_foreach_page_struct(void(*callback)(void* pa))
             continue;
         }
 
-        uint32_t pt_pa = (uint32_t)virt_to_phys(pt);
+        u32 pt_pa = (u32)virt_to_phys(pt);
         callback((void*)pt_pa);
     }
 }

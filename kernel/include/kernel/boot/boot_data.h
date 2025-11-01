@@ -2,13 +2,13 @@
 #define __BOOT_DATA_H__
 
 #include <stdbool.h>
-#include <stdint.h>
+#include "core/num_defs.h"
 
 struct boot_data;
 typedef struct boot_data boot_data_t;
 
 bool boot_has_memory(const boot_data_t* boot_data);
-uintptr_t get_max_memory(const boot_data_t* boot_data);
+usize_ptr get_max_memory(const boot_data_t* boot_data);
 
 void boot_foreach_free_page(const boot_data_t* boot_data, void(*callback)(void* pa));
 

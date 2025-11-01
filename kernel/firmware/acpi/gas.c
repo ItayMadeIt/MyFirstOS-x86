@@ -1,10 +1,10 @@
 #include <firmware/acpi/gas.h>
 
-uint32_t gas_unit_size(uint8_t access_size, uint8_t bit_width) 
+u32 gas_unit_size(u8 access_size, u8 bit_width) 
 {
     if (access_size >= 1 && access_size <= 4) 
     {
-        static const uint32_t sz[5] = {0,1,2,4,8};
+        static const u32 sz[5] = {0,1,2,4,8};
         return sz[access_size];
     }
 

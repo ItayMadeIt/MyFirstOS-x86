@@ -10,18 +10,18 @@
 #define MBR_PATITION_CONUT 4
 
 typedef struct __attribute__((packed)) mbr_partition_entry {
-    uint8_t bootFlag;
-    uint8_t start_chs[3];
-    uint8_t type;
-    uint8_t end_chs[3];
-    uint32_t start_lba;
-    uint32_t sectors;
+    u8 bootFlag;
+    u8 start_chs[3];
+    u8 type;
+    u8 end_chs[3];
+    u32 start_lba;
+    u32 sectors;
 } mbr_partition_entry_t;
 
-static void parse_mbr(stor_device_t* device, uint8_t* mbr_buffer)
+static void parse_mbr(stor_device_t* device, u8* mbr_buffer)
 {
-    uint64_t mbr_part_count = 0;
-    for (uint64_t i = 0; i < MBR_PATITION_CONUT; i++)
+    u64 mbr_part_count = 0;
+    for (u64 i = 0; i < MBR_PATITION_CONUT; i++)
     {
         mbr_partition_entry_t* entry = 
             (mbr_partition_entry_t*) &mbr_buffer[MBR_OFF_PARTITIONS + i * sizeof(mbr_partition_entry_t)];
@@ -36,9 +36,9 @@ static void parse_mbr(stor_device_t* device, uint8_t* mbr_buffer)
     device->partition_table.arr = kalloc(sizeof(stor_partition_t*) * device->partition_table.count);    
     assert(device->partition_table.arr);
 
-    uint64_t cur_count = 0;
+    u64 cur_count = 0;
 
-    for (uint64_t i = 0; i < MBR_PATITION_CONUT && cur_count < mbr_part_count; i++)
+    for (u64 i = 0; i < MBR_PATITION_CONUT && cur_count < mbr_part_count; i++)
     {
         mbr_partition_entry_t* entry = 
             (mbr_partition_entry_t*) &mbr_buffer[MBR_OFF_PARTITIONS + i * sizeof(mbr_partition_entry_t)];
@@ -63,24 +63,24 @@ static void parse_mbr(stor_device_t* device, uint8_t* mbr_buffer)
     }
 }
 
-static void get_partitions(void* ctx, int status, cache_entry_t** entries, uint64_t count)
+static void get_partitions(void* ctx, int status, cache_entry_t** entries, u64 count)
 {
     assert(status >= 0);
     assert(count == 1);
 
     stor_device_t* device = ctx;
 
-    uint8_t* buffer = entries[0]->buffer;
+    u8* buffer = entries[0]->buffer;
     parse_mbr(device, buffer);
     
     stor_unpin_range_async(device, entries, 1, NULL, NULL);
 
-    for (uint32_t i = 0; i < device->partition_table.count; i++)
+    for (u32 i = 0; i < device->partition_table.count; i++)
     {
         printf("#%d\n - block_start: %X\n - block_amount: %X\n", 
             i, 
-            (uint32_t)device->partition_table.arr[i]->block_lba,
-            (uint32_t)device->partition_table.arr[i]->block_amount);
+            (u32)device->partition_table.arr[i]->block_lba,
+            (u32)device->partition_table.arr[i]->block_amount);
     }
 }
 

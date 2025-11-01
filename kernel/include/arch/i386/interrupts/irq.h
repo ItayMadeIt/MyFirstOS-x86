@@ -1,29 +1,29 @@
-#include <stdint.h>
+#include "core/num_defs.h"
 
 #include <kernel/interrupts/irq.h>
 
 typedef struct __attribute__((packed)) irq_frame
 {
     // pushed by stub
-    uint32_t err_code;   // real or 0
-    uint32_t irq_index;
+    u32 err_code;   // real or 0
+    u32 irq_index;
 
     // pushad
-    uint32_t edi;
-    uint32_t esi;
-    uint32_t ebp; 
-    uint32_t esp_dummy;
-    uint32_t ebx;
-    uint32_t edx;
-    uint32_t ecx;
-    uint32_t eax;
+    u32 edi;
+    u32 esi;
+    u32 ebp; 
+    u32 esp_dummy;
+    u32 ebx;
+    u32 edx;
+    u32 ecx;
+    u32 eax;
 
     // CPU return state (normalized by stub if needed)
-    uint32_t user_esp;    // 0 if not from ring3
-    uint32_t user_ss;     // 0 if not from ring3
-    uint32_t eflags;
-    uint32_t cs;
-    uint32_t eip;
+    u32 user_esp;    // 0 if not from ring3
+    u32 user_ss;     // 0 if not from ring3
+    u32 eflags;
+    u32 cs;
+    u32 eip;
 
 } irq_frame_t;
 

@@ -2,17 +2,17 @@
 #include <core/defs.h>
 
 typedef struct idt_entry {
-    uint16_t offset_low;            // Lower 16 bits of the handler function address
-    uint16_t segment_selector;      // Segment selector (usually code segment)
-    uint8_t  zero;                  // Must be zero
-    uint8_t  type_attr;             // Type and attributes
-    uint16_t offset_high;           // Upper 16 bits of the handler function address
+    u16 offset_low;            // Lower 16 bits of the handler function address
+    u16 segment_selector;      // Segment selector (usually code segment)
+    u8  zero;                  // Must be zero
+    u8  type_attr;             // Type and attributes
+    u16 offset_high;           // Upper 16 bits of the handler function address
 } __attribute__((packed, aligned(8))) idt_entry_t;
 
 typedef struct idt_descriptor 
 {
-	uint16_t limit;
-	uint32_t base;
+	u16 limit;
+	u32 base;
 } __attribute__((packed)) idt_descriptor_t;
 
 // Descriptor types for the IDT
@@ -86,6 +86,6 @@ extern void isr45();
 extern void isr46();
 extern void isr47();
 
-void early_set_interrupt_c_callback(uint8_t entry_index, void (*callback) (uint32_t error_code));
-void early_set_idt_callback(uint16_t index, void (*handler_addr));
-void early_set_idt_entry(uint32_t entry_index, void (*handler_addr), uint16_t selector, uint8_t type_attr);
+void early_set_interrupt_c_callback(u8 entry_index, void (*callback) (u32 error_code));
+void early_set_idt_callback(u16 index, void (*handler_addr));
+void early_set_idt_entry(u32 entry_index, void (*handler_addr), u16 selector, u8 type_attr);

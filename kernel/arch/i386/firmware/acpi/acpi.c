@@ -9,20 +9,20 @@
 
 static acpi_timer_t acpi_timer;
 
-uint64_t get_acpi_time()
+u64 get_acpi_time()
 {
     if (acpi_timer.flags & ACPI_TIMER_MMIO)
     {
         switch (acpi_timer.mmio.unit)
         {
         case 1:
-            return *(uint8_t*)acpi_timer.mmio.addr;
+            return *(u8*)acpi_timer.mmio.addr;
         case 2:
-            return *(uint16_t*)acpi_timer.mmio.addr;
+            return *(u16*)acpi_timer.mmio.addr;
         case 4:
-            return *(uint32_t*)acpi_timer.mmio.addr;
+            return *(u32*)acpi_timer.mmio.addr;
         case 8:
-            return *(uint64_t*)acpi_timer.mmio.addr;
+            return *(u64*)acpi_timer.mmio.addr;
         
         default:
             break;
@@ -45,12 +45,12 @@ void setup_acpi()
 
     if (rdsp->revision >= 2 && ((xsdp_t*)rdsp)->xsdt_address != 0) 
     {
-        xsdt_t* xsdt = (xsdt_t*)(uintptr_t)((xsdp_t*)rdsp)->xsdt_address;
+        xsdt_t* xsdt = (xsdt_t*)(usize_ptr)((xsdp_t*)rdsp)->xsdt_address;
         fadt = find_fadt_by_xsdt(xsdt);
     } 
     else 
     {
-        rsdt_t* rsdt = (rsdt_t*)(uintptr_t)rdsp->rsdt_address;
+        rsdt_t* rsdt = (rsdt_t*)(usize_ptr)rdsp->rsdt_address;
         fadt = find_fadt_by_rsdt(rsdt);
     }
 
@@ -59,18 +59,18 @@ void setup_acpi()
 
     acpi_timer.flags = ACPI_TIMER_ACTIVE;
 
-    if (rdsp->revision >= 2 && fadt->X_PM_timer_block.address != (uint32_t)NULL &&
+    if (rdsp->revision >= 2 && fadt->X_PM_timer_block.address != (u32)NULL &&
         fadt->X_PM_timer_block.address_space == 0)
     {
         acpi_timer.flags |= ACPI_TIMER_MMIO;
 
         generic_address_struct_t* gas = &fadt->X_PM_timer_block;
-        uint32_t unit = gas_unit_size(
+        u32 unit = gas_unit_size(
             gas->access_size, 
             gas->bit_width ? gas->bit_width : 32
         );
-        uint32_t pa = fadt->X_PM_timer_block.address & ~(unit - 1);
-        const uint32_t off = (uint32_t)(gas->address & (unit - 1));
+        u32 pa = fadt->X_PM_timer_block.address & ~(unit - 1);
+        const u32 off = (u32)(gas->address & (unit - 1));
         
         void* va = vmap_identity(
             (void*)pa, 
@@ -81,7 +81,7 @@ void setup_acpi()
         
 
         acpi_timer.mmio.unit = unit;
-        acpi_timer.mmio.addr = (void*)((uint32_t)va + off);
+        acpi_timer.mmio.addr = (void*)((u32)va + off);
     }
     else
     {

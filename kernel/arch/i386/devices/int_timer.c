@@ -2,7 +2,7 @@
 
 #include <arch/i386/drivers/pic/pit.h>
 
-void init_int_timer(const uint64_t hz, int_timer_callback_t callback)
+void init_int_timer(const u64 hz, int_timer_callback_t callback)
 {
     load_pit(hz);
 

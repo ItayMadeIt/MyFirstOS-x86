@@ -11,7 +11,7 @@
 #include "utils/data_structs/rb_tree.h"
 #include <kernel/core/cpu.h>
 #include <memory/phys_alloc/phys_alloc.h>
-#include <stdint.h>
+#include "core/num_defs.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -69,7 +69,7 @@ static void reset_entry(cache_entry_t* entry)
     entry->q_next = NULL;
 }
 
-static intptr_t hashmap_pin_insert_entry(stor_device_t* device, cache_entry_t* entry)
+static ssize_ptr hashmap_pin_insert_entry(stor_device_t* device, cache_entry_t* entry)
 {
     return fhashmap_insert(
         &device->cache.pin_hashmap, 
@@ -103,7 +103,7 @@ static bool hashmap_pin_del_entry(stor_device_t* device, usize block_lba)
     return hashmap_result.succeed;
 }
 
-static intptr_t tree_insert_entry(stor_device_t* device, cache_entry_t* entry)
+static ssize_ptr tree_insert_entry(stor_device_t* device, cache_entry_t* entry)
 {
     return rb_insert(
         &device->cache.lba_tree,
@@ -111,13 +111,13 @@ static intptr_t tree_insert_entry(stor_device_t* device, cache_entry_t* entry)
     ) == NULL ? -1 : 1;
 }
 
-static intptr_t tree_remake_entry(stor_device_t* device, cache_entry_t* entry, usize new_lba)
+static ssize_ptr tree_remake_entry(stor_device_t* device, cache_entry_t* entry, usize new_lba)
 {
     rb_remove_node(&device->cache.lba_tree, &entry->node);
 
     entry->lba = new_lba;
 
-    intptr_t result = rb_insert(&device->cache.lba_tree, &entry->node) == NULL ? -1 : 1;
+    ssize_ptr result = rb_insert(&device->cache.lba_tree, &entry->node) == NULL ? -1 : 1;
     return result;
 }
 
@@ -134,8 +134,8 @@ static void* block_request_buffer(stor_device_t* device)
     // Create more blocks
     if (block_index >= device->cache.blocks_length)
     {
-        size_t old_len = device->cache.blocks_length;
-        size_t new_len = old_len ? old_len * 2 : 4;
+        usize old_len = device->cache.blocks_length;
+        usize new_len = old_len ? old_len * 2 : 4;
 
         device->cache.blocks_arr = krealloc(
             device->cache.blocks_arr,
@@ -144,7 +144,7 @@ static void* block_request_buffer(stor_device_t* device)
         assert(device->cache.blocks_arr);
 
         // Allocate blocks
-        for (size_t i = old_len; i < new_len; i++)
+        for (usize i = old_len; i < new_len; i++)
         {
             void* block_va = kvalloc_pages(
                 device->cache.pages_per_block,
@@ -159,13 +159,13 @@ static void* block_request_buffer(stor_device_t* device)
     }
 
     // Give out a buffer
-    void* result_buffer = (uint8_t*)device->cache.blocks_arr[block_index];
+    void* result_buffer = (u8*)device->cache.blocks_arr[block_index];
     device->cache.used_bytes += device->cache.block_size;
 
     return result_buffer;
 }
 
-static intptr_t lba_node_cmp(const rb_node_t* a_node, const rb_node_t* b_node)
+static ssize_ptr lba_node_cmp(const rb_node_t* a_node, const rb_node_t* b_node)
 {
     const cache_entry_t* a = container_of(a_node, cache_entry_t, node);
     const cache_entry_t* b = container_of(b_node, cache_entry_t, node);
@@ -196,7 +196,7 @@ static void init_block_cache(stor_device_t* device)
 
     // max buckets_length == device->cache.max_bytes / device->cache.bucket_size
 
-    for (uintptr_t i = 0; i < device->cache.blocks_length; i++)
+    for (usize_ptr i = 0; i < device->cache.blocks_length; i++)
     {
         device->cache.blocks_arr[i] = kvalloc_pages (
             device->cache.pages_per_block, 
@@ -309,7 +309,7 @@ static void stor_clear_dirty(stor_device_t* device, cache_entry_t* entry)
     entry->dirty = false;
 
     // Goes over pages dirty (will be removed in the near future)
-    for (uint32_t i = 0; i < device->cache.pages_per_block; i++)
+    for (u32 i = 0; i < device->cache.pages_per_block; i++)
     {
         clear_phys_flags(entry->buffer + PAGE_SIZE * i, VIRT_PHYS_FLAG_DIRTY);
     }
@@ -321,7 +321,7 @@ static bool consume_cache_dirty(stor_device_t* device, cache_entry_t* entry)
     bool reset_dirty = false;
 
     // Goes over pages dirty (will be removed in the near future)
-    for (uint32_t i = 0; i < device->cache.pages_per_block; i++)
+    for (u32 i = 0; i < device->cache.pages_per_block; i++)
     {
         if (reset_dirty)
         {
@@ -329,7 +329,7 @@ static bool consume_cache_dirty(stor_device_t* device, cache_entry_t* entry)
             continue;
         }
 
-        uint32_t flags = get_phys_flags(entry->buffer + PAGE_SIZE * i);
+        u32 flags = get_phys_flags(entry->buffer + PAGE_SIZE * i);
         if (flags & VIRT_PHYS_FLAG_DIRTY)
         {
             reset_dirty = true;
@@ -360,7 +360,7 @@ void stor_mark_dirty(cache_entry_t *entry)
 
 static cache_entry_t *create_cache_entry(stor_device_t *device,
                                          usize block_lba, void *buffer,
-                                         enum cache_state state, uint32_t init_ref_count)
+                                         enum cache_state state, u32 init_ref_count)
 {
     cache_entry_t* entry = kalloc(sizeof(cache_entry_t));
 
@@ -872,7 +872,7 @@ void* stor_clone_vrange(stor_device_t* device, cache_entry_t** entries, usize co
     );
     assert(clone_base);
 
-    uint8_t* dst_cursor = clone_base;
+    u8* dst_cursor = clone_base;
 
     for (usize i = 0; i < count; i++) 
     {

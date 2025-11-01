@@ -2,46 +2,45 @@
 #include <core/defs.h>
 #include <early/defs.h>
 #include <arch/i386/boot/idt.h>
-#include <core/debug.h>
+#include <arch/i386/boot/early_tty.h>
 
 EARLY_BSS_SECTION
 idt_entry_t early_idt_entries[IDT_ENTRIES];
 EARLY_BSS_SECTION
-void (*early_interrupt_callback_entries[IDT_ENTRIES]) (uint32_t error_code);
+void (*early_interrupt_callback_entries[IDT_ENTRIES]) (u32 error_code);
 
-void early_idt_c_handler(uint8_t interrupt_number, uint32_t error_code)
+void early_idt_c_handler(u8 interrupt_number, u32 error_code)
 {
     if (interrupt_number >= BASE_INTERRUPTS_ENTRIES)
     {
-        debug_print_str("Interrupt number wasn't normal\n\n");
-        debug_print_int(interrupt_number);
+        early_printf("Interrupt number wasn't normal\n\n");
+        early_printf("%u", (u32)interrupt_number);
 
         early_interrupt_callback_entries[interrupt_number](error_code);
     }
 
-    debug_print_str("Interrupt number is: ");
-    debug_print_int(interrupt_number);
+    early_printf("Interrupt number is: %u", (u32)interrupt_number);
 
     early_interrupt_callback_entries[interrupt_number](error_code);
 }
 
 EARLY_TEXT_SECTION
-void early_set_idt_entry(uint32_t entry_index, void (*handler_addr), uint16_t selector, uint8_t type_attr)
+void early_set_idt_entry(u32 entry_index, void (*handler_addr), u16 selector, u8 type_attr)
 {
     early_idt_entries[entry_index].zero = 0;
     
-    early_idt_entries[entry_index].offset_low = ((uint32_t)handler_addr) & 0xFFFF;
-    early_idt_entries[entry_index].offset_high = ((uint32_t)handler_addr >> 16) & 0xFFFF;
+    early_idt_entries[entry_index].offset_low = ((u32)handler_addr) & 0xFFFF;
+    early_idt_entries[entry_index].offset_high = ((u32)handler_addr >> 16) & 0xFFFF;
 
     early_idt_entries[entry_index].segment_selector = selector;
     early_idt_entries[entry_index].type_attr = type_attr;
 }
 
 EARLY_TEXT_SECTION
-void early_set_idt_callback(uint16_t index, void (*handler_addr))
+void early_set_idt_callback(u16 index, void (*handler_addr))
 {
-    early_idt_entries[index].offset_low = ((uint32_t)handler_addr) & 0xFFFF;
-    early_idt_entries[index].offset_high = ((uint32_t)handler_addr >> 16) & 0xFFFF;
+    early_idt_entries[index].offset_low = ((u32)handler_addr) & 0xFFFF;
+    early_idt_entries[index].offset_high = ((u32)handler_addr >> 16) & 0xFFFF;
 }
 
 EARLY_TEXT_SECTION
@@ -56,7 +55,7 @@ static inline void early_load_idt_descriptor(idt_descriptor_t* idt_descriptor)
 }
 
 EARLY_TEXT_SECTION
-void early_set_interrupt_c_callback(uint8_t entry_index, void (*callback) (uint32_t error_code))
+void early_set_interrupt_c_callback(u8 entry_index, void (*callback) (u32 error_code))
 {
     early_interrupt_callback_entries[entry_index] = callback;
 }
@@ -64,7 +63,7 @@ void early_set_interrupt_c_callback(uint8_t entry_index, void (*callback) (uint3
 EARLY_TEXT_SECTION
 void setup_early_idt()
 {
-    for (uint16_t i = 0; i < IDT_ENTRIES; ++i) 
+    for (u16 i = 0; i < IDT_ENTRIES; ++i) 
     {
         early_interrupt_callback_entries[i] = 0;
     
@@ -110,7 +109,7 @@ void setup_early_idt()
     early_set_idt_entry(0x1F, early_isr31, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
 
     idt_descriptor_t idt_descriptor;
-    idt_descriptor.base = (uint32_t)&early_idt_entries;
+    idt_descriptor.base = (u32)&early_idt_entries;
     idt_descriptor.limit = sizeof(early_idt_entries)- 1;
 
     early_load_idt_descriptor(&idt_descriptor);

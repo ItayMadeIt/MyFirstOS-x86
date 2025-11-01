@@ -7,62 +7,62 @@
 #include <kernel/memory/paging.h>
 
 
-uint32_t get_pde_index(void *va)
+u32 get_pde_index(void *va)
 {
-    return (uintptr_t)va >> 22;
+    return (usize_ptr)va >> 22;
 }
 
-uint32_t get_pte_index(void *va)
+u32 get_pte_index(void *va)
 {
-    return ((uintptr_t)va >> 12) & 0x3FF;
+    return ((usize_ptr)va >> 12) & 0x3FF;
 }
 
-bool map_table_entry(void* phys_addr_ptr, void* virt_addr_ptr, uint16_t flags)
+bool map_table_entry(void* phys_addr_ptr, void* virt_addr_ptr, u16 flags)
 {
-    uint32_t phys_addr = (uint32_t)phys_addr_ptr;
+    u32 phys_addr = (u32)phys_addr_ptr;
 
     // Calculate indices
-    uint32_t page_dir_index = get_pde_index(virt_addr_ptr);
+    u32 page_dir_index = get_pde_index(virt_addr_ptr);
 
     page_directory_t* page_directory = (page_directory_t*)0xFFFFF000;
-    if ((uint32_t)page_directory->entries[page_dir_index] & PAGE_ENTRY_FLAG_PRESENT)
+    if ((u32)page_directory->entries[page_dir_index] & PAGE_ENTRY_FLAG_PRESENT)
         return false;
     
-    page_directory->entries[page_dir_index] = (void*)( (phys_addr & PAGE_MASK) | (uint32_t)flags );
+    page_directory->entries[page_dir_index] = (void*)( (phys_addr & PAGE_MASK) | (u32)flags );
     
     memset((void*)(0xFFC00000 + page_dir_index*PAGE_SIZE), 0, PAGE_SIZE);
 
     return true;
 }
 
-bool map_page_entry(void* phys_addr_ptr, void* virt_addr_ptr, uint16_t flags)
+bool map_page_entry(void* phys_addr_ptr, void* virt_addr_ptr, u16 flags)
 {
-    uint32_t phys_addr = (uint32_t)phys_addr_ptr;
+    u32 phys_addr = (u32)phys_addr_ptr;
 
     // Calculate indices
-    uint32_t page_dir_index = get_pde_index(virt_addr_ptr);
-    uint32_t page_table_index = get_pte_index(virt_addr_ptr);
+    u32 page_dir_index = get_pde_index(virt_addr_ptr);
+    u32 page_table_index = get_pte_index(virt_addr_ptr);
 
     // Get page directory, ensure it's valid
     page_directory_t* page_directory = (void*)0xFFFFF000;    
-    if (((uint32_t)page_directory->entries[page_dir_index] & PAGE_ENTRY_FLAG_PRESENT) == 0)
+    if (((u32)page_directory->entries[page_dir_index] & PAGE_ENTRY_FLAG_PRESENT) == 0)
     {
         return false;
     }
 
     // Get page table, ensure it's valid
     page_table_t* page_table = (page_table_t*)(0xFFC00000 + (page_dir_index * PAGE_SIZE));
-    page_table->entries[page_table_index] = (void*)((phys_addr & 0xFFFFF000) | ((uint32_t)flags & 0x00000FFF));
+    page_table->entries[page_table_index] = (void*)((phys_addr & 0xFFFFF000) | ((u32)flags & 0x00000FFF));
 
     invlpg(virt_addr_ptr);
 
     return true;
 }
 
-page_table_t *get_page_table(uint32_t dir_index)
+page_table_t *get_page_table(u32 dir_index)
 {
     page_directory_t* page_dir = (page_directory_t*)0xFFFFF000;
-    uint32_t page_dir_entry = (uint32_t)page_dir->entries[dir_index];
+    u32 page_dir_entry = (u32)page_dir->entries[dir_index];
     
     if ((page_dir_entry & PAGE_ENTRY_FLAG_PRESENT) == 0)
     {
@@ -71,52 +71,52 @@ page_table_t *get_page_table(uint32_t dir_index)
 
     return (page_table_t*)(0xFFC00000 + dir_index * PAGE_SIZE);
 }
-void* get_page_phys_base(page_table_t *table, uint32_t index)
+void* get_page_phys_base(page_table_t *table, u32 index)
 {
-    if (((uint32_t)table->entries[index] & PAGE_ENTRY_FLAG_PRESENT) == 0)
+    if (((u32)table->entries[index] & PAGE_ENTRY_FLAG_PRESENT) == 0)
         return NULL;
 
     return (void*) (
-        ((uint32_t)table->entries[index] & ~0xFFF) 
+        ((u32)table->entries[index] & ~0xFFF) 
     );
 }
 void* virt_to_phys(void* virt_addr_ptr)
 {
-    uint32_t virt_addr = (uint32_t)virt_addr_ptr;
+    u32 virt_addr = (u32)virt_addr_ptr;
 
     // Calculate indices
-    uint32_t page_dir_index = (virt_addr) >> 22;
-    uint32_t page_table_index = ((virt_addr) >> 12) & 0x3FF;
+    u32 page_dir_index = (virt_addr) >> 22;
+    u32 page_table_index = ((virt_addr) >> 12) & 0x3FF;
 
     // Get page directory, ensure it's valid
     page_directory_t* page_directory = (void*)0xFFFFF000;    
-    if (((uint32_t)page_directory->entries[page_dir_index] & PAGE_ENTRY_FLAG_PRESENT) == 0)
+    if (((u32)page_directory->entries[page_dir_index] & PAGE_ENTRY_FLAG_PRESENT) == 0)
     {
         return NULL;
     }
 
     // Get page table, ensure it's valid
     page_table_t* page_table = (page_table_t*)(0xFFC00000 + (page_dir_index * 0x1000));
-    if (((uint32_t)page_table->entries[page_table_index] & PAGE_ENTRY_FLAG_PRESENT) == 0)
+    if (((u32)page_table->entries[page_table_index] & PAGE_ENTRY_FLAG_PRESENT) == 0)
     {
         return NULL;
     }
 
     return (void*) (
-        ((uint32_t)page_table->entries[page_table_index] & ~0xFFF) | (virt_addr & 0xFFF) 
+        ((u32)page_table->entries[page_table_index] & ~0xFFF) | (virt_addr & 0xFFF) 
     );
 }
 
-void set_page_entry(void *virt_addr, uint32_t entry) 
+void set_page_entry(void *virt_addr, u32 entry) 
 {
-    uint32_t vaddr = (uint32_t)virt_addr;
+    u32 vaddr = (u32)virt_addr;
 
-    uint32_t page_dir_index   = vaddr >> 22;
-    uint32_t page_table_index = (vaddr >> 12) & 0x3FF;
+    u32 page_dir_index   = vaddr >> 22;
+    u32 page_table_index = (vaddr >> 12) & 0x3FF;
 
     page_directory_t *page_directory = (void*)0xFFFFF000;
 
-    if (((uint32_t) page_directory->entries[page_dir_index] & PAGE_ENTRY_FLAG_PRESENT) == 0) 
+    if (((u32) page_directory->entries[page_dir_index] & PAGE_ENTRY_FLAG_PRESENT) == 0) 
     {
         return;
     }
@@ -128,10 +128,10 @@ void set_page_entry(void *virt_addr, uint32_t entry)
     asm volatile("invlpg (%0)" ::"r"(virt_addr) : "memory");
 }
 
-uint32_t get_phys_flags(void *va) {
-  uint32_t result = 0;
+u32 get_phys_flags(void *va) {
+  u32 result = 0;
 
-  uint32_t entry = get_page_entry(va);
+  u32 entry = get_page_entry(va);
   if (entry & (PAGE_ENTRY_FLAG_PRESENT))
     result |= VIRT_PHYS_FLAG_PRESENT;
 
@@ -150,9 +150,9 @@ uint32_t get_phys_flags(void *va) {
   return result;
 }
 
-void clear_phys_flags(void *va, uint32_t flags) 
+void clear_phys_flags(void *va, u32 flags) 
 {
-    uint32_t entry = get_page_entry(va);
+    u32 entry = get_page_entry(va);
     if (flags & VIRT_PHYS_FLAG_PRESENT)
         abort();
 
@@ -171,39 +171,39 @@ void clear_phys_flags(void *va, uint32_t flags)
     set_page_entry(va, entry);
 }
 
-uint32_t get_table_entry(void* virt_addr_ptr)
+u32 get_table_entry(void* virt_addr_ptr)
 {
-    uint32_t virt_addr = (uint32_t)virt_addr_ptr;
+    u32 virt_addr = (u32)virt_addr_ptr;
 
     // Calculate index
-    uint32_t page_dir_index = (virt_addr) >> 22;
+    u32 page_dir_index = (virt_addr) >> 22;
 
     page_directory_t* page_directory = (void*)0xFFFFF000;  
 
-    return (uint32_t)page_directory->entries[page_dir_index];
+    return (u32)page_directory->entries[page_dir_index];
 }
-uint32_t get_page_entry(void* virt_addr_ptr)
+u32 get_page_entry(void* virt_addr_ptr)
 {
-    uint32_t virt_addr = (uint32_t)virt_addr_ptr;
+    u32 virt_addr = (u32)virt_addr_ptr;
     // Calculate indices
-    uint32_t page_dir_index = (virt_addr) >> 22;
-    uint32_t page_table_index = ((virt_addr) >> 12) & 0x3FF;
+    u32 page_dir_index = (virt_addr) >> 22;
+    u32 page_table_index = ((virt_addr) >> 12) & 0x3FF;
 
     // Get page directory, ensure it's valid
     page_directory_t* page_directory = (void*)0xFFFFF000;    
-    if (((uint32_t)page_directory->entries[page_dir_index] & PAGE_ENTRY_FLAG_PRESENT) == 0)
+    if (((u32)page_directory->entries[page_dir_index] & PAGE_ENTRY_FLAG_PRESENT) == 0)
     {
         return INVALID_PAGE_MEMORY;
     }
 
     // Get page table, ensure it's valid
     page_table_t* page_table = (page_table_t*)(0xFFC00000 + (page_dir_index * 0x1000));
-    return (uint32_t)page_table->entries[page_table_index];
+    return (u32)page_table->entries[page_table_index];
 }
 
-uint16_t pfn_to_hw_flags(uint16_t flags)
+u16 pfn_to_hw_flags(u16 flags)
 {
-    uint16_t result = PAGE_ENTRY_FLAG_PRESENT;
+    u16 result = PAGE_ENTRY_FLAG_PRESENT;
     if ((flags & PAGEFLAG_KERNEL) == false)
     {
         result |= PAGE_ENTRY_FLAG_USER;

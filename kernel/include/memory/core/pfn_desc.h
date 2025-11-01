@@ -1,8 +1,9 @@
 #ifndef __PAGE_FRAME_H__
 #define __PAGE_FRAME_H__
 
+#include "core/num_defs.h"
 #include "memory/phys_alloc/phys_alloc.h"
-#include <stdint.h>
+#include "core/num_defs.h"
 #include <memory/heap/heap_structs.h>
 #include <memory/phys_alloc/bitmap_alloc.h>
 
@@ -41,9 +42,9 @@ enum phys_page_type {
 
 typedef struct phys_page_descriptor {
      
-    uint32_t ref_count;
-    uint16_t flags;
-    uint16_t type; 
+    u32 ref_count;
+    u16 flags;
+    u16 type; 
 
     union {
         // Heap objects
@@ -57,7 +58,7 @@ typedef struct phys_page_descriptor {
             struct phys_page_descriptor* next_desc;
             struct phys_page_descriptor* prev_desc;
             // real count in head and foot
-            uint32_t count;
+            u32 count;
         } free_page;
     } u;
     
@@ -65,82 +66,82 @@ typedef struct phys_page_descriptor {
 
 void pfn_ref_page(void* pa);
 void pfn_unref_page(void* pa);
-void pfn_ref_range(void* pa, uintptr_t count);
-void pfn_unref_range(void* pa, uintptr_t count);
+void pfn_ref_range(void* pa, usize_ptr count);
+void pfn_unref_range(void* pa, usize_ptr count);
 
 void pfn_ref_vpage(void* va);
 void pfn_unref_vpage(void* va);
-void pfn_ref_vrange(void* va, uintptr_t count);
-void pfn_unref_vrange(void* va, uintptr_t count);
+void pfn_ref_vrange(void* va, usize_ptr count);
+void pfn_unref_vrange(void* va, usize_ptr count);
 
 void init_pfn_descriptors(void** alloc_addr, boot_data_t* mbd);
 
 typedef struct pfn_manager_data {
     phys_page_descriptor_t* descs;
-    uintptr_t count;
+    usize_ptr count;
 } pfn_manager_data_t;
 
 extern pfn_manager_data_t pfn_data;
 
 void pfn_mark_range(
     void* start_pa, 
-    uintptr_t count, 
+    usize_ptr count, 
     enum phys_page_type pfn_type, 
-    uint16_t pfn_flags
+    u16 pfn_flags
 );
 
 void pfn_mark_vrange(
     void* start_va, 
-    uintptr_t count, 
+    usize_ptr count, 
     enum phys_page_type pfn_type, 
-    uint16_t pfn_flags
+    u16 pfn_flags
 );
 
 void pfn_alloc_map_pages(
     void* va,
-    uintptr_t count, 
+    usize_ptr count, 
     enum phys_page_type pfn_type,
-    uint16_t pfn_flags
+    u16 pfn_flags
 );
 
 void pfn_alloc_map_page (
     void* va,
     enum phys_page_type pfn_type,
-    uint16_t pfn_flags
+    u16 pfn_flags
 );
 
 void pfn_clone_map(
     void* dst_va,
     void* src_va,
-    uintptr_t count
+    usize_ptr count
 );
 
 void pfn_share_map(
     void* dst_va,
     void* src_va,
-    uintptr_t count,
-    uint16_t dst_pfn_flags // doesn't modify the PFN descriptor flags
+    usize_ptr count,
+    u16 dst_pfn_flags // doesn't modify the PFN descriptor flags
 );
 
 void pfn_identity_map_pages(
     void* pa, 
-    uintptr_t count,
+    usize_ptr count,
     enum phys_page_type pfn_type,
-    uint16_t pfn_flags
+    u16 pfn_flags
 );
 
 void pfn_map_pages(
     void* pa,
     void* va,
-    uintptr_t count,
+    usize_ptr count,
     enum phys_page_type type,
-    uint16_t flags
+    u16 flags
 );
 
 
 void pfn_unmap_pages(
     void* va, 
-    uintptr_t count
+    usize_ptr count
 );
 void pfn_unmap_page (
     void* va

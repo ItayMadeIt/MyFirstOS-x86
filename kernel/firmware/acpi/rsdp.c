@@ -10,10 +10,10 @@
 
 static bool valid_rsdp_checksum(rsdp_t* r) 
 {
-    uint8_t sum = 0;
-    for (uint32_t i = 0; i < 20; i++)
+    u8 sum = 0;
+    for (u32 i = 0; i < 20; i++)
     { 
-        sum += ((uint8_t*)r)[i];
+        sum += ((u8*)r)[i];
     }
 
     if (sum) 
@@ -24,7 +24,7 @@ static bool valid_rsdp_checksum(rsdp_t* r)
         sum = 0;
         for (unsigned i=0; i < ((xsdp_t*)r)->length; i++) 
         {
-            sum += ((uint8_t*)r)[i];
+            sum += ((u8*)r)[i];
         }
 
         if (sum) 
@@ -37,8 +37,8 @@ static bool valid_rsdp_checksum(rsdp_t* r)
 
 rsdp_t* gather_rdsp()
 {
-    uint32_t ebda_ptr = (*(uint16_t*)0x040E) << 4;
-    for (uint32_t i = 0; i < STOR_1KiB; i+=RDSP_ALIGNMENT)
+    u32 ebda_ptr = (*(u16*)0x040E) << 4;
+    for (u32 i = 0; i < STOR_1KiB; i+=RDSP_ALIGNMENT)
     {
         rsdp_t* rsdp = (rsdp_t*)(ebda_ptr + i) ;
         if (memcmp(rsdp->signature, RSDP_SIGNATURE, RSDP_SIGNATURE_LEN) == 0
@@ -51,9 +51,9 @@ rsdp_t* gather_rdsp()
     void* begin_region = (void*)0x000E0000;
     void* end_region   = (void*)0x000FFFFF;
 
-    uint32_t iterator = (uint32_t)begin_region;
+    u32 iterator = (u32)begin_region;
 
-    while (iterator <= (uint32_t)end_region)
+    while (iterator <= (u32)end_region)
     {
         rsdp_t* rsdp = (rsdp_t*)iterator;
         if (memcmp(rsdp->signature, RSDP_SIGNATURE, RSDP_SIGNATURE_LEN) == 0)

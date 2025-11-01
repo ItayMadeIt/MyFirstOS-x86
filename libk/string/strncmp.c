@@ -1,8 +1,9 @@
 #include <stddef.h>
+#include "core/num_defs.h"
 
-int strncmp(const char *s1, const char *s2, size_t n) 
+int strncmp(const char *s1, const char *s2, usize_ptr n) 
 {
-    size_t i = 0;
+    usize_ptr i = 0;
 
     while (i < n && s1[i] != '\0' && s2[i] != '\0') 
     {

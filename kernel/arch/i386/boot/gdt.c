@@ -6,7 +6,7 @@ EARLY_BSS_SECTION
 gdt_entry_t gdt_entries[DESCRIPTORS_AMOUNT]  __attribute__((aligned(16)));
 
 EARLY_TEXT_SECTION
-static void set_gdt_entry(gdt_entry_t* entry, uint32_t base, uint32_t limit, uint16_t flag)
+static void set_gdt_entry(gdt_entry_t* entry, u32 base, u32 limit, u16 flag)
 {
     entry->limit_low    = limit & 0xFFFF;              // set limit low bits 15:00
     entry->granularity  = (limit >> 16) & 0x0F;        // set limit high bits 19:16
@@ -54,7 +54,7 @@ void init_gdt()
 
     // Setup the GDTR
     gdt_description_t gdtr;
-    gdtr.offset = (uint32_t)gdt_entries; 
+    gdtr.offset = (u32)gdt_entries; 
     gdtr.limit = sizeof(gdt_entries) - 1; 
 
     // Load the GDT to the CPU

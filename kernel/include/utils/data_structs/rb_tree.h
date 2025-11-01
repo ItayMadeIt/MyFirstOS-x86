@@ -1,18 +1,18 @@
 #ifndef __TREE_INT_H__
 #define __TREE_INT_H__
 
-#include <core/defs.h>
+#include <stdbool.h>
+#include "core/num_defs.h"
 
+typedef struct __attribute__((aligned(sizeof(usize_ptr)))) rb_node {
 
-typedef struct __attribute__((aligned(sizeof(uintptr_t)))) rb_node {
-
-	uintptr_t parent_color;
+	usize_ptr parent_color;
 	struct rb_node* left;
 	struct rb_node* right;
 
 } rb_node_t;
 
-typedef intptr_t (*rb_cmp_t)(const rb_node_t* a, const rb_node_t* b);
+typedef ssize_ptr (*rb_cmp_t)(const rb_node_t* a, const rb_node_t* b);
 typedef void (*rb_augment_t)(rb_node_t* var);
 typedef void (*rb_free_t   )(rb_node_t* var);
 

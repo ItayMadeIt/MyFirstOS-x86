@@ -1,14 +1,14 @@
-#include <stdint.h>
+#include "core/num_defs.h"
 #include <firmware/acpi/acpi.h>
 
 struct acpi_timer
 {
-    uint8_t flags; // acpi_timer_flags
+    u8 flags; // acpi_timer_flags
     union {
         struct {
-            uint8_t unit; 
+            u8 unit; 
             volatile void* addr;
         } mmio;  
-        uint16_t io_port;
+        u16 io_port;
     };
 };

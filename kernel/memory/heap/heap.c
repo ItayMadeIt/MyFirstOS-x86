@@ -3,7 +3,7 @@
 #include <memory/heap/heap_structs.h>
 #include <memory/heap/heap.h>
 #include <memory/core/pfn_desc.h>
-#include <stdint.h>
+#include "core/num_defs.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -30,23 +30,23 @@ typedef struct heap_vars
     void* min_addr;
     void* cur_max_addr;
     void* reserved_max_addr;
-    uintptr_t cur_size;
-    uintptr_t reserved_max_size;
+    usize_ptr cur_size;
+    usize_ptr reserved_max_size;
 } heap_vars_t;
 
 heap_vars_t heap;
 
-static phys_page_descriptor_t* resolve_merge(phys_page_descriptor_t* cur_desc, uint8_t order)
+static phys_page_descriptor_t* resolve_merge(phys_page_descriptor_t* cur_desc, u8 order)
 {
     heap_buddy_order_t* cur_desc_order = &cur_desc->u.buddy.order;
 
-    uint8_t expon = order + BUDDY_EXPON_MIN;
+    u8 expon = order + BUDDY_EXPON_MIN;
 
     // Check if neighbour exists
-    uintptr_t neighbour_va = cur_desc_order->virt_addr ^ (1<<expon);
+    usize_ptr neighbour_va = cur_desc_order->virt_addr ^ (1<<expon);
     phys_page_descriptor_t* neighbour_desc = virt_to_pfn((void*)neighbour_va);
 
-    uint16_t buddy_flags = (PAGEFLAG_BUDDY | PAGEFLAG_VFREE | PAGEFLAG_HEAD);
+    u16 buddy_flags = (PAGEFLAG_BUDDY | PAGEFLAG_VFREE | PAGEFLAG_HEAD);
 
     if (neighbour_desc->type != PAGETYPE_HEAP ||
         (neighbour_desc->flags & buddy_flags) != buddy_flags ||
@@ -58,8 +58,8 @@ static phys_page_descriptor_t* resolve_merge(phys_page_descriptor_t* cur_desc, u
 
     // addr for the result desc is the lower one
     void* addr = (void*)min(neighbour_va, cur_desc_order->virt_addr);
-    phys_page_descriptor_t* new_desc = (uintptr_t)addr == neighbour_va ? neighbour_desc : cur_desc;
-    phys_page_descriptor_t* old_desc = (uintptr_t)addr == neighbour_va ? cur_desc : neighbour_desc;
+    phys_page_descriptor_t* new_desc = (usize_ptr)addr == neighbour_va ? neighbour_desc : cur_desc;
+    phys_page_descriptor_t* old_desc = (usize_ptr)addr == neighbour_va ? cur_desc : neighbour_desc;
     heap_buddy_order_t* new_desc_order = &new_desc->u.buddy.order;
     heap_buddy_order_t* old_desc_order = &old_desc->u.buddy.order;
 
@@ -84,7 +84,7 @@ static phys_page_descriptor_t* resolve_merge(phys_page_descriptor_t* cur_desc, u
     old_desc_order->next_free = NULL;
     old_desc_order->prev_free = NULL;
 
-    uint8_t new_order = order + 1;
+    u8 new_order = order + 1;
     assert(new_order < BUDDY_ORDER_COUNT);
 
     // Insert at the new order
@@ -102,7 +102,7 @@ static phys_page_descriptor_t* resolve_merge(phys_page_descriptor_t* cur_desc, u
     return new_desc;
 }
 
-static void merge_upwards(phys_page_descriptor_t* cur_desc, uint8_t order)
+static void merge_upwards(phys_page_descriptor_t* cur_desc, u8 order)
 {
     while (cur_desc)
     {
@@ -111,16 +111,16 @@ static void merge_upwards(phys_page_descriptor_t* cur_desc, uint8_t order)
     }
 }
 
-static void add_buddies(uintptr_t heap_addr, uintptr_t init_size, bool is_init)
+static void add_buddies(usize_ptr heap_addr, usize_ptr init_size, bool is_init)
 {
-    uintptr_t remaining_size = init_size;
+    usize_ptr remaining_size = init_size;
     
     while (remaining_size)
     {
-        uint8_t order = min(log2_u32(remaining_size)-BUDDY_EXPON_MIN, BUDDY_ORDER_MAX);
-        uint8_t expon = order + BUDDY_EXPON_MIN; 
+        u8 order = min(log2_u32(remaining_size)-BUDDY_EXPON_MIN, BUDDY_ORDER_MAX);
+        u8 expon = order + BUDDY_EXPON_MIN; 
 
-        uintptr_t cur_size = 1 << expon;
+        usize_ptr cur_size = 1 << expon;
 
         while ((heap_addr & (cur_size - 1)) != 0 && order)
         {
@@ -167,7 +167,7 @@ static void add_buddies(uintptr_t heap_addr, uintptr_t init_size, bool is_init)
 }
 
 
-static void add_heap_region(uintptr_t add_size)
+static void add_heap_region(usize_ptr add_size)
 {
     assert(add_size && add_size % PAGE_SIZE == 0);
     
@@ -184,15 +184,15 @@ static void add_heap_region(uintptr_t add_size)
         PAGEFLAG_VFREE | PAGEFLAG_BUDDY | PAGEFLAG_KERNEL
     );
     
-    add_buddies((uintptr_t)heap.cur_max_addr, add_size, false);
+    add_buddies((usize_ptr)heap.cur_max_addr, add_size, false);
 
     heap.cur_max_addr += add_size;
     heap.cur_size += add_size;
 }
 
-static void grow_heap(uintptr_t failed_size)
+static void grow_heap(usize_ptr failed_size)
 {
-    uintptr_t grow_size = min(
+    usize_ptr grow_size = min(
         max(failed_size, heap.cur_size),
         heap.reserved_max_size - heap.cur_size  // max possible grow size
     );
@@ -206,29 +206,29 @@ static void grow_heap(uintptr_t failed_size)
     add_heap_region(grow_size);
 }
 
-static uintptr_t pages_for_obj_size(uintptr_t obj_size)
+static usize_ptr pages_for_obj_size(usize_ptr obj_size)
 {
-    uintptr_t min_total_bytes = obj_size * MIN_SLAB_OBJ_AMOUNT;
+    usize_ptr min_total_bytes = obj_size * MIN_SLAB_OBJ_AMOUNT;
 
-    uintptr_t pages_size = 1u << log2_u32(
+    usize_ptr pages_size = 1u << log2_u32(
         max(align_up_pow2(min_total_bytes), PAGE_SIZE)
     );
 
-    uintptr_t pages = pages_size / PAGE_SIZE;
+    usize_ptr pages = pages_size / PAGE_SIZE;
 
     return min(pages, MAX_SLAB_PAGE_AMOUNT);
 }
 
-static void init_heap_vars(uintptr_t size, uintptr_t max_size, uintptr_t start_va)
+static void init_heap_vars(usize_ptr size, usize_ptr max_size, usize_ptr start_va)
 {
     heap.cur_size = size;
     
-    for (uintptr_t i = 0; i < BUDDY_ORDER_COUNT; i++)
+    for (usize_ptr i = 0; i < BUDDY_ORDER_COUNT; i++)
     {
         heap.free_buddies[i] = NULL;
     }
 
-    for (uintptr_t i = 0; i < SLAB_ORDER_COUNT; i++)
+    for (usize_ptr i = 0; i < SLAB_ORDER_COUNT; i++)
     {
         heap.free_slabs[i].free_slab = NULL;
         heap.free_slabs[i].obj_size = 1 << (SLAB_EXPON_MIN + i);
@@ -246,15 +246,15 @@ static void init_heap_vars(uintptr_t size, uintptr_t max_size, uintptr_t start_v
 }
 
 
-void* alloc_buddy(uintptr_t size)
+void* alloc_buddy(usize_ptr size)
 {
     assert(size && size % PAGE_SIZE == 0);
     assert((size & (size-1)) == 0);
 
-    uint8_t expon = log2_u32(size);
-    uint8_t order = expon - BUDDY_EXPON_MIN;
+    u8 expon = log2_u32(size);
+    u8 order = expon - BUDDY_EXPON_MIN;
 
-    uint8_t og_order = order;
+    u8 og_order = order;
 
     while (order <= BUDDY_ORDER_MAX && heap.free_buddies[order] == NULL)
     {
@@ -289,7 +289,7 @@ void* alloc_buddy(uintptr_t size)
 
         phys_page_descriptor_t* cur_page_desc = virt_to_pfn((void*)cur_order_obj->virt_addr);
 
-        uintptr_t neighbor_va = cur_order_obj->virt_addr + (1 << expon);
+        usize_ptr neighbor_va = cur_order_obj->virt_addr + (1 << expon);
         phys_page_descriptor_t* neighbor_page_desc = virt_to_pfn((void*)neighbor_va);
 
         cur_page_desc->u.buddy.num_pages /= 2;
@@ -340,7 +340,7 @@ void* alloc_buddy(uintptr_t size)
 
 void free_buddy(void* addr)
 {
-    assert((uintptr_t)addr % PAGE_SIZE == 0);
+    assert((usize_ptr)addr % PAGE_SIZE == 0);
     
     phys_page_descriptor_t* cur_desc = virt_to_pfn(addr);
     
@@ -349,7 +349,7 @@ void free_buddy(void* addr)
     assert(cur_desc->flags & PAGEFLAG_HEAD);
     assert((cur_desc->flags & PAGEFLAG_VFREE) == 0);
 
-    uint8_t order = log2_u32(cur_desc->u.buddy.num_pages);
+    u8 order = log2_u32(cur_desc->u.buddy.num_pages);
 
     assert(cur_desc->u.buddy.buddy_cache == &heap.free_buddies[order]);
 
@@ -365,21 +365,21 @@ void free_buddy(void* addr)
     cur_desc_order->prev_free = NULL;
     heap.free_buddies[order] = cur_desc_order;
 
-    cur_desc_order->virt_addr = (uintptr_t)addr;
+    cur_desc_order->virt_addr = (usize_ptr)addr;
     cur_desc_order->buddy_order = order;
 
     merge_upwards(cur_desc, order);
 }
 
-static heap_slab_node_t* init_slab_free_list(void* base_addr, uintptr_t obj_size, uint16_t obj_count) 
+static heap_slab_node_t* init_slab_free_list(void* base_addr, usize_ptr obj_size, u16 obj_count) 
 {
-    uintptr_t current_ptr = (uintptr_t) base_addr;
+    usize_ptr current_ptr = (usize_ptr) base_addr;
     ((heap_slab_node_t*)current_ptr)->prev_free = NULL;
 
-    uintptr_t last_ptr = current_ptr;
+    usize_ptr last_ptr = current_ptr;
     current_ptr += obj_size;
 
-    for (uint16_t i = 1; i < obj_count; i++) 
+    for (u16 i = 1; i < obj_count; i++) 
     {
         ((heap_slab_node_t*)last_ptr)->next_free = (heap_slab_node_t*)current_ptr;
         ((heap_slab_node_t*)current_ptr)->prev_free = (heap_slab_node_t*)last_ptr;
@@ -424,8 +424,8 @@ void* alloc_slab(heap_slab_order_t* slab_order)
 
     cur_desc->flags &= ~PAGEFLAG_BUDDY;
     
-    uintptr_t obj_size  = slab_order->obj_size;
-    uintptr_t obj_count = slab_order->slab_size / obj_size;
+    usize_ptr obj_size  = slab_order->obj_size;
+    usize_ptr obj_count = slab_order->slab_size / obj_size;
     assert(obj_count);
 
     // init phys descriptor as slab
@@ -435,9 +435,9 @@ void* alloc_slab(heap_slab_order_t* slab_order)
     slab_metadata->obj_count = obj_count;
     slab_metadata->num_pages = cur_desc->u.buddy.num_pages;
 
-    uintptr_t base = (uintptr_t)buddy_addr;
-    uintptr_t bytes = slab_metadata->num_pages * PAGE_SIZE;
-    for (uintptr_t off = PAGE_SIZE; off < bytes; off += PAGE_SIZE) 
+    usize_ptr base = (usize_ptr)buddy_addr;
+    usize_ptr bytes = slab_metadata->num_pages * PAGE_SIZE;
+    for (usize_ptr off = PAGE_SIZE; off < bytes; off += PAGE_SIZE) 
     {
         phys_page_descriptor_t* tail = virt_to_pfn((void*)(base + off));
         tail->flags &= ~(PAGEFLAG_BUDDY | PAGEFLAG_HEAD);
@@ -515,14 +515,14 @@ void free_slab(void* addr)
     }
 
     // Restore data to buddy allocated (all objects are now free)
-    uint8_t buddy_order = log2_u32(slab_metadata->num_pages);
-    uint8_t buddy_expon = buddy_order + BUDDY_EXPON_MIN;
-    uintptr_t pages_total_size = 1 << buddy_expon; 
-    uintptr_t slab_start_addr =
-        (uintptr_t)slab_metadata->free_node & ~(pages_total_size-1);
+    u8 buddy_order = log2_u32(slab_metadata->num_pages);
+    u8 buddy_expon = buddy_order + BUDDY_EXPON_MIN;
+    usize_ptr pages_total_size = 1 << buddy_expon; 
+    usize_ptr slab_start_addr =
+        (usize_ptr)slab_metadata->free_node & ~(pages_total_size-1);
 
-    uintptr_t bytes = slab_metadata->num_pages * PAGE_SIZE;
-    uintptr_t slab_tail_va = (uintptr_t)PAGE_SIZE;
+    usize_ptr bytes = slab_metadata->num_pages * PAGE_SIZE;
+    usize_ptr slab_tail_va = (usize_ptr)PAGE_SIZE;
 
     while (slab_tail_va < bytes)
     {
@@ -550,7 +550,7 @@ void free_slab(void* addr)
 }
 
 // Allocate abstraction for slab
-void* kalloc(uintptr_t size)
+void* kalloc(usize_ptr size)
 {
     if (size > (1 << SLAB_EXPON_MAX))
     {
@@ -571,21 +571,21 @@ void* kalloc(uintptr_t size)
     
     assert((size & (size-1)) == 0); 
 
-    uint8_t expon = log2_u32(size); 
-    uint8_t order = expon - SLAB_EXPON_MIN;
+    u8 expon = log2_u32(size); 
+    u8 order = expon - SLAB_EXPON_MIN;
 
     return alloc_slab(&heap.free_slabs[order]);
 }
 
-void *kalloc_aligned(uintptr_t alignment, uintptr_t size) 
+void *kalloc_aligned(usize_ptr alignment, usize_ptr size) 
 { 
     // the size is always the alignment
-    uintptr_t alloc_size = max(alignment, size);
+    usize_ptr alloc_size = max(alignment, size);
     return kalloc(alloc_size); 
 }
 
-void *kalloc_pages(uintptr_t pages) {
-  uintptr_t size = pages * PAGE_SIZE;
+void *kalloc_pages(usize_ptr pages) {
+  usize_ptr size = pages * PAGE_SIZE;
 
   size = align_up_pow2(size);
 
@@ -603,18 +603,18 @@ static inline heap_slab_order_t* get_slab_order(void* obj_addr)
     return desc->u.slab.order_cache;
 }
 
-static uintptr_t get_buddy_size(void* buddy_addr)
+static usize_ptr get_buddy_size(void* buddy_addr)
 {
     phys_page_descriptor_t* desc = virt_to_pfn(buddy_addr);
 
     assert(desc->flags & PAGEFLAG_HEAD);
     
-    uint8_t expon = desc->u.buddy.order.buddy_order + BUDDY_EXPON_MIN;
+    u8 expon = desc->u.buddy.order.buddy_order + BUDDY_EXPON_MIN;
     
     return 1 << expon;
 }
 
-void* krealloc(void* addr, uintptr_t new_size)
+void* krealloc(void* addr, usize_ptr new_size)
 {
     if (!addr)
     {
@@ -624,7 +624,7 @@ void* krealloc(void* addr, uintptr_t new_size)
     phys_page_descriptor_t* desc = virt_to_pfn(addr);
     if (desc->flags & PAGEFLAG_BUDDY)
     {
-        uintptr_t old_size = get_buddy_size(addr);
+        usize_ptr old_size = get_buddy_size(addr);
         if (old_size >= new_size)
             return addr;
 
@@ -646,7 +646,7 @@ void* krealloc(void* addr, uintptr_t new_size)
     {
         heap_slab_order_t* slab_order = get_slab_order(addr);
         
-        uintptr_t old_size = slab_order->obj_size;
+        usize_ptr old_size = slab_order->obj_size;
         if (old_size >= new_size)
             return addr;
 
@@ -659,7 +659,7 @@ void* krealloc(void* addr, uintptr_t new_size)
 
         // Need to reallocate
         new_size = align_up_pow2(new_size);
-        uint8_t slab_order_index = log2_u32(new_size)-SLAB_EXPON_MIN;
+        u8 slab_order_index = log2_u32(new_size)-SLAB_EXPON_MIN;
 
         void* new_addr;
         if (slab_order_index <= SLAB_INDEX_ORDER_MAX)
@@ -694,7 +694,7 @@ void kfree(void* addr)
         free_slab(addr);
 }
 
-heap_slab_cache_t* kcreate_slab_cache(uintptr_t obj_size, const char* slab_name)
+heap_slab_cache_t* kcreate_slab_cache(usize_ptr obj_size, const char* slab_name)
 {
     assert(obj_size >= sizeof(heap_slab_node_t));
     obj_size = align_to_n(obj_size, sizeof(void*)); 
@@ -721,16 +721,16 @@ void kfree_slab_cache(heap_slab_cache_t* slab_cache)
     kfree(slab_cache);
 }
 
-void init_heap(void* heap_addr, uintptr_t max_size, uintptr_t init_size)
+void init_heap(void* heap_addr, usize_ptr max_size, usize_ptr init_size)
 {
     assert(sizeof(heap_slab_node_t) <= (1 << SLAB_EXPON_MIN));
 
-    assert((uintptr_t)heap_addr % PAGE_SIZE == 0);
+    assert((usize_ptr)heap_addr % PAGE_SIZE == 0);
     assert(init_size != 0);
     assert(init_size % PAGE_SIZE == 0);
     assert(init_size < (1u << BUDDY_EXPON_MAX));
 
-    init_heap_vars(init_size, max_size, (uintptr_t)heap_addr);
+    init_heap_vars(init_size, max_size, (usize_ptr)heap_addr);
 
     pfn_alloc_map_pages(
         heap_addr, 
@@ -739,5 +739,5 @@ void init_heap(void* heap_addr, uintptr_t max_size, uintptr_t init_size)
         PAGEFLAG_VFREE|PAGEFLAG_BUDDY|PAGEFLAG_KERNEL
     );
 
-    add_buddies((uintptr_t)heap_addr, init_size, true);
+    add_buddies((usize_ptr)heap_addr, init_size, true);
 }

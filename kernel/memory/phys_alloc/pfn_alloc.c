@@ -4,7 +4,7 @@
 #include <memory/phys_alloc/pfn_alloc.h>
 #include <kernel/memory/paging.h>
 #include <stddef.h>
-#include <stdint.h>
+#include "core/num_defs.h"
 #include <stdio.h>
 
 phys_page_descriptor_t* page_desc_free_ll;
@@ -18,8 +18,8 @@ void* pfn_alloc_phys_page()
 
 static inline void mark_pages(phys_page_descriptor_t* begin, 
                        phys_page_descriptor_t* end, 
-                       enum phys_page_type type, uint16_t flags, 
-                       uintptr_t ref_count) 
+                       enum phys_page_type type, u16 flags, 
+                       usize_ptr ref_count) 
 {
     for (phys_page_descriptor_t* it = begin;  it < end; it++)
     {
@@ -29,7 +29,7 @@ static inline void mark_pages(phys_page_descriptor_t* begin,
     }
 } 
 
-phys_alloc_t pfn_alloc_phys_pages(uintptr_t request_count)
+phys_alloc_t pfn_alloc_phys_pages(usize_ptr request_count)
 {
     if (!page_desc_free_ll)
     {
@@ -39,13 +39,13 @@ phys_alloc_t pfn_alloc_phys_pages(uintptr_t request_count)
         };
     }
 
-    uintptr_t page_index = page_desc_free_ll - pfn_data.descs;
-    uintptr_t taken_count = min(page_desc_free_ll->u.free_page.count, request_count);
+    usize_ptr page_index = page_desc_free_ll - pfn_data.descs;
+    usize_ptr taken_count = min(page_desc_free_ll->u.free_page.count, request_count);
     
     // Just decrease count
     if (page_desc_free_ll->u.free_page.count > taken_count)
     {
-        uintptr_t result_page_index = page_index + page_desc_free_ll->u.free_page.count - taken_count;
+        usize_ptr result_page_index = page_index + page_desc_free_ll->u.free_page.count - taken_count;
 
         // Mark
         phys_page_descriptor_t* result_begin_desc = &pfn_data.descs[result_page_index];
@@ -59,7 +59,7 @@ phys_alloc_t pfn_alloc_phys_pages(uintptr_t request_count)
         // Update list entry
         page_desc_free_ll->u.free_page.count -= taken_count;
 
-        uintptr_t new_foot_page_index = result_page_index - 1;
+        usize_ptr new_foot_page_index = result_page_index - 1;
         phys_page_descriptor_t* new_foot = &pfn_data.descs[new_foot_page_index];
         new_foot->u.free_page.count = page_desc_free_ll->u.free_page.count;
 
@@ -107,12 +107,12 @@ void pfn_free_phys_page(void* addr_ptr)
 
 void pfn_free_phys_pages(phys_alloc_t free_params)
 {
-    uintptr_t start = (uintptr_t) free_params.addr;
-    uintptr_t end   = start + free_params.count * PAGE_SIZE;
+    usize_ptr start = (usize_ptr) free_params.addr;
+    usize_ptr end   = start + free_params.count * PAGE_SIZE;
 
-    uintptr_t page_index_begin = start / PAGE_SIZE;
-    uintptr_t page_index_end   = end   / PAGE_SIZE;
-    uintptr_t total_pages      = pfn_data.count;
+    usize_ptr page_index_begin = start / PAGE_SIZE;
+    usize_ptr page_index_end   = end   / PAGE_SIZE;
+    usize_ptr total_pages      = pfn_data.count;
 
     if (page_index_begin >= total_pages)
     {
@@ -141,7 +141,7 @@ void pfn_free_phys_pages(phys_alloc_t free_params)
     // Check backwards extension
     if (old_foot && old_foot->type == PAGETYPE_UNUSED)
     {
-        uintptr_t old_count = old_foot->u.free_page.count;
+        usize_ptr old_count = old_foot->u.free_page.count;
         cur_head = &pfn_data.descs[page_index_begin - old_count];
         page_index_begin -= old_count;
     }
@@ -151,7 +151,7 @@ void pfn_free_phys_pages(phys_alloc_t free_params)
     // Check forwards extension
     if (old_head && old_head->type == PAGETYPE_UNUSED)
     {
-        uintptr_t old_count = old_head->u.free_page.count;
+        usize_ptr old_count = old_head->u.free_page.count;
         cur_foot = &pfn_data.descs[page_index_end + old_count - 1];
         page_index_end += old_count;
 
@@ -169,7 +169,7 @@ void pfn_free_phys_pages(phys_alloc_t free_params)
     }
     
     // update count
-    uintptr_t cur_count = (uintptr_t)(cur_foot - cur_head) + 1;
+    usize_ptr cur_count = (usize_ptr)(cur_foot - cur_head) + 1;
     cur_head->u.free_page.count = cur_count;
     cur_foot->u.free_page.count = cur_count;
 
@@ -185,10 +185,10 @@ void pfn_free_phys_pages(phys_alloc_t free_params)
 
 static void reserve_map_page_region(void* start_pa, void* end_pa)
 {
-    uint64_t begin = (uint64_t)(uintptr_t)start_pa;
-    uint64_t end = (uint64_t)(uintptr_t)end_pa;
+    u64 begin = (u64)(usize_ptr)start_pa;
+    u64 end = (u64)(usize_ptr)end_pa;
 
-    uint16_t pfn_flags = PAGEFLAG_KERNEL | PAGEFLAG_READONLY | PAGEFLAG_IDEN_MAP;
+    u16 pfn_flags = PAGEFLAG_KERNEL | PAGEFLAG_READONLY | PAGEFLAG_IDEN_MAP;
 
     identity_map_pages(
         (void*)begin, (end-begin)/PAGE_SIZE, 
@@ -202,7 +202,7 @@ static void build_free_list()
 {
     page_desc_free_ll = NULL;
 
-    uintptr_t i = 0;
+    usize_ptr i = 0;
     while (i < pfn_data.count) 
     {
         while (i < pfn_data.count && pfn_data.descs[i].type != PAGETYPE_UNUSED) 
@@ -217,13 +217,13 @@ static void build_free_list()
             break;
 
         // Start of a free run
-        uintptr_t run_start = i;
+        usize_ptr run_start = i;
         while (i < pfn_data.count && pfn_data.descs[i].type == PAGETYPE_UNUSED) 
         {
             ++i;
         }
         
-        uintptr_t count = i - run_start;
+        usize_ptr count = i - run_start;
         
         if (count == 0) 
             continue;
@@ -244,7 +244,7 @@ static void build_free_list()
     }
 }
 
-phys_run_vec_t pfn_alloc_phys_run_vector(uintptr_t count)
+phys_run_vec_t pfn_alloc_phys_run_vector(usize_ptr count)
 {
     phys_run_vec_t vector = {
         .runs = NULL,
@@ -254,7 +254,7 @@ phys_run_vec_t pfn_alloc_phys_run_vector(uintptr_t count)
 
     while (vector.total_pages< count)
     {
-        size_t cur_index = vector.run_count;
+        usize cur_index = vector.run_count;
         vector.run_count++;
 
         vector.runs = krealloc(vector.runs, sizeof(phys_alloc_t) * vector.run_count);
@@ -268,7 +268,7 @@ phys_run_vec_t pfn_alloc_phys_run_vector(uintptr_t count)
 
 void pfn_free_phys_pages_vector(phys_run_vec_t vector)
 {
-    for (size_t i = 0; i < vector.run_count; i++) 
+    for (usize i = 0; i < vector.run_count; i++) 
     {
         free_phys_pages(vector.runs[i]);
     }
