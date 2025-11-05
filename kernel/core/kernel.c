@@ -1,17 +1,16 @@
 #include "drivers/pci.h"
 #include "drivers/storage.h"
-#include "memory/core/virt_alloc.h"
 #include "services/storage/block_device.h"
 #include <stdio.h>
 #include <core/defs.h>
 #include <drivers/tty.h>
 #include <firmware/acpi/acpi.h>
 #include <kernel/boot/boot_data.h>
-
 #include <kernel/devices/keyboard.h>
 #include <kernel/devices/int_timer.h>
 #include <kernel/interrupts/irq.h>
 #include <kernel/core/cpu.h>
+#include "kernel/core/paging.h"
 
 void init_memory(boot_data_t* data);
 
@@ -124,26 +123,29 @@ void kernel_main(boot_data_t* boot_data)
     stor_device_t* dev = main_stor_device();
 
     const usize count = 2;
-
     cache_entry_t* entries[count];
     stor_pin_range_sync(dev, 0, count, entries);
+    u8* va_buffer = stor_kclone_vrange(dev, entries, count);
 
-    u8* va_buffer = stor_clone_vrange(dev, entries, count);
-
-    for (usize i = 0; i < 0x200; ++i) 
+    for (usize i = 0; i < PAGE_SIZE * count; ++i) 
     {
         printf("%02x ", (u32)*(va_buffer + i));
         if ((i + 1) % 0x8 == 0)
         {
             printf("\n");
         }
+        
+        if (i % 0x20 == 0)
+        {
+            va_buffer[i] = 'a';
+     //       stor_mark_va_dirty(&va_buffer[i]);
+        }
     }
 
-    kvfree_pages(va_buffer);
-
+    stor_kfree_vrange(va_buffer);
     stor_unpin_range_sync(dev, entries, count);
 
     stor_flush_unpinned(dev);
     
-    while(1);
+    while(1) cpu_halt();
 }

@@ -1,13 +1,6 @@
+#include "kernel/core/cpu.h"
 #include <stdio.h>
 #include <stdlib.h>
-
-inline static void halt()
-{
-    asm volatile (
-        "cli\n\t"   // disable interrupts
-        "hlt\n\t"   // halt the CPU
-    );
-}
 
 __attribute__((__noreturn__))
 void abort(void)
@@ -19,6 +12,9 @@ void abort(void)
 	// TODO: Abnormally terminate the process as if by SIGABRT.
 	printf("abort()\n");
 #endif
-	while (1) { }
+	while (1) 
+	{ 
+		cpu_halt();	
+	}
 	__builtin_unreachable();
 }

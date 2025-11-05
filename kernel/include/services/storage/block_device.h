@@ -37,7 +37,7 @@ typedef struct pin_range pin_range_t;
 typedef struct cache_entry 
 {
     // data
-    usize lba;
+    usize block_lba;
     void* buffer;
     u32 cur_ref_count;
     u8  state;
@@ -145,7 +145,11 @@ usize calc_blocks_per_bytes(stor_device_t* device, usize offset, usize amount);
 void* block_dev_vbuffer(cache_entry_t* entry);
 usize_ptr block_dev_bufsize(stor_device_t* device);
 
-void* stor_clone_vrange(stor_device_t* device, cache_entry_t** entries, usize count);
+void* stor_kclone_vrange(stor_device_t* device, cache_entry_t** entries, usize count);
+void  stor_kfree_vrange(void* vaddr);
+
+void stor_mark_va_dirty(void* va);
+void stor_mark_varange_dirty(void* va, usize_ptr size);
 
 void init_block_device(stor_device_t* device);
 
