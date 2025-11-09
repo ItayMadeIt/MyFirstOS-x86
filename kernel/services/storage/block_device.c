@@ -54,7 +54,7 @@ EVICTING - entry chosen for eviction, but waiting for in-flight I/O to finish.
 Transition: once I/O completes -> UNUSED.
 */
 
-static void reset_entry(cache_entry_t* entry)
+static void reset_cache_entry(cache_entry_t* entry)
 {
     assert(entry);
     entry->buffer = NULL;
@@ -64,8 +64,6 @@ static void reset_entry(cache_entry_t* entry)
     entry->dirty = false;
 
     memset(&entry->node, 0, sizeof(entry->node));
-
-    entry->lba_next = NULL;
 
     entry->q_prev = NULL;
     entry->q_next = NULL;
@@ -113,7 +111,7 @@ static ssize_ptr tree_insert_entry(stor_device_t* device, cache_entry_t* entry)
     ) == NULL ? -1 : 1;
 }
 
-static ssize_ptr tree_remake_entry(stor_device_t* device, cache_entry_t* entry, usize new_lba)
+static ssize_ptr tree_update_entry_lba(stor_device_t* device, cache_entry_t* entry, usize new_lba)
 {
     rb_remove_node(&device->cache.lba_tree, &entry->node);
 
@@ -194,8 +192,8 @@ static void init_block_cache(stor_device_t* device)
     device->cache.blocks_arr = kalloc(sizeof(void*) * INIT_BLOCK_BUCKETS);
     device->cache.blocks_length = INIT_BLOCK_BUCKETS;
 
-    device->cache.cache_queue.mru = NULL;
-    device->cache.cache_queue.lru = NULL;
+    device->cache.cache_lru.mru = NULL;
+    device->cache.cache_lru.lru = NULL;
 
     // max buckets_length == device->cache.max_bytes / device->cache.bucket_size
 
@@ -209,9 +207,9 @@ static void init_block_cache(stor_device_t* device)
     }    
 }
 
-static void block_queue_insert_mru(stor_device_t* device, cache_entry_t* entry)
+static void block_lru_insert_mru(stor_device_t* device, cache_entry_t* entry)
 {
-    cache_entry_t* old_mru = device->cache.cache_queue.mru;
+    cache_entry_t* old_mru = device->cache.cache_lru.mru;
     
     entry->q_prev = NULL;
     entry->q_next = old_mru; 
@@ -224,13 +222,13 @@ static void block_queue_insert_mru(stor_device_t* device, cache_entry_t* entry)
     // Is first element? Switch LRU
     else
     {
-        device->cache.cache_queue.lru = entry;
+        device->cache.cache_lru.lru = entry;
     }
 
-    device->cache.cache_queue.mru = entry;
+    device->cache.cache_lru.mru = entry;
 }
 
-static void block_queue_remove_entry(stor_device_t* device, cache_entry_t* entry)
+static void block_lru_remove_entry(stor_device_t* device, cache_entry_t* entry)
 {
     if (!entry)
     {
@@ -245,7 +243,7 @@ static void block_queue_remove_entry(stor_device_t* device, cache_entry_t* entry
     // Was MRU
     else
     {
-        device->cache.cache_queue.mru = entry->q_next;
+        device->cache.cache_lru.mru = entry->q_next;
     }
 
     // Fix next link
@@ -256,16 +254,16 @@ static void block_queue_remove_entry(stor_device_t* device, cache_entry_t* entry
     // Was LRU
     else
     {
-        device->cache.cache_queue.lru = entry->q_prev;
+        device->cache.cache_lru.lru = entry->q_prev;
     }
 
     entry->q_prev = NULL;
     entry->q_next = NULL;
 }
 
-static cache_entry_t* block_queue_pop(stor_device_t* device, cache_entry_t* entry)
+static cache_entry_t* block_lru_pop(stor_device_t* device, cache_entry_t* entry)
 {
-    cache_queue_t* q = &device->cache.cache_queue;
+    cache_lru_t* q = &device->cache.cache_lru;
 
     if (entry->q_next)
         entry->q_next->q_prev = entry->q_prev;
@@ -285,12 +283,12 @@ static cache_entry_t* block_queue_pop(stor_device_t* device, cache_entry_t* entr
     return entry;
 }
 
-static void block_queue_for_each(stor_device_t* device, void (*callback)(cache_entry_t*, void*), void* ctx)
+static void block_lru_for_each(stor_device_t* device, void (*callback)(cache_entry_t*, void*), void* ctx)
 {
     assert(device);
     assert(callback);
 
-    cache_entry_t* current = device->cache.cache_queue.mru; // start from MRU
+    cache_entry_t* current = device->cache.cache_lru.mru; // start from MRU
     while (current)
     {
         callback(current, ctx);
@@ -299,12 +297,12 @@ static void block_queue_for_each(stor_device_t* device, void (*callback)(cache_e
     }
 }
 
-static cache_entry_t* block_queue_evict(stor_device_t* device)
+static cache_entry_t* block_lru_evict(stor_device_t* device)
 {
-    if (!device->cache.cache_queue.lru)
+    if (!device->cache.cache_lru.lru)
         return NULL;
 
-    return block_queue_pop(device, device->cache.cache_queue.lru);
+    return block_lru_pop(device, device->cache.cache_lru.lru);
 }
 
 static void stor_clear_dirty(stor_device_t* device, cache_entry_t* entry)
@@ -367,7 +365,7 @@ static cache_entry_t *create_link_cache_entry(stor_device_t *device,
 {
     cache_entry_t* entry = kalloc(sizeof(cache_entry_t));
 
-    reset_entry(entry);
+    reset_cache_entry(entry);
 
     entry->block_lba    = block_lba;
     entry->buffer = buffer;
@@ -406,7 +404,7 @@ static void unpin_entry(stor_device_t* device, usize block_lba)
         return;
 
     hashmap_pin_del_entry(device, entry->block_lba);
-    block_queue_insert_mru(device, entry);
+    block_lru_insert_mru(device, entry);
 }
 
 typedef struct pin_range 
@@ -507,9 +505,9 @@ static void write_entry_cb_async(stor_request_t* request, int64_t status)
     pin_range_t* range = entry->io.own_range;
     pin_range_fn_metadata_t* metadata = container_of(range, pin_range_fn_metadata_t, ranges[range->range_index]);
 
-    // Rebanrd evicted entry
+    // Rebrand evicted entry
     metadata->entries[entry->io.new_index] = entry;
-    tree_remake_entry(metadata->device, entry, entry->io.new_lba);
+    tree_update_entry_lba(metadata->device, entry, entry->io.new_lba);
     hashmap_pin_insert_entry(metadata->device, entry);
     entry->cur_ref_count = 1;
 
@@ -537,7 +535,7 @@ static void call_evict_async(stor_device_t* device, pin_range_t* range, usize in
     // Evict entry
     assert(metadata->entries[entry_index] == NULL);
     
-    cache_entry_t* evict_entry = block_queue_evict(device);
+    cache_entry_t* evict_entry = block_lru_evict(device);
     usize evict_lba   = evict_entry->block_lba;
 
     assert(evict_entry);
@@ -621,11 +619,11 @@ static void pin_repin_entry(stor_device_t* device, cache_entry_t* entry)
     {
         entry->cur_ref_count++;
     }
-    // queue & tree 
+    // lru & tree 
     else 
     {
         entry->cur_ref_count = 1;
-        block_queue_remove_entry(device, entry);
+        block_lru_remove_entry(device, entry);
         hashmap_pin_insert_entry(device, entry);
     }
 }
@@ -757,6 +755,11 @@ void stor_pin_range_async(
     allocate_or_evict_blocks(metadata);
     launch_async_reads(metadata);
 
+    if (metadata->fix_ranges_count == 0 && cb)
+    {
+        cb(ctx, 0, out_cache_arr, count);
+    }
+
     irq_restore(irq);
 }
 
@@ -878,15 +881,9 @@ void stor_flush_unpinned(stor_device_t *device)
 {
     uptr irq = irq_save();
 
-    block_queue_for_each(device, flush_entry, device);
+    block_lru_for_each(device, flush_entry, device);
 
     irq_restore(irq);
-}
-
-usize calc_blocks_per_bytes(stor_device_t *device, usize offset, usize amount)
-{
-    return (amount + device->cache.block_size - 1) / device->cache.block_size
-        + (offset % device->cache.block_size != 0 ? 1 : 0);
 }
 
 void* block_dev_vbuffer(cache_entry_t* entry)
@@ -899,7 +896,7 @@ usize_ptr block_dev_bufsize(stor_device_t* device)
     return device->cache.block_size; 
 }
 
-void* stor_kclone_vrange(stor_device_t* device, cache_entry_t** entries, usize count)
+void* stor_clone_kvrange_entries(stor_device_t* device, cache_entry_t** entries, usize count)
 {
     usize total_bytes = count * device->cache.block_size;
     usize total_pages = (total_bytes + PAGE_SIZE - 1) / PAGE_SIZE;
@@ -943,9 +940,9 @@ void stor_mark_varange_dirty(void* va_ptr, usize_ptr size)
     }
 }
 
-void stor_kfree_vrange(void* vaddr)
+void stor_free_kvrange(void* va)
 {
-    kvfree_pages(vaddr);
+    kvfree_pages(va);
 }
 
 void init_block_device(stor_device_t* device)

@@ -50,35 +50,30 @@ typedef struct cache_entry
         usize new_index;   // index in out array (or in-range offset)
     } io;
     
-    // tree
+    // Tree
     rb_node_t node;
 
-    union {
-        // queue (if ref count == 0)
-        struct {
-            struct cache_entry* q_next;
-            struct cache_entry* q_prev;
-        };
-        // lba + 1 entry
-        struct cache_entry* lba_next;
+    // LRU
+    struct {
+        struct cache_entry* q_next;
+        struct cache_entry* q_prev;
     };
-
 } cache_entry_t;
 
-typedef struct cache_queue
+typedef struct cache_lru
 {
     // [mru] -> next -> next -> [lru]
     // [mru] <- prev <- prev <- [lru]
 
     cache_entry_t* mru; // most recently used
     cache_entry_t* lru; // least recently used
-} cache_queue_t;
+} cache_lru_t;
 
 typedef struct block_device_data 
 {
     flat_hashmap_t pin_hashmap;
     rb_tree_t lba_tree;
-    cache_queue_t cache_queue; // Queue
+    cache_lru_t cache_lru; // Queue
 
     void**   blocks_arr;      // array of buckets, each one virt addr
     usize_ptr blocks_length;  // number of allocated buckets
@@ -140,16 +135,15 @@ void stor_mark_dirty(cache_entry_t* entry);
 
 void stor_flush_unpinned(stor_device_t* device);
 
-usize calc_blocks_per_bytes(stor_device_t* device, usize offset, usize amount);
-
 void* block_dev_vbuffer(cache_entry_t* entry);
 usize_ptr block_dev_bufsize(stor_device_t* device);
 
-void* stor_kclone_vrange(stor_device_t* device, cache_entry_t** entries, usize count);
-void  stor_kfree_vrange(void* vaddr);
+void* stor_clone_kvrange_entries(stor_device_t* device, cache_entry_t** entries, usize count);
+void  stor_free_kvrange(void* va);
 
 void stor_mark_va_dirty(void* va);
 void stor_mark_varange_dirty(void* va, usize_ptr size);
+
 
 void init_block_device(stor_device_t* device);
 
