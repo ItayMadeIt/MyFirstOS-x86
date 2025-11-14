@@ -61,6 +61,9 @@ void  kvunmap_phys_vec(void* va, const phys_run_vec_t* run);
 
 void* vmap_identity(void* pa, usize_ptr count, enum virt_region_type type, u16 flags);
 
+void* kvreserve_pages(usize_ptr count, enum virt_region_type vregion, const char* name);
+void kvunreserve_pages(void* va);
+
 // need to do it: void* vmap(usize_ptr* phys_pages, u64 page_count, u16 flags);
 // need to do it: void  vunmap(void* addr, u64 page_count);
 

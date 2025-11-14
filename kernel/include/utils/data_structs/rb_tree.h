@@ -12,7 +12,7 @@ typedef struct __attribute__((aligned(sizeof(usize_ptr)))) rb_node {
 
 } rb_node_t;
 
-typedef ssize_ptr (*rb_cmp_t)(const rb_node_t* a, const rb_node_t* b);
+typedef isize_ptr (*rb_cmp_t)(const rb_node_t* a, const rb_node_t* b);
 typedef void (*rb_augment_t)(rb_node_t* var);
 typedef void (*rb_free_t   )(rb_node_t* var);
 

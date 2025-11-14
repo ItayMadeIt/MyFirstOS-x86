@@ -69,7 +69,7 @@ static void reset_cache_entry(cache_entry_t* entry)
     entry->q_next = NULL;
 }
 
-static ssize_ptr hashmap_pin_insert_entry(stor_device_t* device, cache_entry_t* entry)
+static isize_ptr hashmap_pin_insert_entry(stor_device_t* device, cache_entry_t* entry)
 {
     return fhashmap_insert(
         &device->cache.pin_hashmap, 
@@ -103,7 +103,7 @@ static bool hashmap_pin_del_entry(stor_device_t* device, usize block_lba)
     return hashmap_result.succeed;
 }
 
-static ssize_ptr tree_insert_entry(stor_device_t* device, cache_entry_t* entry)
+static isize_ptr tree_insert_entry(stor_device_t* device, cache_entry_t* entry)
 {
     return rb_insert(
         &device->cache.lba_tree,
@@ -111,13 +111,13 @@ static ssize_ptr tree_insert_entry(stor_device_t* device, cache_entry_t* entry)
     ) == NULL ? -1 : 1;
 }
 
-static ssize_ptr tree_update_entry_lba(stor_device_t* device, cache_entry_t* entry, usize new_lba)
+static isize_ptr tree_update_entry_lba(stor_device_t* device, cache_entry_t* entry, usize new_lba)
 {
     rb_remove_node(&device->cache.lba_tree, &entry->node);
 
     entry->block_lba = new_lba;
 
-    ssize_ptr result = rb_insert(&device->cache.lba_tree, &entry->node) == NULL ? -1 : 1;
+    isize_ptr result = rb_insert(&device->cache.lba_tree, &entry->node) == NULL ? -1 : 1;
     return result;
 }
 
@@ -166,7 +166,7 @@ static void* block_request_buffer(stor_device_t* device)
     return result_buffer;
 }
 
-static ssize_ptr lba_node_cmp(const rb_node_t* a_node, const rb_node_t* b_node)
+static isize_ptr lba_node_cmp(const rb_node_t* a_node, const rb_node_t* b_node)
 {
     const cache_entry_t* a = container_of(a_node, cache_entry_t, node);
     const cache_entry_t* b = container_of(b_node, cache_entry_t, node);

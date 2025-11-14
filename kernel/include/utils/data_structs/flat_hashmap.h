@@ -49,7 +49,7 @@ flat_hashmap_t init_fhashmap_custom  (u64 capacity, hash_func hash);
 #define FHASHMAP_INS_FLAG_KEY_ALLOCATED  (1<<0)  // hashmap allocates + copies key
 #define FHASHMAP_INS_FLAG_OVERWRITE      (1<<1)  // overwrite value if key already exists
 
-ssize_ptr fhashmap_insert(flat_hashmap_t* hashmap, const void* key_data, u64 key_length, void* data, u8 flags);
+isize_ptr fhashmap_insert(flat_hashmap_t* hashmap, const void* key_data, u64 key_length, void* data, u8 flags);
 
 flat_hashmap_result_t fhashmap_get_data (flat_hashmap_t* hashmap, const void *key_data, u64 key_length);
 

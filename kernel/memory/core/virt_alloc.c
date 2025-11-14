@@ -8,6 +8,7 @@
 #include <kernel/memory/paging.h>
 
 #define ALLOC_PAGES_NAME "Virtual Allocation"
+#define RESERVE_PAGES_NAME "Virtual Reserved"
 
 static rb_tree_t virt_kernel_tree;
 static heap_slab_cache_t* interval_cache;
@@ -49,6 +50,17 @@ static void* find_gap_start(rb_tree_t* tree, usize_ptr size, usize_ptr min_addr,
 
     // Check if there is a free interval between something
     rb_node_t* next_node = rb_next(cur_node);
+    if (!next_node)
+    {
+        if ((max_inclusive_addr - cur->to + 1) >= size)
+        {
+            return (void*)cur->to;
+        }
+        else
+        {
+            return NULL;
+        }
+    }
     virt_interval_t* next = container_of(next_node, virt_interval_t, node);
     while (next_node != NULL)
     {
@@ -117,35 +129,55 @@ void kvunmark_region(void* from, void* to)
     );
 }
 
-void* kvalloc_pages(usize_ptr count, enum virt_region_type vregion, u16 page_flags)
+void* kvreserve_pages(usize_ptr count, enum virt_region_type vregion, const char* name)
 {
     usize_ptr size = count * PAGE_SIZE;
 
     void* gap_start = find_gap_start(&virt_kernel_tree, size, HIGH_VADDR, MAX_VADDR);
+    if (!gap_start)
+    {
+        return NULL;
+    }
 
-    pfn_alloc_map_pages(
-        gap_start, count, 
-        virt_to_phys_type(vregion), page_flags
+    kvmark_region(
+        gap_start,  (u8*)gap_start + size, 
+        vregion, name ? name : RESERVE_PAGES_NAME
     );
-
-    kvmark_region(gap_start, gap_start + size, vregion, ALLOC_PAGES_NAME);
 
     return gap_start;
 }
 
-void kvfree_pages(void* va_ptr)
+void kvunreserve_pages(void* va)
 {
-    virt_interval_t* interval = search_interval_addr(&virt_kernel_tree, va_ptr);
+    virt_interval_t* interval = search_interval_addr(&virt_kernel_tree, va);
     if (!interval)
     {
         abort();
     } 
 
-    unmap_pages(va_ptr, (interval->to - interval->from) / PAGE_SIZE);
-
     rb_remove_node(&virt_kernel_tree, &interval->node);
 
     kfree(interval);
+}
+
+void* kvalloc_pages(usize_ptr count, enum virt_region_type vregion, u16 page_flags)
+{
+    void* result = kvreserve_pages(count, vregion, ALLOC_PAGES_NAME);
+
+    pfn_alloc_map_pages(
+        result, count, 
+        virt_to_phys_type(vregion), page_flags
+    );
+
+    return result;
+}
+
+void kvfree_pages(void* va)
+{
+    virt_interval_t* interval = search_interval_addr(&virt_kernel_tree, va);
+    unmap_pages(va, (interval->to - interval->from) / PAGE_SIZE);
+
+    kvunreserve_pages(va);
 }
 
 static int interval_cmp(const rb_node_t* node_a, const rb_node_t* node_b)
@@ -170,12 +202,9 @@ void* kvmap_phys_vec(const phys_run_vec_t* run, enum virt_region_type vregion, u
         total_pages += run->runs[i].count;
     }
 
-    void* va_gap_start = find_gap_start(
-        &virt_kernel_tree, 
-        total_pages * PAGE_SIZE, 
-        HIGH_VADDR, MAX_VADDR
-    );
-    usize_ptr cur_va_gap = (usize_ptr) va_gap_start;
+    void* start = kvreserve_pages(total_pages, vregion, ALLOC_PAGES_NAME);
+
+    usize_ptr cur_va_gap = (usize_ptr) start ;
 
     for (u64 i = 0; i < run->run_count; i++) 
     {
@@ -187,10 +216,8 @@ void* kvmap_phys_vec(const phys_run_vec_t* run, enum virt_region_type vregion, u
 
         cur_va_gap += PAGE_SIZE * run->runs[i].count;
     }
-
-    kvmark_region(va_gap_start, va_gap_start + run->total_pages * PAGE_SIZE, vregion, ALLOC_PAGES_NAME);
     
-    return va_gap_start;
+    return start;
 }
 
 void kvunmap_phys_vec(void* va, const phys_run_vec_t* run)
