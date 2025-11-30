@@ -1,9 +1,8 @@
-#ifndef __FLAT_HASHMAP_H__
-#define __FLAT_HASHMAP_H__
+#ifndef __UTILS_FLAT_HASHMAP_H__
+#define __UTILS_FLAT_HASHMAP_H__
 
 #include "core/num_defs.h"
 #include <stdbool.h>
-#include "core/num_defs.h"
 
 typedef struct flat_hashmap_result
 {
@@ -59,4 +58,4 @@ void fhashmap_clear(flat_hashmap_t* hashmap);
 
 void fhashmap_free(flat_hashmap_t* hashmap);
 
-#endif // __FLAT_HASHMAP_H__
+#endif // __UTILS_FLAT_HASHMAP_H__

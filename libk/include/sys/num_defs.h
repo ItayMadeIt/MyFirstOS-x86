@@ -15,11 +15,11 @@ typedef uint32_t u32;
 typedef uint64_t u64;
 
 typedef u64 usize;
-typedef i64 ssize; 
+typedef i64 isize; 
 
 typedef uintptr_t uptr;
-typedef intptr_t  sptr;
+typedef intptr_t  iptr;
 
 typedef uintptr_t usize_ptr;
-typedef intptr_t  ssize_ptr;
+typedef intptr_t  isize_ptr;
 #endif // __NUM_DEFS_H__

@@ -788,3 +788,45 @@ void rb_free_tree(rb_tree_t *tree, rb_free_t free_callback)
 
     tree->root = NULL;
 }
+
+
+rb_node_t* rb_lower_bound(rb_tree_t* tree, rb_node_t* key)
+{
+    rb_node_t* node = tree->root;
+    rb_node_t* result = NULL;
+
+    while (node) 
+	{
+		if (tree->cmp(key, node) <= 0) 
+		{
+            result = node;
+            node = node->left;
+        } 
+		else 
+		{
+            node = node->right;
+        }
+    }
+    return result;
+}
+
+
+rb_node_t* rb_upper_bound(rb_tree_t* tree, rb_node_t* key)
+{
+    rb_node_t* node = tree->root;
+    rb_node_t* result = NULL;
+
+    while (node) 
+	{
+		if (tree->cmp(key, node) >= 0) 
+		{
+            result = node;
+            node = node->right;
+        } 
+		else 
+		{
+            node = node->left;
+        }
+    }
+    return result;
+}

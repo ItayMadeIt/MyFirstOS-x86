@@ -1,7 +1,7 @@
 #ifndef __VFS_NODE_CACHE_H__
 #define __VFS_NODE_CACHE_H__
 
-#include "vfs/node.h"
+#include "vfs/core/node.h"
 
 void vfs_cache_insert(vfs_node_t* node);
 vfs_node_t* vfs_cache_fetch(vfs_mount_t* mount, void* internal);

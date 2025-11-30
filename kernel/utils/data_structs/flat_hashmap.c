@@ -35,7 +35,7 @@ static flat_hashmap_entry_t* find_free_slot(flat_hashmap_entry_t* entries, u64 c
 }
 
 // Updates the hashmap with the new capacity (can be the same if just a basic rehash)
-static ssize_ptr rehash(flat_hashmap_t* hashmap, u64 new_capacity)
+static isize_ptr rehash(flat_hashmap_t* hashmap, u64 new_capacity)
 {
     u64 old_capacity = hashmap->capacity;
     assert(new_capacity >= old_capacity);
@@ -168,11 +168,11 @@ static void clean_entry(flat_hashmap_entry_t* entry, u8 new_state)
     entry->state = new_state;
 }
 
-static ssize_ptr handle_rehash(flat_hashmap_t* hashmap)
+static isize_ptr handle_rehash(flat_hashmap_t* hashmap)
 {
     if (need_resize(hashmap))
     {
-        ssize_ptr rehash_result = rehash(hashmap, hashmap->capacity * 2);
+        isize_ptr rehash_result = rehash(hashmap, hashmap->capacity * 2);
         if (rehash_result < 0)
         {
             return rehash_result;
@@ -180,7 +180,7 @@ static ssize_ptr handle_rehash(flat_hashmap_t* hashmap)
     }
     else if (need_rehash(hashmap))
     {
-        ssize_ptr rehash_result = rehash(hashmap, hashmap->capacity);
+        isize_ptr rehash_result = rehash(hashmap, hashmap->capacity);
         if (rehash_result < 0)
         {
             return rehash_result;
@@ -227,7 +227,7 @@ flat_hashmap_t init_fhashmap(void)
     return init_fhashmap_capacity(INIT_CAPACITY);
 }
 
-ssize_ptr fhashmap_insert(flat_hashmap_t* hashmap, const void *key_data, u64 key_length, void *data, u8 flags)
+isize_ptr fhashmap_insert(flat_hashmap_t* hashmap, const void *key_data, u64 key_length, void *data, u8 flags)
 {
     u64 hash = hashmap->hash(key_data, key_length);
 

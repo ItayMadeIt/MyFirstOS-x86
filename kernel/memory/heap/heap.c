@@ -487,6 +487,7 @@ void free_slab(void* addr)
 
     // insert head
     heap_slab_node_t* new_node = addr;
+    new_node->prev_free = NULL;
     new_node->next_free = slab_metadata->free_node;
     if (slab_metadata->free_node)
     {

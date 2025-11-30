@@ -9,6 +9,16 @@ void cpu_halt()
     ); 
 }
 
+void cpu_relax()
+{
+    asm volatile(
+        "pause\n"
+        : 
+        : 
+        :"memory"
+    );
+}
+
 static inline void enable_wp(void) 
 {
     u32 cr0;

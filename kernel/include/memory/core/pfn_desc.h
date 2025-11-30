@@ -4,7 +4,6 @@
 #include "core/num_defs.h"
 #include "memory/phys_alloc/phys_alloc.h"
 #include "core/num_defs.h"
-#include "services/storage/block_device.h"
 #include <memory/heap/heap_structs.h>
 #include <memory/phys_alloc/bitmap_alloc.h>
 
@@ -61,13 +60,6 @@ typedef struct phys_page_descriptor {
             // real count in head and foot
             u32 count;
         } free_page;
-
-        // Disk cache
-        struct {
-            stor_device_t* device;
-            usize block_lba;
-            cache_entry_t* entry;
-        } cache_meta_t;
 
     } u;
     

@@ -3,4 +3,6 @@
 
 void cpu_init();
 void cpu_halt();
+void cpu_relax();
+
 #endif // __CPU_H__

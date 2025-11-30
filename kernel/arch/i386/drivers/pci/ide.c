@@ -109,7 +109,7 @@ typedef struct __attribute__((aligned(SECTOR_SIZE))) ide_dma_vars
 
 typedef struct ide_request_item
 {
-    stor_request_t request;
+    stor_request_t* request;
     struct ide_request_item* prev;
 } ide_request_item_t;
 
@@ -551,24 +551,25 @@ static void init_dma_devices()
 #define PRD_MAX_BOUNDARY STOR_64KiB
 #define PRD_LAST_BIT     0x8000
 
-static void prdt_iterate_chunk_prd(u64 prd_index, ide_dma_vars_t* dma, usize_ptr* remaining, usize_ptr* va)
+static void prdt_iterate_chunk_prd(u64 prd_index, ide_dma_vars_t* dma, usize_ptr* remaining, usize_ptr* pa)
 {
     if (prd_index >= dma->prdt_capacity) 
     {
         // grow dynamically
         u64 new_capacity = dma->prdt_capacity * 2;
         dma->prdt = krealloc(dma->prdt, sizeof(ide_prd_entry_t) * new_capacity);
+        assert(dma->prdt);
         dma->prdt_capacity = new_capacity;
     }
 
     usize_ptr cur_chunk_size = 0;
-    usize_ptr start_pa = (usize_ptr)virt_to_phys((void*)*va);
+    usize_ptr start_pa = *pa;
     usize_ptr cur_pa   = start_pa;
 
     // Until no bytes remain, or some policy stopped this prd entry
     while (*remaining > 0) 
     {
-        usize_ptr page_offset = ((*va) + cur_chunk_size) & (PAGE_SIZE - 1);
+        usize_ptr page_offset = ((*pa) + cur_chunk_size) & (PAGE_SIZE - 1);
         usize_ptr page_space  = PAGE_SIZE - page_offset;
 
         usize_ptr take = (*remaining < page_space) ? *remaining : page_space;
@@ -591,9 +592,8 @@ static void prdt_iterate_chunk_prd(u64 prd_index, ide_dma_vars_t* dma, usize_ptr
             break;
 
         // phys must be continous
-        usize_ptr next_pa =
-            (usize_ptr)virt_to_phys((void*)(*va + cur_chunk_size));
-        if (next_pa != (cur_pa & PAGE_MASK) + PAGE_SIZE)
+        usize_ptr next_pa = (*pa + cur_chunk_size);
+        if (next_pa != (cur_pa + cur_chunk_size))
             break;
 
         // Must not pass the MAX BOUNDARY
@@ -611,7 +611,7 @@ static void prdt_iterate_chunk_prd(u64 prd_index, ide_dma_vars_t* dma, usize_ptr
             0 : (u16)cur_chunk_size);
     dma->prdt[prd_index].flags = 0;
 
-    *va += cur_chunk_size;
+    *pa += cur_chunk_size;
 }
 
 // Returns the amount of sectors that are needed to be copied
@@ -623,14 +623,14 @@ static u64 fill_prdt(u8 channel, stor_request_chunk_entry_t* chunk_arr, u64 chun
 
     for (u64 ci = 0; ci < chunk_length; ci++) 
     {
-        usize_ptr va        = (usize_ptr)chunk_arr[ci].va_buffer;
+        usize_ptr pa        = (usize_ptr)chunk_arr[ci].pa_buffer;
         usize_ptr remaining = chunk_arr[ci].sectors * SECTOR_SIZE;
 
-        assert((va % SECTOR_SIZE) == 0);
+        assert((pa % SECTOR_SIZE) == 0);
 
         while (remaining > 0) 
         {
-            prdt_iterate_chunk_prd(prd_index, dma, &remaining, &va);
+            prdt_iterate_chunk_prd(prd_index, dma, &remaining, &pa);
 
             prd_index++;
         }
@@ -738,7 +738,7 @@ static void ide_push_queue(stor_request_t* request)
     assert(item);
 
     item->prev = NULL;
-    item->request = *request;
+    item->request = request;
 
     // Insert new item
     if (! ide.queue[channel].tail)
@@ -803,13 +803,12 @@ static void ide_submit(stor_request_t* request)
     
     bool empty_queue = ide.queue[dev->channel].head == NULL;
 
+    assert(empty_queue); // 1 request at a time
+
     ide_push_queue(request);
 
     // The callback will queue the next task
-    if (empty_queue == true)
-    {
-        make_request(request);
-    }
+    make_request(request);
 
     irq_restore(irq_data);
 }
@@ -849,14 +848,14 @@ static void primary_irq(irq_frame_t* irq_frame)
         result = 1;
     }
     
-    if (item->request.callback)
+    if (item->request->callback)
     {
-        item->request.callback(&item->request, result);
+        item->request->callback(item->request, result);
     }
     
     if (ide.queue[channel].head)
     {
-        make_request(&ide.queue[channel].head->request);
+        make_request(ide.queue[channel].head->request);
     }
 
     kfree(item);
@@ -899,11 +898,11 @@ static void secondary_irq(irq_frame_t* irq_frame)
         result = 1;
     }
 
-    item->request.callback(&item->request, result);
+    item->request->callback(item->request, result);
 
     if (ide.queue[channel].head)
     {
-        make_request(&ide.queue[channel].head->request);
+        make_request(ide.queue[channel].head->request);
     }
 
     kfree(item);
@@ -968,9 +967,10 @@ void init_ide(storage_add_device add_func, pci_driver_t *driver)
         {
             ide.devices[i].external_dev_id = add_func(
                 &ide.devices[i],
+                ide.devices[i].size,
                 SECTOR_SIZE,
                 ide_submit,
-                ide.devices[i].size
+                1
             );
         }
     }

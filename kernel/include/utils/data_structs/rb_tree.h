@@ -1,5 +1,5 @@
-#ifndef __TREE_INT_H__
-#define __TREE_INT_H__
+#ifndef __UTILS_TREE_INT_H__
+#define __UTILS_TREE_INT_H__
 
 #include <stdbool.h>
 #include "core/num_defs.h"
@@ -39,6 +39,9 @@ rb_node_t* rb_max (rb_tree_t* tree);
 rb_node_t* rb_prev(rb_node_t* node);
 rb_node_t* rb_next(rb_node_t* node);
 
+rb_node_t* rb_lower_bound(rb_tree_t* tree, rb_node_t* key);
+rb_node_t* rb_upper_bound(rb_tree_t* tree, rb_node_t* key);
+
 #define rb_for_each(tree, node) for (node = rb_min(tree); node; node = rb_next(node))
 
-#endif // __TREE_INT_H__
+#endif // __UTILS_TREE_INT_H__
