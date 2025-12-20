@@ -41,7 +41,7 @@ static isize_ptr rehash(flat_hashmap_t* hashmap, u64 new_capacity)
     assert(new_capacity >= old_capacity);
     
     // make new entries
-    flat_hashmap_entry_t* new_entries = kalloc(sizeof(flat_hashmap_entry_t) * new_capacity);
+    flat_hashmap_entry_t* new_entries = kmalloc(sizeof(flat_hashmap_entry_t) * new_capacity);
     assert(new_entries);
 
     memset(new_entries, 0, sizeof(flat_hashmap_entry_t) * new_capacity);
@@ -201,7 +201,7 @@ flat_hashmap_t init_fhashmap_custom(u64 capacity, hash_func hash)
         capacity = MIN_CAPACITY;
     }
 
-    flat_hashmap_entry_t* entries = kalloc(capacity * sizeof(flat_hashmap_entry_t));
+    flat_hashmap_entry_t* entries = kmalloc(capacity * sizeof(flat_hashmap_entry_t));
     assert(entries);
     memset(entries, 0, capacity * sizeof(flat_hashmap_entry_t));
 
@@ -270,7 +270,7 @@ isize_ptr fhashmap_insert(flat_hashmap_t* hashmap, const void *key_data, u64 key
 
     if (flags & FHASHMAP_INS_FLAG_KEY_ALLOCATED)
     {
-        void* new_key = kalloc(key_length);
+        void* new_key = kmalloc(key_length);
         memcpy(new_key, key_data, key_length);
 
         entry->flags |= FLAG_ALLOCATED;

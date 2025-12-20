@@ -2,6 +2,7 @@
 #define _STRING_H 1
 
 #include <sys/cdefs.h>
+#include <core/num_defs.h>
 
 #include <stddef.h>
 
@@ -9,11 +10,11 @@
 extern "C" {
 #endif
 
-int memcmp(const void*, const void*, usize);
-void* memcpy(void* __restrict, const void* __restrict, usize);
-void* memmove(void*, const void*, usize);
-void* memset(void*, int, usize);
-usize strlen(const char*);
+i32 memcmp(const void*, const void*, usize_ptr);
+void* memcpy(void* __restrict, const void* __restrict, usize_ptr);
+void* memmove(void*, const void*, usize_ptr);
+void* memset(void*, i32, usize_ptr);
+usize_ptr strlen(const char*);
 
 #ifdef __cplusplus
 }

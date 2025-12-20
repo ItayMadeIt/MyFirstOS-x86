@@ -1,8 +1,6 @@
 #ifndef __STORAGE_H__
 #define __STORAGE_H__
 
-#include "core/num_defs.h"
-#include "core/atomic_defs.h"
 #include "services/threads/locks/spinlock.h"
 
 typedef struct stor_device stor_device_t; 
@@ -56,7 +54,8 @@ struct stor_device
 
 stor_device_t* main_stor_device();
 
-stor_device_t* stor_get_device(usize dev_index);
+usize_ptr stor_get_device_count();
+stor_device_t* stor_get_device(usize_ptr dev_index);
 void init_storage();
 
 typedef uptr (*storage_add_device)(

@@ -1,9 +1,11 @@
 #ifndef __HEAP_STRUCTS_H__
 #define __HEAP_STRUCTS_H__
 
+#include "core/defs.h"
 #include "core/num_defs.h"
+#include <stdbool.h>
 
-struct phys_page_descriptor;
+struct page;
 
 typedef struct heap_buddy_order
 {
@@ -55,6 +57,25 @@ typedef struct heap_slab_page_metadata
     
     struct heap_slab_order* order_cache;
 } heap_slab_page_metadata_t;
+
+enum heap_flag{
+    HEAPFLAG_VFREE = 1 << 0,
+    HEAPFLAG_BUDDY = 1 << 1,
+    HEAPFLAG_HEAD  = 1 << 2,
+};
+
+struct page;
+
+typedef struct heap_page_metadata 
+{
+    u8 flags; // enum heap_flag
+    union {
+        heap_slab_page_metadata_t slab;
+        struct page* slab_head;
+        heap_buddy_page_metadata_t buddy;
+    };
+    
+} heap_page_metadata_t;
 
 
 #endif // __HEAP_STRUCTS_H__

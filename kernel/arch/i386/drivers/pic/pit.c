@@ -1,4 +1,5 @@
 #include "core/num_defs.h"
+#include "core/assert.h"
 
 #include <kernel/interrupts/irq.h>
 #include <kernel/devices/int_timer.h>

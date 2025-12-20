@@ -1,5 +1,6 @@
+#include "arch/i386/memory/paging_utils.h"
 #include "memory/core/pfn_desc.h"
-#include <memory/core/virt_alloc.h>
+#include "memory/virt/virt_region.h"
 #include <core/defs.h>
 #include <memory/heap/heap.h>
 #include <stddef.h>
@@ -23,8 +24,38 @@ typedef struct virt_interval
     const char* name;
 
     enum virt_region_type vregion;
+    u16 vflags;
 
 } virt_interval_t;
+
+const char* vregion_to_str(enum virt_region_type vregion)
+{
+    switch (vregion) {
+        case VREGION_HEAP:
+            return "HEAP";
+        case VREGION_PFN:
+            return "PFN";
+        case VREGION_ACPI:
+            return "ACPI";
+        case VREGION_DRIVER:
+            return "DRIVER";
+        case VREGION_USER:
+            return "USER";
+        case VREGION_RESREVED:
+            return "RESERVED";
+        case VREGION_CACHE:
+            return "CACHE";
+        case VREGION_BIO_BUFFER:
+            return "BIO BUFFER";
+        case VREGION_MMIO:
+            return "MMIO";
+        case VREGION_KERNELIMG:
+            return "KERNEL_IMG";
+        default:
+            abort();
+    }
+    return NULL;
+}
 
 static void* find_gap_start(rb_tree_t* tree, usize_ptr size, usize_ptr min_addr, usize_ptr max_inclusive_addr)
 {
@@ -102,26 +133,26 @@ static inline virt_interval_t* search_interval_addr(rb_tree_t* tree, void* va_pt
     return interval;
 }
 
-void kvmark_region(void* from, void* to, enum virt_region_type vregion, const char* name)
+void kvregion_mark(void* from, usize_ptr count, enum virt_region_type vregion, const char* name)
 {
     virt_interval_t* new_interval = kalloc_cache(interval_cache);
     assert(new_interval);
     
     new_interval->from = (usize_ptr)from;
-    new_interval->to   = (usize_ptr)to;
+    new_interval->to   = (usize_ptr)from + count * PAGE_SIZE;
     new_interval->name = name;
     new_interval->vregion = vregion;
 
     rb_insert(&virt_kernel_tree, &new_interval->node);
 }
 
-void kvunmark_region(void* from, void* to)
+void kvregion_release(void* va)
 {
     virt_interval_t* cur_interval = search_interval_addr(
         &virt_kernel_tree,
-        from
+        va
     );
-    assert(cur_interval && cur_interval->to == (usize_ptr) to);
+    assert(cur_interval);
 
     rb_remove_node(
         &virt_kernel_tree, 
@@ -129,7 +160,7 @@ void kvunmark_region(void* from, void* to)
     );
 }
 
-void* kvreserve_pages(usize_ptr count, enum virt_region_type vregion, const char* name)
+void* kvregion_reserve(usize_ptr count, enum virt_region_type vregion, const char* name)
 {
     usize_ptr size = count * PAGE_SIZE;
 
@@ -139,45 +170,45 @@ void* kvreserve_pages(usize_ptr count, enum virt_region_type vregion, const char
         return NULL;
     }
 
-    kvmark_region(
-        gap_start,  (u8*)gap_start + size, 
+    kvregion_mark(
+        gap_start,  count, 
         vregion, name ? name : RESERVE_PAGES_NAME
     );
 
     return gap_start;
 }
 
-void kvunreserve_pages(void* va)
+bool kvregion_is_free(void* va)
 {
-    virt_interval_t* interval = search_interval_addr(&virt_kernel_tree, va);
-    if (!interval)
+    if (!va)
     {
-        abort();
-    } 
+        return false;
+    }
 
-    rb_remove_node(&virt_kernel_tree, &interval->node);
+    assert(((usize_ptr)va & (PAGE_SIZE - 1)) == 0);
 
-    kfree(interval);
+    virt_interval_t probe = {
+        .from = (usize_ptr)va,
+        .to   = (usize_ptr)va + PAGE_SIZE
+    };
+
+    rb_node_t* node = rb_search(&virt_kernel_tree, &probe.node);
+
+    return (node == NULL);
 }
 
-void* kvalloc_pages(usize_ptr count, enum virt_region_type vregion, u16 page_flags)
+usize_ptr  kvregion_count(void* va)
 {
-    void* result = kvreserve_pages(count, vregion, ALLOC_PAGES_NAME);
+    virt_interval_t probe = {
+        .from = (usize_ptr)va,
+        .to   = (usize_ptr)va + PAGE_SIZE
+    };
 
-    pfn_alloc_map_pages(
-        result, count, 
-        virt_to_phys_type(vregion), page_flags
-    );
+    rb_node_t* node = rb_search(&virt_kernel_tree, &probe.node);
 
-    return result;
-}
+    virt_interval_t* interval = container_of(node, virt_interval_t, node);
 
-void kvfree_pages(void* va)
-{
-    virt_interval_t* interval = search_interval_addr(&virt_kernel_tree, va);
-    unmap_pages(va, (interval->to - interval->from) / PAGE_SIZE);
-
-    kvunreserve_pages(va);
+    return (interval->to - interval->from);
 }
 
 static int interval_cmp(const rb_node_t* node_a, const rb_node_t* node_b)
@@ -194,51 +225,8 @@ static int interval_cmp(const rb_node_t* node_a, const rb_node_t* node_b)
     return 0;
 }
 
-void* kvmap_phys_vec(const phys_run_vec_t* run, enum virt_region_type vregion, u16 page_flags)
-{
-    usize_ptr total_pages = 0;
-    for (u64 i = 0; i < run->run_count; i++) 
-    {
-        total_pages += run->runs[i].count;
-    }
 
-    void* start = kvreserve_pages(total_pages, vregion, ALLOC_PAGES_NAME);
-
-    usize_ptr cur_va_gap = (usize_ptr) start ;
-
-    for (u64 i = 0; i < run->run_count; i++) 
-    {
-        pfn_map_pages(
-            run->runs[i].addr, (void*)cur_va_gap, 
-            run->runs[i].count, 
-            virt_to_phys_type(vregion), page_flags
-        );
-
-        cur_va_gap += PAGE_SIZE * run->runs[i].count;
-    }
-    
-    return start;
-}
-
-void kvunmap_phys_vec(void* va, const phys_run_vec_t* run)
-{
-    assert(va);
-    assert(run && run->run_count > 0);
-
-    pfn_unref_vrange(va, run->total_pages);
-    unmap_pages(va, run->total_pages);
-
-    kvunmark_region(va, (u8*)va + run->total_pages * PAGE_SIZE);
-}
-
-void* vmap_identity(void* pa, usize_ptr count, enum virt_region_type type, u16 flags)
-{
-    pfn_identity_map_pages(pa, count, virt_to_phys_type(type), flags);
-
-    return pa;
-}
-
-void init_virt_alloc()
+void init_virt_region()
 {
     rb_init_tree(&virt_kernel_tree, interval_cmp, NULL);
     

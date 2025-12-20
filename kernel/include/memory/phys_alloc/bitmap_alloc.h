@@ -1,10 +1,10 @@
 #ifndef __BITMAP_ALLOC_H__
 #define __BITMAP_ALLOC_H__
 
-#include <memory/phys_alloc/phys_alloc.h>
 #include <core/defs.h>
 #include <kernel/boot/boot_data.h>
 #include "core/num_defs.h"
+
 
 // Max memory space for bitmap physical allocator 4GB:
 #define MAX_BASE_MEM_SPACE (STOR_2GiB)
@@ -12,8 +12,14 @@
 
 #define MAX_MEMORY_ENTRIES 256
 
-void* alloc_phys_page_bitmap ();
-phys_alloc_t alloc_phys_pages_bitmap(usize_ptr count);
+typedef struct phys_alloc
+{
+    void* addr;
+    usize_ptr count;
+} phys_alloc_t;
+
+void* bitmap_alloc_page ();
+phys_alloc_t bitmap_alloc_pages(usize_ptr count);
 
 void free_phys_page_bitmap(void* page_addr);
 void free_phys_pages_bitmap(phys_alloc_t free_params);

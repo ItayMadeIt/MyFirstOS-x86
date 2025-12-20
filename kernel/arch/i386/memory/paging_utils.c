@@ -17,6 +17,43 @@ u32 get_pte_index(void *va)
     return ((usize_ptr)va >> 12) & 0x3FF;
 }
 
+static bool can_map_pages(void* va_ptr, u32 count)
+{
+    u32 va = (u32)va_ptr;
+
+    while (count) 
+    {
+        u32 dir_index   = get_pde_index((void*)va);
+        u32 table_index = get_pte_index((void*)va);
+        u32 pages_in_table = ENTRIES_AMOUNT - table_index;
+
+        page_table_t* table = get_page_table(dir_index);
+        // no table = can be fully utilized
+        if (!table)
+        {
+            u32 skip = (pages_in_table < count) ? pages_in_table : count;
+            va    += skip * PAGE_SIZE;
+            count -= skip;
+            continue;
+        }
+
+        // Go over each page and check if it can be allocated
+        while (pages_in_table && count) 
+        {
+            if ((u32)table->entries[table_index] & PAGE_ENTRY_FLAG_PRESENT)
+            {
+                return false;
+            }
+            va += PAGE_SIZE;
+            table_index++;
+            pages_in_table--;
+            count--;
+        }
+    }
+
+    return true;
+}
+
 bool map_table_entry(void* phys_addr_ptr, void* virt_addr_ptr, u16 flags)
 {
     u32 phys_addr = (u32)phys_addr_ptr;
@@ -107,6 +144,17 @@ void* virt_to_phys(void* virt_addr_ptr)
     );
 }
 
+void paging_map_identity(u32 pa, u32 count, u16 paging_flags)
+{
+    can_map_pages((void*)pa, count);
+
+    paging_map_pages(
+        (void*)pa, 
+        (void*)pa, 
+        count, paging_flags
+    );
+}
+
 void set_page_entry(void *virt_addr, u32 entry) 
 {
     u32 vaddr = (u32)virt_addr;
@@ -128,47 +176,69 @@ void set_page_entry(void *virt_addr, u32 entry)
     asm volatile("invlpg (%0)" ::"r"(virt_addr) : "memory");
 }
 
-u32 get_phys_flags(void *va) {
-  u32 result = 0;
+u16 paging_get_flags(void *va) 
+{
+    u32 result = 0;
 
-  u32 entry = get_page_entry(va);
-  if (entry & (PAGE_ENTRY_FLAG_PRESENT))
-    result |= VIRT_PHYS_FLAG_PRESENT;
+    u32 entry = get_page_entry(va);
+    if (entry & (PAGE_ENTRY_FLAG_PRESENT))
+        result |= PAGING_FLAG_PRESENT;
 
-  if (entry & PAGE_ENTRY_FLAG_DIRTY)
-    result |= VIRT_PHYS_FLAG_DIRTY;
+    if (entry & PAGE_ENTRY_FLAG_DIRTY)
+        result |= PAGING_FLAG_DIRTY;
 
-  if (entry & PAGE_ENTRY_FLAG_ACCESS)
-    result |= VIRT_PHYS_FLAG_ACCESS;
+    if (entry & PAGE_ENTRY_FLAG_ACCESS)
+        result |= PAGING_FLAG_ACCESS;
 
-  if (entry & PAGE_ENTRY_FLAG_WRITE)
-    result |= VIRT_PHYS_FLAG_WRITE;
+    if (entry & PAGE_ENTRY_FLAG_WRITE)
+        result |= PAGING_FLAG_WRITE;
 
-  if (entry & PAGE_ENTRY_FLAG_USER)
-    result |= VIRT_PHYS_FLAG_USER;
+    if (entry & PAGE_ENTRY_FLAG_USER)
+        result |= PAGING_FLAG_USER;
 
-  return result;
+    return result;
 }
 
-void clear_phys_flags(void *va, u32 flags) 
+void paging_clear_flags(void *va, u16 flags) 
 {
     u32 entry = get_page_entry(va);
-    if (flags & VIRT_PHYS_FLAG_PRESENT)
-        abort();
+    assert(! (flags & PAGING_FLAG_PRESENT));
 
-    if (entry & VIRT_PHYS_FLAG_ACCESS)
+    if (entry & PAGING_FLAG_ACCESS)
         entry &= ~PAGE_ENTRY_FLAG_ACCESS;
 
-    if (entry & VIRT_PHYS_FLAG_DIRTY)
+    if (entry & PAGING_FLAG_DIRTY)
         entry &= ~PAGE_ENTRY_FLAG_DIRTY;
 
-    if (entry & VIRT_PHYS_FLAG_WRITE)
+    if (entry & PAGING_FLAG_WRITE)
         entry &= ~PAGE_ENTRY_FLAG_WRITE;
 
-    if (entry & VIRT_PHYS_FLAG_USER)
+    if (entry & PAGING_FLAG_USER)
         entry &= ~PAGE_ENTRY_FLAG_USER;
     
     set_page_entry(va, entry);
+}
+
+u16 paging_to_hw_flags(u16 paging_flags)
+{
+    u16 hw_flags = 0;
+
+    if (paging_flags & PAGING_FLAG_ACCESS)
+        hw_flags |= PAGE_ENTRY_FLAG_ACCESS;
+
+    if (paging_flags & PAGING_FLAG_DIRTY)
+        hw_flags |= PAGE_ENTRY_FLAG_DIRTY;
+
+    if (paging_flags & PAGING_FLAG_WRITE)
+        hw_flags |= PAGE_ENTRY_FLAG_WRITE;
+
+    if (paging_flags & PAGING_FLAG_USER)
+        hw_flags |= PAGE_ENTRY_FLAG_USER;
+
+    if (paging_flags & PAGING_FLAG_PRESENT)
+        hw_flags |= PAGE_ENTRY_FLAG_PRESENT;
+
+    return hw_flags;
 }
 
 u32 get_table_entry(void* virt_addr_ptr)
@@ -201,18 +271,18 @@ u32 get_page_entry(void* virt_addr_ptr)
     return (u32)page_table->entries[page_table_index];
 }
 
-u16 pfn_to_hw_flags(u16 flags)
+u16 pfn_to_hw_flags(u16 pfn_flags)
 {
     u16 result = PAGE_ENTRY_FLAG_PRESENT;
-    if ((flags & PAGEFLAG_KERNEL) == false)
+    if ((pfn_flags & PAGEFLAG_KERNEL) == false)
     {
         result |= PAGE_ENTRY_FLAG_USER;
     }
-    if ((flags & PAGEFLAG_READONLY) == false)
+    if ((pfn_flags & PAGEFLAG_READONLY) == false)
     {
         result |= PAGE_ENTRY_FLAG_WRITE;
     }
-    if ((flags & PAGEFLAG_NOEXEC) == false)
+    if ((pfn_flags & PAGEFLAG_NOEXEC) == false)
     {
         // No NX bit in 32 bit flags...
     }

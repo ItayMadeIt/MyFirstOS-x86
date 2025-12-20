@@ -1,5 +1,5 @@
-#include <memory/phys_alloc/phys_alloc.h>
 #include <memory/phys_alloc/bitmap_alloc.h>
+#include <memory/core/init.h>
 #include <kernel/boot/boot_data.h>
 #include <kernel/core/cpu.h>
 #include <kernel/core/paging.h>
@@ -10,12 +10,6 @@
 static u8 pages_allocated[PAGES_ARR_SIZE];
 static usize_ptr last_free_group_index = 0;
 
-usize_ptr max_memory;
-
-usize_ptr kernel_begin_pa;
-usize_ptr kernel_end_pa;
-usize_ptr kernel_size;
-
 static void reset_pages_allocated()
 {
     usize_ptr pages_amount = max_memory / PAGE_SIZE;
@@ -25,15 +19,6 @@ static void reset_pages_allocated()
     }
 
     last_free_group_index = 0;
-}
-
-static void verify_flags(const boot_data_t* boot_data)
-{
-    if (!boot_has_memory(boot_data))
-    {
-        printf("Memory flag isn't enable.\n");
-        abort();
-    }
 }
 
 static void alloc_page_at(usize_ptr addr)
@@ -94,14 +79,14 @@ static void reserve_kernel_memory()
     // boot_foreach_free_page_region(boot_data, alloc_page_region); 
 }
 
-void* alloc_phys_page_bitmap()
+void* bitmap_alloc_page()
 {
-    phys_alloc_t alloc = alloc_phys_pages_bitmap(1);
+    phys_alloc_t alloc = bitmap_alloc_pages(1);
 
     return alloc.count ? alloc.addr : NULL;
 }
 
-phys_alloc_t alloc_phys_pages_bitmap(usize_ptr count)
+phys_alloc_t bitmap_alloc_pages(usize_ptr count)
 {
     phys_alloc_t result = { .addr = NULL, .count = 0 };
 
@@ -195,14 +180,7 @@ void free_phys_pages_bitmap(phys_alloc_t free_params)
 
 void init_bitmap_phys_allocator(boot_data_t* boot_data)
 {
-    kernel_begin_pa = (usize_ptr)&linker_kernel_begin;
-    kernel_end_pa = (usize_ptr)&linker_kernel_end;
-
-    verify_flags(boot_data);
-
     reset_pages_allocated();
-
-    max_memory = get_max_memory(boot_data);
 
     boot_foreach_free_page(boot_data, free_page_at);
     boot_foreach_reserved_region(boot_data, alloc_page_region);

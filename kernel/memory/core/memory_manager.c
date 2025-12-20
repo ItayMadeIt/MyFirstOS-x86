@@ -1,13 +1,17 @@
 #include "core/defs.h"
-#include "memory/phys_alloc/phys_alloc.h"
+#include "core/num_defs.h"
 #include "string.h"
 #include <memory/core/memory_manager.h>
 #include <memory/core/pfn_desc.h>
-#include <memory/phys_alloc/bitmap_alloc.h>
-#include <memory/phys_alloc/pfn_alloc.h>
+
+#include "memory/phys_alloc/bitmap_alloc.h"
+#include "memory/phys_alloc/frame_alloc.h"
+
 #include <memory/heap/heap.h>
 #include <kernel/boot/boot_data.h>
-#include <memory/core/virt_alloc.h>
+#include "memory/virt/virt_alloc.h"
+#include "memory/virt/virt_region.h"
+#include "memory/virt/virt_map.h"
 #include <stdio.h>
 
 #define MM_AREA_VIRT   0xD0000000
@@ -15,96 +19,97 @@
 #define KERNEL_VIRT_ADDR 0xC0000000
 #define HEAP_MAX_SIZE  STOR_256MiB
 
-
-static phys_alloc_t dummy_alloc_phys_pages(usize_ptr count) 
+void mm_ensure_memory(usize_ptr count)
 {
-    (void)count;
-    abort();
-    return (phys_alloc_t){
-        .addr = NULL,
-        .count = 0
-    };
+    assert(pfn_page_free_count() > count);
 }
 
-static void* dummy_alloc_phys_page() 
+void mm_reclaim_memory(usize_ptr count)
 {
-    abort();
-    return NULL;
+    assert(pfn_page_free_count() > count);
 }
 
-static void dummy_free_phys_page(void* pa) 
+static enum mm_alloc_type alloc_type = ALLOC_NONE;
+
+void mm_set_allocator_type(enum mm_alloc_type new_alloc_type)
 {
-    (void)pa;
-    abort();
+    alloc_type = new_alloc_type;
 }
 
-static void dummy_free_phys_pages(phys_alloc_t alloc) 
+void* mm_alloc_pagetable()
 {
-    (void)alloc;
-    abort();
+    switch (alloc_type) 
+    {
+        case ALLOC_BITMAP:
+            return bitmap_alloc_page();
+
+        case ALLOC_FRAME:
+            return pfn_to_pa( frame_alloc_phys_pages(1) );
+
+        // Can't allocate if it's not bitmap or frame
+        default:
+            abort();
+            return NULL;
+    }
 }
 
-typedef struct interval
+page_t* mm_alloc_pages(usize_ptr count)
 {
-    usize_ptr begin;
-    usize_ptr end;
-} interval_t;
-
-void init_memory(boot_data_t* boot_data)
-{
-    alloc_phys_page = dummy_alloc_phys_page;
-    alloc_phys_pages = dummy_alloc_phys_pages;
-    free_phys_page = dummy_free_phys_page;
-    free_phys_pages = dummy_free_phys_pages;
-
-    // init a sample physical allocator
-    init_bitmap_phys_allocator(boot_data);
-    alloc_phys_page  = alloc_phys_page_bitmap;
-    alloc_phys_pages = alloc_phys_pages_bitmap;
-    free_phys_page   = free_phys_page_bitmap;
-    free_phys_pages  = free_phys_pages_bitmap;
-
-    void* free_virt_addr = (void*)MM_AREA_VIRT;
-
-    // Make a PFN based physical allocator
-    interval_t pfn_interval;
-    pfn_interval.begin = (usize_ptr) free_virt_addr;
-    init_pfn_descriptors(&free_virt_addr, boot_data);
-    init_pfn_allocator(boot_data);
-    pfn_interval.end = (usize_ptr) free_virt_addr;
-
-    alloc_phys_page  = pfn_alloc_phys_page;
-    alloc_phys_pages = pfn_alloc_phys_pages;
-    free_phys_page   = pfn_free_phys_page;
-    free_phys_pages  = pfn_free_phys_pages;
-
-    usize_ptr heap_begin = round_page_up(free_virt_addr);
-    usize_ptr heap_init_size = clamp(max_memory / 16, STOR_8MiB, STOR_128MiB);
-    usize_ptr heap_max_size = clamp(max_memory/4, STOR_32MiB, STOR_256MiB);
-    init_heap((void*)heap_begin, heap_max_size, heap_init_size);
-
-    interval_t heap_interval;
-    heap_interval.begin = heap_begin;
-    heap_interval.end   = heap_begin + heap_max_size;
+    page_t* result = frame_alloc_phys_pages(count);
     
-    // Handle the virtual allocator 
-    init_virt_alloc();
-    kvmark_region(
-        (void*)KERNEL_VIRT_ADDR, 
-        (void*)(KERNEL_VIRT_ADDR + kernel_size + STOR_2MiB + STOR_128KiB),
-        VREGION_KERNEL,
-        "Kernel"
-    );
-    kvmark_region(
-        (void*)pfn_interval.begin, 
-        (void*)pfn_interval.end, 
-        VREGION_PFN,
-        "Page Descriptors"
-    );
-    kvmark_region(
-        (void*)heap_interval.begin, 
-        (void*)heap_interval.end,
-        VREGION_HEAP, 
-        "Heap"
-    );
+    page_t* desc = result;
+
+    for (usize_ptr i = 0; i < count; ++i) 
+    {
+        assert(desc->type == PAGETYPE_USED);
+        desc->ref_count = 1;
+        desc++;
+    }
+    
+    return result;
+}
+
+void mm_get_page(page_t* desc)
+{
+    assert(desc->type != PAGETYPE_UNUSED);
+    assert(desc->ref_count != 0);
+    desc->ref_count++;
+}
+
+void mm_put_page(page_t* desc)
+{
+    assert(desc->ref_count != 0);
+    desc->ref_count--;
+
+    if (desc->ref_count == 0)
+    {
+        frame_free_phys_pages(
+            desc, 1
+        );
+    }
+}
+
+void mm_get_range(page_t* begin, usize_ptr count)
+{
+    page_t* desc = begin;
+    for (usize_ptr i = 0; i < count; ++i) 
+    {
+        assert(desc);
+        assert(desc->ref_count != 0);
+        desc->ref_count++;
+
+        desc++;
+    }
+}
+
+void mm_put_range(page_t* begin, usize_ptr count)
+{
+    page_t* desc = begin;
+
+    for (usize_ptr i = 0; i < count; ++i) 
+    {
+        assert(desc);
+        mm_put_page(desc);
+        desc++;
+    }
 }

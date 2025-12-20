@@ -1,4 +1,4 @@
-#include <drivers/pci.h>
+#include <firmware/pci/pci.h>
 #include <drivers/storage.h>
 
 #define IDE_CLASS_CODE    0x01

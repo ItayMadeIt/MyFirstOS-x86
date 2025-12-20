@@ -1,6 +1,6 @@
 #include <arch/i386/drivers/pci/ide.h>
 #include <kernel/devices/storage.h>
-#include <drivers/pci.h>
+#include <firmware/pci/pci.h>
 #include <drivers/storage.h>
 
 void init_arch_storage(storage_add_device add_func)

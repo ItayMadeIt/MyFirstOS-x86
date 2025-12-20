@@ -1,7 +1,7 @@
 #include "arch/i386/core/paging.h"
 #include "arch/i386/memory/paging_utils.h"
 #include "core/num_defs.h"
-#include "drivers/pci.h"
+#include "firmware/pci/pci.h"
 #include "drivers/storage.h"
 #include "services/block/device.h"
 #include "services/block/manager.h"
@@ -110,15 +110,16 @@ void kernel_main(boot_data_t* boot_data)
     // Setup interrupt handlers
 	init_memory(boot_data);
 
-    // Setup pci devices
+    // Setup firmware
     init_pci();
+    init_acpi();
 
     // basic drivers
     init_int_timer(10, dummy_time_event);
     init_keyboard(dummy_key_handler);
     init_storage();
 
-    setup_acpi();
+    init_block_manager();
 
 	irq_enable();
     

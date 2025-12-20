@@ -7,11 +7,10 @@
 
 #define INVALID_MEMORY ~0
 
-void* kalloc(usize_ptr size);
-void* kalloc_aligned(usize_ptr alignment, usize_ptr size);
-void* kalloc_pages(usize_ptr pages);
+void* kmalloc(usize_ptr size);
+void* kmalloc_aligned(usize_ptr alignment, usize_ptr size);
 void* krealloc(void* addr, usize_ptr new_size);
-void kfree(void* addr);
+void  kfree(void* addr);
 
 heap_slab_cache_t* kcreate_slab_cache(usize_ptr obj_size, const char* slab_name);
 void* kalloc_cache(heap_slab_cache_t* cache);

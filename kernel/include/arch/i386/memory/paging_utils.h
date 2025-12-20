@@ -12,16 +12,18 @@ void* get_page_phys_base(page_table_t* table, u32 index);
 
 u32 get_table_entry(void* virt_addr);
 u32 get_page_entry(void* virt_addr);
+
 void* virt_to_phys(void* virt_addr);
 
+void paging_map_identity(u32 pa, u32 count, u16 paging_flags);
 
 void set_page_entry(void* virt_addr, u32 entry);
 
 u32 get_page_entry(void* virt_addr);
 
-bool map_table_entry(void* phys_addr, void* virt_addr, u16 flags);
+bool map_table_entry(void* phys_addr, void* virt_addr, u16 hw_flags);
 
-bool map_page_entry(void* phys_addr, void* virt_addr, u16 flags);
+bool map_page_entry(void* phys_addr, void* virt_addr, u16 hw_flags);
 
 u16 pfn_to_hw_flags(u16 flags);
 

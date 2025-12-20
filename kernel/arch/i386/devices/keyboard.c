@@ -1,6 +1,7 @@
 #include <arch/i386/drivers/pic/pic.h>
 #include <arch/i386/drivers/pic/ps2_key.h>
 #include <kernel/devices/keyboard.h>
+#include "core/assert.h"
 
 void init_keyboard(key_event_cb_t callback)
 {

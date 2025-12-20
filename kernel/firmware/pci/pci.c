@@ -1,6 +1,6 @@
 #include "memory/heap/heap.h"
-#include <drivers/pci.h>
-#include <kernel/drivers/pci_ops.h>
+#include <firmware/pci/pci.h>
+#include <kernel/firmware/pci/pci_ops.h>
 #include <stdio.h>
 
 #define INVALID_VENDOR_ID 0xFFFF
@@ -127,7 +127,7 @@ static void fetch_func_header(pci_function_t* node)
 
 static pci_bus_t* make_bus_node(u8 bus)
 {
-    pci_bus_t* bus_node = kalloc(sizeof(pci_bus_t));
+    pci_bus_t* bus_node = kmalloc(sizeof(pci_bus_t));
 
     bus_node->bus = bus;
     bus_node->dev_ll = NULL;
@@ -138,7 +138,7 @@ static pci_bus_t* make_bus_node(u8 bus)
 
 static pci_device_t* make_dev_node(pci_bus_t* bus_node, u8 dev_slot)
 {
-    pci_device_t* dev_node = kalloc(sizeof(pci_device_t));
+    pci_device_t* dev_node = kmalloc(sizeof(pci_device_t));
 
     dev_node->bus = bus_node->bus;
     dev_node->slot = dev_slot;
@@ -152,7 +152,7 @@ static pci_device_t* make_dev_node(pci_bus_t* bus_node, u8 dev_slot)
 
 static pci_function_t* make_func_node(pci_device_t* dev_node, u8 func_index)
 {
-    pci_function_t* func_node = kalloc(sizeof(pci_function_t));
+    pci_function_t* func_node = kmalloc(sizeof(pci_function_t));
 
     func_node->driver.bus = dev_node->bus;
     func_node->driver.slot = dev_node->slot;

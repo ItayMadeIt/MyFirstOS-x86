@@ -2,13 +2,14 @@
 #define _STRING_H 1
 
 #include <sys/cdefs.h>
+#include <core/num_defs.h>
 
-int memcmp(const void*, const void*, usize);
-void* memcpy(void* __restrict, const void* __restrict, usize);
-void* memmove(void* dstptr, const void* srcptr, usize size);
-void* memset(void*, int, usize);
-usize strlen(const char*);
-int strncmp(const char* s1, const char* s2, usize n);
+i32 memcmp(const void*, const void*, usize_ptr);
+void* memcpy(void* __restrict, const void* __restrict, usize_ptr);
+void* memmove(void* dstptr, const void* srcptr, usize_ptr size);
+void* memset(void*, int, usize_ptr);
+usize_ptr strlen(const char*);
+int strncmp(const char* s1, const char* s2, usize_ptr n);
 int strcmp(const char* s1, const char* s2);
 
 #endif

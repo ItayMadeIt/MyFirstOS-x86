@@ -1,7 +1,7 @@
 #include <string.h>
 
-usize strlen(const char* str) {
-	usize len = 0;
+usize_ptr strlen(const char* str) {
+	usize_ptr len = 0;
 	while (str[len])
 		len++;
 	return len;

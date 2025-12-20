@@ -1,5 +1,6 @@
 #include "services/block/request.h"
 #include "core/defs.h"
+#include "core/assert.h"
 #include "core/num_defs.h"
 #include "memory/heap/heap.h"
 
@@ -14,7 +15,7 @@ block_request_t* block_req_generate(
 {
     memchunks_capacity = align_up_pow2(memchunks_capacity);
 
-    block_request_t* request = kalloc(
+    block_request_t* request = kmalloc(
         sizeof(block_request_t) + memchunks_capacity * sizeof(block_memchunk_entry_t)
     );
     assert(request);

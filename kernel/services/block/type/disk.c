@@ -24,7 +24,7 @@ inline static enum stor_request_io block_to_stor_type(enum block_io_type block_t
 
 static stor_request_t* block_disk_make_stor_request(block_request_t* block_request)
 {
-    stor_request_t* result = kalloc(sizeof(stor_request_t));
+    stor_request_t* result = kmalloc(sizeof(stor_request_t));
     assert(result);
 
     block_dev_disk_t* disk_data = &block_request->device->data.disk;
@@ -36,7 +36,7 @@ static stor_request_t* block_disk_make_stor_request(block_request_t* block_reque
     result->lba = block_request->lba;
 
     result->chunk_length = block_request->memchunks_count;
-    result->chunk_list   = kalloc(result->chunk_length * sizeof(stor_request_chunk_entry_t));
+    result->chunk_list   = kmalloc(result->chunk_length * sizeof(stor_request_chunk_entry_t));
     assert(result->chunk_list);
 
     for (usize_ptr i = 0; i < result->chunk_length; ++i) 
@@ -108,7 +108,7 @@ static void block_submit_disk(block_request_t* block_request)
 
 block_device_t* block_disk_generate(stor_device_t* stor_dev)
 {
-    block_device_t* block_device = kalloc(sizeof(block_device_t));
+    block_device_t* block_device = kmalloc(sizeof(block_device_t));
 
     block_device->submit = block_submit_disk;
     block_device->type = BLOCK_DEV_DISK;

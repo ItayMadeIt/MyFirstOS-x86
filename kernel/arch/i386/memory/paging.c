@@ -3,6 +3,7 @@
 #include <kernel/core/paging.h>
 #include <arch/i386/memory/paging_utils.h>
 #include <memory/core/memory_manager.h>
+#include <stdio.h>
 #include "core/num_defs.h"
 
 
@@ -13,52 +14,18 @@ static page_table_t* ensure_page_table(u32 va)
 
     if (!(entry & PAGE_ENTRY_FLAG_PRESENT)) 
     {
-        void* new_table_phys = alloc_phys_page();
+        void* new_table_phys = mm_alloc_pagetable();
+        assert(((u32)new_table_phys & (PAGE_SIZE-1)) == 0);
+
         if (!new_table_phys) 
         {
             return NULL;
         }
+        
         map_table_entry(new_table_phys, (void*)va, PAGE_ENTRY_WRITE_KERNEL_FLAGS);
     }
 
     return get_page_table(dir_index);
-}
-
-static bool can_map_pages(void* va_ptr, u32 count)
-{
-    u32 va = (u32)va_ptr;
-
-    while (count) 
-    {
-        u32 dir_index   = get_pde_index((void*)va);
-        u32 table_index = get_pte_index((void*)va);
-        u32 pages_in_table = ENTRIES_AMOUNT - table_index;
-
-        page_table_t* table = get_page_table(dir_index);
-        // no table = can be fully utilized
-        if (!table)
-        {
-            u32 skip = (pages_in_table < count) ? pages_in_table : count;
-            va    += skip * PAGE_SIZE;
-            count -= skip;
-            continue;
-        }
-
-        // Go over each page and check if it can be allocated
-        while (pages_in_table && count) 
-        {
-            if ((u32)table->entries[table_index] & PAGE_ENTRY_FLAG_PRESENT)
-            {
-                return false;
-            }
-            va += PAGE_SIZE;
-            table_index++;
-            pages_in_table--;
-            count--;
-        }
-    }
-
-    return true;
 }
 
 static bool map_phys_range(void* pa_ptr, void* va_ptr, u32 count, u16 hw_flags)
@@ -81,6 +48,8 @@ static bool map_phys_range(void* pa_ptr, void* va_ptr, u32 count, u16 hw_flags)
         {
             map_page_entry((void*)pa, (void*)va, hw_flags);
 
+            volatile u8 d = *(u8*)va;
+
             va += PAGE_SIZE;
             pa += PAGE_SIZE;
             table_index++;
@@ -91,33 +60,28 @@ static bool map_phys_range(void* pa_ptr, void* va_ptr, u32 count, u16 hw_flags)
     return true;
 }
 
-bool map_phys_pages(void* pa_ptr, void* va_ptr, u32 count, u16 hw_flags)
+bool paging_map_pages(void* pa_ptr, void* va_ptr, u32 count, u16 paging_flags)
 {
+    u16 hw_flags = paging_to_hw_flags(paging_flags | PAGING_FLAG_PRESENT);
+
     assert(((u32)pa_ptr % PAGE_SIZE) == 0);
     assert(((u32)va_ptr % PAGE_SIZE) == 0);
     assert(count > 0);
 
-    return map_phys_range(pa_ptr, va_ptr, count, hw_flags);
+    return map_phys_range(
+        pa_ptr, va_ptr, 
+        count, 
+        hw_flags
+    );
 }
 
-void* identity_map_pages(void* pa_ptr, usize_ptr count,u16 hw_flags)
+bool paging_map_page(void* pa_ptr, void* va_ptr, u16 paging_flags)
 {
-    assert(((u32)pa_ptr % PAGE_SIZE) == 0);
-    assert(count > 0);
-
-    void* va_ptr = pa_ptr;
-    return can_map_pages(va_ptr, count) &&
-           map_phys_range(pa_ptr, va_ptr, count, hw_flags)
-           ? va_ptr : NULL;
-}
-
-bool map_phys_page(void* pa_ptr, void* va_ptr, u16 hw_flags)
-{
-    return map_phys_pages(pa_ptr, va_ptr, 1, hw_flags);
+    return paging_map_pages(pa_ptr, va_ptr, 1, paging_flags);
 }
 
 
-bool unmap_page(void* va)
+bool paging_unmap_page(void* va)
 {
     page_table_t* table = (page_table_t*)(get_table_entry(va) & PAGE_MASK);
 
@@ -132,7 +96,7 @@ bool unmap_page(void* va)
     return true;
 }
 
-bool unmap_pages(void* va_ptr, usize_ptr count)
+bool paging_unmap_pages(void* va_ptr, usize_ptr count)
 {
     usize_ptr va = (usize_ptr)va_ptr;
 

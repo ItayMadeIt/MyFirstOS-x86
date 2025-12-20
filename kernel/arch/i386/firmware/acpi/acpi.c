@@ -1,7 +1,9 @@
-#include "memory/core/virt_alloc.h"
+#include "memory/core/pfn_desc.h"
+#include "memory/virt/virt_alloc.h"
+#include "memory/virt/virt_map.h"
 #include <arch/i386/drivers/io/io.h>
 #include <arch/i386/firmware/acpi/acpi.h>
-#include <memory/phys_alloc/phys_alloc.h>
+#include <memory/core/memory_manager.h>
 #include <firmware/acpi/fadt.h>
 #include <firmware/acpi/rsdp.h>
 #include <firmware/acpi/rsdt.h>
@@ -37,7 +39,7 @@ u64 get_acpi_time()
     return 0;
 }
 
-void setup_acpi()
+void init_acpi()
 {
     rsdp_t* rdsp = gather_rdsp();
     
@@ -72,16 +74,20 @@ void setup_acpi()
         u32 pa = fadt->X_PM_timer_block.address & ~(unit - 1);
         const u32 off = (u32)(gas->address & (unit - 1));
         
-        void* va = vmap_identity(
+        // no need to force alloc it somehow, it's not part of free mem space
+        pfn_mark_range(
+            (void*)pa, 1, 
+            PAGETYPE_ACPI, 
+            0
+        );
+        vmap_identity(
             (void*)pa, 
             1, 
-            VREGION_MMIO, 
-            PAGEFLAG_KERNEL | PAGEFLAG_DRIVER  | PAGEFLAG_READONLY
+            VREGION_MMIO
         );
-        
 
         acpi_timer.mmio.unit = unit;
-        acpi_timer.mmio.addr = (void*)((u32)va + off);
+        acpi_timer.mmio.addr = (void*)(pa + off);
     }
     else
     {

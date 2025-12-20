@@ -48,7 +48,7 @@ block_device_t* block_partition_generate(
 {
     assert(disk_block_dev->type == BLOCK_DEV_DISK);
 
-    block_device_t* partition_block_dev = kalloc(sizeof(block_device_t));
+    block_device_t* partition_block_dev = kmalloc(sizeof(block_device_t));
 
     partition_block_dev->submit = block_submit_partition;
     partition_block_dev->type = BLOCK_DEV_PARTITION;

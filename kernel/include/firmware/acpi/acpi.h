@@ -31,6 +31,6 @@ bool valid_checksum(acpi_sdt_header_t* table_header);
 
 u64 get_acpi_time();
 
-void setup_acpi();
+void init_acpi();
 
 #endif // __ACPI_H__

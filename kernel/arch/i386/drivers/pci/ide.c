@@ -1,12 +1,13 @@
+#include "core/assert.h"
 #include <arch/i386/drivers/pic/pic.h>
 #include <arch/i386/drivers/io/io.h>
-#include <drivers/pci.h>
+#include <firmware/pci/pci.h>
 #include <memory/heap/heap.h>
 #include <arch/i386/memory/paging_utils.h>
 #include <arch/i386/drivers/io/io.h>
 #include <arch/i386/drivers/pci/ide.h>
 #include <kernel/devices/storage.h>
-#include <kernel/drivers/pci_ops.h>
+#include <kernel/firmware/pci/pci_ops.h>
 #include "core/num_defs.h"
 #include <stdio.h>
 #include <kernel/interrupts/irq.h>
@@ -537,7 +538,7 @@ static void init_dma_devices()
         if (!dev_supports_dma)
             continue;
 
-        ide.dma[ch].prdt = kalloc_aligned(
+        ide.dma[ch].prdt = kmalloc_aligned(
             64,  // prdt addr must be aligned 64 bytes
             sizeof(ide_prd_entry_t) * PRD_ENTRIES_PER_CHANNEL
         );
@@ -734,7 +735,7 @@ static void ide_push_queue(stor_request_t* request)
     ide_device_t* dev = (ide_device_t*) request->dev->dev_data;
     u16 channel = dev->channel;
 
-    ide_request_item_t* item = kalloc(sizeof(ide_request_item_t));
+    ide_request_item_t* item = kmalloc(sizeof(ide_request_item_t));
     assert(item);
 
     item->prev = NULL;

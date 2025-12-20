@@ -7,7 +7,7 @@
 
 void ring_queue_init(ring_queue_t* queue)
 {
-    queue->arr = kalloc(sizeof(void*) * RING_QUEUE_INIT_CAPACITY);
+    queue->arr = kmalloc(sizeof(void*) * RING_QUEUE_INIT_CAPACITY);
     assert(queue->arr);
 
     queue->head    = 0;
@@ -20,7 +20,7 @@ void ring_queue_init_capacity(ring_queue_t* queue, usize_ptr init_capacity)
     // init capacity = 2^n
     assert((init_capacity & (init_capacity - 1)) == 0);
 
-    queue->arr = kalloc(sizeof(void*) * init_capacity);
+    queue->arr = kmalloc(sizeof(void*) * init_capacity);
     assert(queue->arr);
 
     queue->head       = 0;
@@ -43,7 +43,7 @@ static bool ring_queue_grow(ring_queue_t* queue)
     usize_ptr start_arr_item_count = count - (capacity - head);
 
     usize_ptr new_capacity = capacity * 2;
-    void** new_arr = kalloc(new_capacity * sizeof(void*));
+    void** new_arr = kmalloc(new_capacity * sizeof(void*));
     memcpy(new_arr, arr, start_arr_item_count * sizeof(void*));
 
     usize_ptr new_head = head + capacity;

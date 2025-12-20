@@ -1,6 +1,8 @@
-#include "services/block/manager.h"
-#include "core/num_defs.h"
+#include "memory/core/pfn_desc.h"
+#include "core/assert.h"
+#include "memory/virt/virt_alloc.h"
 #include "services/block/device.h"
+#include "services/block/fetch.h"
 
 // will change to a dynamic driver count
 #define MAX_DEVS 128
@@ -29,4 +31,9 @@ block_device_t* block_manager_get_device(usize_ptr index)
 block_device_t* block_manager_main_device()
 {
     return main_block_dev;
+}
+
+void init_block_manager()
+{
+    fetch_storage();
 }

@@ -2,6 +2,7 @@
 #define __DEFS_H__
 
 #include <stdbool.h>
+#include "core/assert.h"
 #include "core/num_defs.h"
 #include "core/atomic_defs.h"
 
@@ -45,7 +46,6 @@
 #define HIGH_VADDR 0xC0000000
 
 void abort();
-void assert(bool must_be_true);
 
 static inline u32 log2_u32(u32 x) 
 {
