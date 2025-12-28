@@ -1,3 +1,4 @@
+#include "memory/heap/heap.h"
 #include "memory/virt/virt_alloc.h"
 #include "services/block/manager.h"
 
@@ -55,38 +56,28 @@ static bool parse_mbr(block_device_t* block_dev, const uint8_t* page_data)
 }
 
 
-static void partitions_cb(block_request_t* request, void* ctx, i64 result)
+static void partitions_cb(block_request_t* request, i64 result)
 {
     (void)request;
     assert(result >= 0);
 
-    u8* page_data = ctx;
+    u8* page_data = request->ctx;
 
     parse_mbr(request->device, page_data);
 
-    block_req_cleanup(request);
-
-    kvfree_pages(page_data);
+    kfree(page_data);
 }
 
 static void fetch_partitions(block_device_t* block_dev)
 {
-    u8* page_data = kvalloc_pages(
-        1, VREGION_BIO_BUFFER
-    );
+    u8* page_data = kmalloc(MBR_SECTOR_SIZE);
 
     block_request_t* request = block_req_generate(
-        block_dev, BLOCK_IO_READ, 
-        0, 1, 
+        block_dev, 
+        BLOCK_IO_READ,
+        page_data, MBR_SECTOR_SIZE, 
+        0, 
         partitions_cb, page_data
-    );
-
-    request = block_req_add_memchunk(
-        request, 
-        (block_memchunk_entry_t) {
-            .pa_buffer=virt_to_phys(page_data),
-            .sectors=PAGE_SIZE/block_dev->sector_size
-        }
     );
 
     block_submit(request);

@@ -1,3 +1,4 @@
+#include "core/num_defs.h"
 #include <string.h>
 #include <utils/data_structs/flat_hashmap.h>
 
@@ -153,8 +154,13 @@ static flat_hashmap_entry_t* find_exact_entry(flat_hashmap_t* hashmap, u64 hash,
     return NULL;
 }
 
-static void clean_entry(flat_hashmap_entry_t* entry, u8 new_state)
+static void clean_entry(flat_hashmap_t* hashmap, flat_hashmap_entry_t* entry, u8 new_state)
 {
+    if (hashmap->destroy_cb)
+    {
+        hashmap->destroy_cb(entry->data, entry->key_data, entry->key_length);
+    }
+    
     if (entry->flags & FLAG_ALLOCATED)
     {
         kfree((void*)entry->key_data);
@@ -191,7 +197,7 @@ static isize_ptr handle_rehash(flat_hashmap_t* hashmap)
 }
 
 
-flat_hashmap_t init_fhashmap_custom(u64 capacity, hash_func hash)
+flat_hashmap_t init_fhashmap_custom(u64 capacity, fmap_hash_func hash, fmap_destroy_cb_func destroy_cb)
 {
     capacity = align_up_pow2(capacity);
     assert(capacity);
@@ -211,7 +217,8 @@ flat_hashmap_t init_fhashmap_custom(u64 capacity, hash_func hash)
         .delete_count = 0,
         .used_count = 0,
         .entries = entries,
-        .hash = hash
+        .hash = hash,
+        .destroy_cb = destroy_cb
     };
 
     return map;
@@ -219,15 +226,42 @@ flat_hashmap_t init_fhashmap_custom(u64 capacity, hash_func hash)
 
 flat_hashmap_t init_fhashmap_capacity(u64 capacity)
 {
-    return init_fhashmap_custom(capacity, murmur2_hash64);
+    return init_fhashmap_custom(capacity, murmur2_hash64, NULL);
 }
 
 flat_hashmap_t init_fhashmap(void)
 {
-    return init_fhashmap_capacity(INIT_CAPACITY);
+    return init_fhashmap_custom(
+        INIT_CAPACITY, 
+        murmur2_hash64, 
+        NULL
+    );
 }
 
-isize_ptr fhashmap_insert(flat_hashmap_t* hashmap, const void *key_data, u64 key_length, void *data, u8 flags)
+flat_hashmap_t init_fhashmap_destroy_hash(fmap_hash_func hash, fmap_destroy_cb_func destroy_cb)
+{
+    return init_fhashmap_custom(
+        INIT_CAPACITY, 
+        hash, 
+        destroy_cb
+    );
+}
+
+flat_hashmap_t init_fhashmap_destroy (fmap_destroy_cb_func destroy_cb)
+{
+    return init_fhashmap_custom(
+        INIT_CAPACITY, 
+        murmur2_hash64, 
+        destroy_cb
+    );
+}
+
+flat_hashmap_t init_fhashmap_hash(fmap_hash_func hash)
+{
+    return init_fhashmap_custom(INIT_CAPACITY, hash, NULL);
+}
+
+isize_ptr fhashmap_insert(flat_hashmap_t* hashmap, void *key_data, u64 key_length, void *data, u8 flags)
 {
     u64 hash = hashmap->hash(key_data, key_length);
 
@@ -254,7 +288,7 @@ isize_ptr fhashmap_insert(flat_hashmap_t* hashmap, const void *key_data, u64 key
             return -1;
 
         // Clears that entry
-        clean_entry(same_entry, STATE_EMPTY);
+        clean_entry(hashmap, same_entry, STATE_EMPTY);
         hashmap->used_count--; 
         hashmap->empty_count++; 
 
@@ -268,7 +302,7 @@ isize_ptr fhashmap_insert(flat_hashmap_t* hashmap, const void *key_data, u64 key
     else if (entry->state == STATE_DELETE)
         hashmap->delete_count--;
 
-    if (flags & FHASHMAP_INS_FLAG_KEY_ALLOCATED)
+    if (flags & FHASHMAP_INS_FLAG_KEY_COPY)
     {
         void* new_key = kmalloc(key_length);
         memcpy(new_key, key_data, key_length);
@@ -290,6 +324,24 @@ isize_ptr fhashmap_insert(flat_hashmap_t* hashmap, const void *key_data, u64 key
     entry->state = STATE_USED;
 
     return handle_rehash(hashmap);
+}
+
+void fhashmap_foreach(flat_hashmap_t* hashmap, void(*cb)(void* data, void* key, usize_ptr key_length, void* ctx), void* ctx)
+{
+    assert(cb);
+
+    for (usize_ptr i = 0; hashmap->capacity; ++i) 
+    {
+        if (hashmap->entries[i].state == STATE_USED)
+        {
+            cb(
+                hashmap->entries[i].data, 
+                hashmap->entries[i].key_data, 
+                hashmap->entries[i].key_length,
+                ctx
+            );
+        }
+    }
 }
 
 flat_hashmap_result_t fhashmap_get_data(flat_hashmap_t* hashmap, const void *key_data, u64 key_length)
@@ -330,7 +382,7 @@ flat_hashmap_result_t fhashmap_delete(flat_hashmap_t* hashmap, const void *key_d
 
     void* user_data = same_entry->data;
 
-    clean_entry(same_entry, STATE_DELETE);
+    clean_entry(hashmap, same_entry, STATE_DELETE);
 
     hashmap->delete_count++;
     hashmap->used_count--;

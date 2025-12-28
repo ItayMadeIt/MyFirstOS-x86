@@ -732,7 +732,7 @@ static void ide_write_sectors_async(usize_ptr device, u64 lba, stor_request_chun
 
 static void ide_push_queue(stor_request_t* request)
 {
-    ide_device_t* dev = (ide_device_t*) request->dev->dev_data;
+    ide_device_t* dev = (ide_device_t*) request->device->dev_data;
     u16 channel = dev->channel;
 
     ide_request_item_t* item = kmalloc(sizeof(ide_request_item_t));
@@ -777,7 +777,7 @@ static ide_request_item_t* ide_pop_queue(u16 channel)
 
 static void make_request(stor_request_t* request)
 {
-    ide_device_t* dev = (ide_device_t*) request->dev->dev_data;
+    ide_device_t* dev = (ide_device_t*) request->device->dev_data;
     u64 lba = request->lba;
     
     switch (request->action)
@@ -798,7 +798,7 @@ static void make_request(stor_request_t* request)
 
 static void ide_submit(stor_request_t* request)
 {
-    ide_device_t* dev = (ide_device_t*) request->dev->dev_data;
+    ide_device_t* dev = (ide_device_t*) request->device->dev_data;
     
     usize_ptr irq_data = irq_save();
     
@@ -971,7 +971,8 @@ void init_ide(storage_add_device add_func, pci_driver_t *driver)
                 ide.devices[i].size,
                 SECTOR_SIZE,
                 ide_submit,
-                1
+                1,
+                ide.devices[i].supports_dma ? STOR_TYPE_DMA : STOR_TYPE_PIO // for now only, needs to make that more explicit/flags/whatever
             );
         }
     }

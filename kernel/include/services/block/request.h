@@ -11,9 +11,9 @@ enum block_io_type
     BLOCK_IO_WRITE,
 };
 
-typedef struct block_request block_request_t;
+struct block_request;
 
-typedef void (*block_request_cb)(block_request_t* request, void* ctx, i64 result);
+typedef void (*block_request_cb)(struct block_request* request, i64 result);
 
 typedef struct block_memchunk_entry
 {
@@ -26,14 +26,15 @@ typedef struct block_request
     block_device_t* device;
     enum block_io_type io;
 
+    usize offset;    // byte offset
+    usize length;    // bytes
+
+    void* vbuffer;  
+
     block_request_cb cb;
     void* ctx;
 
-    usize lba;
-
-    usize_ptr memchunks_count;
-    usize_ptr memchunks_capacity;
-    block_memchunk_entry_t memchunks[];
+    void* bounce_vbuffer;
 
 } block_request_t;
 
@@ -44,14 +45,12 @@ typedef void (*fn_block_submit_t)(
 block_request_t* block_req_generate(
     block_device_t* device,
     enum block_io_type io,
-    usize lba,
-    usize memchunks_capacity,
+    void* vbuffer,
+    usize_ptr length,
+    usize offset,
     block_request_cb cb,
-    void* ctx);
-
-block_request_t* block_req_add_memchunk(
-    block_request_t* request, 
-    block_memchunk_entry_t memchunk_entry);
+    void* ctx
+);
 
 void block_req_cleanup(block_request_t* request);
 

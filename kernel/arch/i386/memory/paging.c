@@ -48,8 +48,6 @@ static bool map_phys_range(void* pa_ptr, void* va_ptr, u32 count, u16 hw_flags)
         {
             map_page_entry((void*)pa, (void*)va, hw_flags);
 
-            volatile u8 d = *(u8*)va;
-
             va += PAGE_SIZE;
             pa += PAGE_SIZE;
             table_index++;

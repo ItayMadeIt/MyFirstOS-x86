@@ -6,15 +6,15 @@
 #include "services/block/types/types.h"
 #include "core/defs.h" // IWYU pragma: keep (clang hates me)
 
-static void block_disk_cb(block_request_t* disk_request, void* ctx, i64 result)
+static void block_disk_cb(block_request_t* disk_request, i64 result)
 {
     assert(result >= 0);
 
-    kfree(disk_request);
-
-    block_request_t* user_request = ctx;
+    block_request_t* user_request = disk_request->ctx;
     
-    user_request->cb(user_request, user_request->ctx, result);
+    user_request->cb(user_request, result);
+
+    block_req_cleanup(disk_request);
 }
 
 static void block_submit_partition(block_request_t* user_request)
@@ -24,20 +24,13 @@ static void block_submit_partition(block_request_t* user_request)
 
     block_request_t* disk_request = block_req_generate(
         disk_block_device, 
-        user_request->io, 
-        user_request->lba + partition->lba_offset, 
-        user_request->memchunks_count, 
+        user_request->io,
+        user_request->vbuffer,
+        user_request->length,
+        user_request->offset + partition->bytes_offset, 
         block_disk_cb, 
         user_request
     );
-    
-    for (usize_ptr i = 0; i < user_request->memchunks_count; i++) 
-    {    
-        disk_request = block_req_add_memchunk(
-            disk_request, 
-            user_request->memchunks[i]
-        ); 
-    }
 
     block_submit(disk_request);
 }
@@ -57,7 +50,7 @@ block_device_t* block_partition_generate(
     partition_block_dev->sector_count = sector_count / disk_block_dev->sector_size;
 
     partition_block_dev->data.partition.disk_block_device = disk_block_dev;
-    partition_block_dev->data.partition.lba_offset = lba_offset;
+    partition_block_dev->data.partition.bytes_offset = lba_offset * partition_block_dev->sector_size;
     
     return partition_block_dev;
 }

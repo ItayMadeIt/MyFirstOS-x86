@@ -89,18 +89,14 @@ static void dummy_time_event(int_timer_event_t time_event)
     );
 }
 
-void disk_cb(block_request_t* request, void* ctx, i64 result)
+static void disk_cb(block_request_t* request, i64 result)
 {
     (void)request;
 
     assert(result >= 0);
-    *(bool*)ctx = true;
+    *(bool*)request->ctx = true;
 }
-static void inc()
-{
-    static int i = 0;
-    printf("%d", i++);
-}
+
 void kernel_main(boot_data_t* boot_data)
 {
     cpu_init();
@@ -123,30 +119,20 @@ void kernel_main(boot_data_t* boot_data)
 
 	irq_enable();
     
-    u8 __attribute__((aligned(PAGE_SIZE))) partition1_data[PAGE_SIZE];
+    u8 partition1_data[PAGE_SIZE];
     memset(partition1_data, 0xCC, PAGE_SIZE);
     bool done = false;
     
-    block_device_t* device = block_manager_get_device(1);
+    block_device_t* device = block_manager_get_device(0);
     block_request_t* request = block_req_generate(
-        device, BLOCK_IO_READ, 
-        0, 1, 
-        disk_cb, &done
-    );
-    request = block_req_add_memchunk(
-        request, 
-        (block_memchunk_entry_t){
-            .pa_buffer = virt_to_phys(partition1_data), 
-            .sectors=2
-        }
+        device, BLOCK_IO_READ,
+        partition1_data, PAGE_SIZE,
+        0, disk_cb, &done
     );
 
     block_submit(request);
 
-    while (! done)
-    {
-        inc();
-    }
+    while (! done);
 
     for (usize i = 0; i < 256; i+=16)
     {

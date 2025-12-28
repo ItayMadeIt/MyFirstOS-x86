@@ -11,5 +11,7 @@ void* memset(void*, int, usize_ptr);
 usize_ptr strlen(const char*);
 int strncmp(const char* s1, const char* s2, usize_ptr n);
 int strcmp(const char* s1, const char* s2);
+char* kstrdup(const char* s1);
+iptr kfind_index_first_of_from(const char* s1, const char target, usize_ptr offset);
 
 #endif

@@ -9,15 +9,15 @@
 enum virt_region_type
 {
     VREGION_UNKNOWN       = 0,
-    VREGION_KERNELIMG     = PAGETYPE_KERNELIMG,
+    VREGION_KERNELIMG     ,
     VREGION_PFN           ,
     VREGION_HEAP          ,
     VREGION_USER          ,
-    VREGION_RESREVED      = PAGETYPE_RESERVED,
+    VREGION_RESREVED      ,
     VREGION_CACHE         ,
-    VREGION_MMIO          = PAGETYPE_MMIO,
-    VREGION_ACPI          = PAGETYPE_ACPI,
-    VREGION_DRIVER        = PAGETYPE_DRIVER,
+    VREGION_MMIO          ,
+    VREGION_ACPI          ,
+    VREGION_DRIVER        ,
     VREGION_BIO_BUFFER    ,
 };
 

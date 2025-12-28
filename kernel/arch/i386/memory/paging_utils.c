@@ -270,22 +270,3 @@ u32 get_page_entry(void* virt_addr_ptr)
     page_table_t* page_table = (page_table_t*)(0xFFC00000 + (page_dir_index * 0x1000));
     return (u32)page_table->entries[page_table_index];
 }
-
-u16 pfn_to_hw_flags(u16 pfn_flags)
-{
-    u16 result = PAGE_ENTRY_FLAG_PRESENT;
-    if ((pfn_flags & PAGEFLAG_KERNEL) == false)
-    {
-        result |= PAGE_ENTRY_FLAG_USER;
-    }
-    if ((pfn_flags & PAGEFLAG_READONLY) == false)
-    {
-        result |= PAGE_ENTRY_FLAG_WRITE;
-    }
-    if ((pfn_flags & PAGEFLAG_NOEXEC) == false)
-    {
-        // No NX bit in 32 bit flags...
-    }
-    
-    return result;
-}

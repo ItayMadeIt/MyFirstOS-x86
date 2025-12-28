@@ -60,11 +60,17 @@ static inline u32 log2_u32(u32 x)
 }
 
 
-static inline usize_ptr align_to_n(usize_ptr value, usize_ptr alignment/*2^n*/)
+static inline usize_ptr align_up_n(usize_ptr value, usize_ptr alignment/*2^n*/)
 {
     assert((alignment & (alignment-1)) == 0);
 
     return (value + alignment - 1) & ~(alignment - 1);
+}
+static inline usize_ptr align_down_n(usize_ptr value, usize_ptr alignment/*2^n*/)
+{
+    assert((alignment & (alignment-1)) == 0);
+
+    return value & ~(alignment - 1);
 }
 static inline usize_ptr align_up_pow2(usize_ptr value)
 {

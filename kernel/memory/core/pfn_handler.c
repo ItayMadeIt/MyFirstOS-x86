@@ -201,7 +201,7 @@ static page_t* mark_range(
 static void mark_page_structure(void* page_struct_pa)
 {
     u32 page_index = ((u32)page_struct_pa)/PAGE_SIZE;
-    pfn_data.descs[page_index].type = PAGETYPE_VENTRY;
+    pfn_data.descs[page_index].type = PAGETYPE_PHYS_PAGES;
 }
 
 static void mark_range_usable(void* start_pa, void* end_pa)
@@ -210,7 +210,7 @@ static void mark_range_usable(void* start_pa, void* end_pa)
         (usize_ptr)start_pa,
         (usize_ptr)end_pa,
         PAGETYPE_UNUSED, 0,
-        PAGEFLAG_KERNEL | PAGEFLAG_HEAP_FREE
+        0
     );
 }
 static void mark_range_reserved(void* start_pa, void* end_pa)
@@ -219,7 +219,7 @@ static void mark_range_reserved(void* start_pa, void* end_pa)
         (usize_ptr)start_pa,
         (usize_ptr)end_pa,
         PAGETYPE_RESERVED, 0,
-        PAGEFLAG_KERNEL | PAGEFLAG_READONLY
+        PAGEFLAG_RESERVED
     );
 }
 

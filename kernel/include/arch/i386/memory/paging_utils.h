@@ -25,8 +25,6 @@ bool map_table_entry(void* phys_addr, void* virt_addr, u16 hw_flags);
 
 bool map_page_entry(void* phys_addr, void* virt_addr, u16 hw_flags);
 
-u16 pfn_to_hw_flags(u16 flags);
-
 static inline void invlpg(void* va) 
 {
     asm volatile("invlpg (%0)" :: "r"(va) : "memory");

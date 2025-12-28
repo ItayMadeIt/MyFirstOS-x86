@@ -8,6 +8,12 @@
 #include "memory/virt/virt_map.h"
 #include <stdio.h>
 #include <string.h>
+enum buddy_flags
+{
+    PAGEFLAG_HEAP_FREE = 1 << 0, // Virtually free (Anything uses this memory, that's not heap's buddy)
+    PAGEFLAG_BUDDY     = 1 << 1, // Buddy(1) OR Slab(0)
+    PAGEFLAG_HEAD      = 1 << 2, // Is the head in contiguous virtual allocation
+};
 
 #define BUDDY_BLOCK_SIZE_MIN PAGE_SIZE 
 #define BUDDY_EXPON_MAX 31 /*2^31*/ 
@@ -50,8 +56,7 @@ static page_t* resolve_merge(page_t* cur_desc, u8 order)
 
     u16 buddy_flags = (HEAPFLAG_BUDDY | HEAPFLAG_VFREE | PAGEFLAG_HEAD);
 
-    if (neighbour_desc->type != PAGETYPE_HEAP ||
-        (neighbour_desc->u.heap.flags & buddy_flags) != buddy_flags ||
+    if ((neighbour_desc->u.heap.flags & buddy_flags) != buddy_flags ||
         neighbour_desc->u.heap.buddy.num_pages != cur_desc->u.heap.buddy.num_pages)
     {
         // No neighbour
@@ -185,12 +190,6 @@ static void add_heap_region(usize_ptr add_size)
         VREGION_HEAP, 
         add_size/PAGE_SIZE
     );
-
-    // pfn_alloc_map_pages(
-    //     heap.cur_max_addr, add_size/PAGE_SIZE, 
-    //     PAGETYPE_HEAP, 
-    //     PAGEFLAG_HEAP_FREE | PAGEFLAG_BUDDY | PAGEFLAG_KERNEL
-    // );
     
     add_buddies((usize_ptr)heap.cur_max_addr, add_size, false);
 
@@ -699,7 +698,7 @@ void kfree(void* addr)
 heap_slab_cache_t* kcreate_slab_cache(usize_ptr obj_size, const char* slab_name)
 {
     assert(obj_size >= sizeof(heap_slab_node_t));
-    obj_size = align_to_n(obj_size, sizeof(void*)); 
+    obj_size = align_up_n(obj_size, sizeof(void*)); 
 
     heap_slab_cache_t* slab_cache = kmalloc(sizeof(heap_slab_cache_t));
 

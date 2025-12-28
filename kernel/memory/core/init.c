@@ -72,19 +72,19 @@ void init_memory(boot_data_t* boot_data)
     init_virt_region();
     kvregion_mark(
         (void*)KERNEL_VIRT_ADDR, 
-        align_to_n(kernel_size, PAGE_SIZE) / PAGE_SIZE,
+        align_up_n(kernel_size, PAGE_SIZE) / PAGE_SIZE,
         VREGION_KERNELIMG,
         "Kernel"
     );
     kvregion_mark(
         (void*)pfn_interval.begin, 
-        align_to_n(pfn_interval.end - pfn_interval.begin, PAGE_SIZE) / PAGE_SIZE,
+        align_up_n(pfn_interval.end - pfn_interval.begin, PAGE_SIZE) / PAGE_SIZE,
         VREGION_PFN,
         "Page Descriptors"
     );
     kvregion_mark(
         (void*)heap_interval.begin, 
-        align_to_n(heap_interval.end - heap_interval.begin, PAGE_SIZE) / PAGE_SIZE,
+        align_up_n(heap_interval.end - heap_interval.begin, PAGE_SIZE) / PAGE_SIZE,
         VREGION_HEAP, 
         "Heap"
     );

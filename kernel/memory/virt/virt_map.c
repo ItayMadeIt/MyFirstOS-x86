@@ -24,14 +24,14 @@ static u16 vregion_to_vflags(enum virt_region_type region)
         case VREGION_CACHE:
             return VFLAG_READ | VFLAG_SHARED;
 
-        case VREGION_BIO_BUFFER:
-            return VFLAG_READ | VFLAG_WRITE;
-
         case VREGION_MMIO:
             return VFLAG_READ | VFLAG_WRITE | VFLAG_SHARED;
 
         case VREGION_ACPI:
             return VFLAG_READ | VFLAG_SHARED;
+
+        case VREGION_BIO_BUFFER:
+            return VFLAG_READ | VFLAG_WRITE;
 
         case VREGION_DRIVER:
             return VFLAG_READ | VFLAG_WRITE | VFLAG_SHARED;

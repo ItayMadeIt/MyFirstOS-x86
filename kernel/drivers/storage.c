@@ -19,11 +19,34 @@ static stor_vars_t storage;
 static stor_device_t* main_device;
 static u64 main_device_disk_size;
 
+bool stor_submit(stor_request_t* request)
+{
+    bool success = false;
+
+    stor_device_t* dev = request->device;
+    spinlock_lock(&dev->lock);
+
+    // should check in the future that the hardware agrees this is a valid way to use it
+    // (check sector size, valid DMA bfufer, all of those)
+
+
+    if (dev->active_requests < dev->max_requests) 
+    {
+        dev->submit(request);
+        success = true;
+    }
+
+    spinlock_unlock(&dev->lock);
+
+    return success;
+}
+
 static usize_ptr add_stor_device(
     void* data, 
     usize disk_size, usize sector_size, 
     void (*submit)(stor_request_t*), 
-    u32 max_requests)
+    u32 max_requests, 
+    enum storage_dev_type type)
 {
     assert(sector_size == align_up_pow2(sector_size));
 
@@ -40,22 +63,17 @@ static usize_ptr add_stor_device(
     spinlock_initlock(&cur_device->lock, false);
  
     *cur_device = (stor_device_t){
-        .max_requests     = max_requests,
-        .active_requests  = 0, // or use atomic_init later
-        .dev_data         = data,
-        .dev_id           = storage.count,
-        .sector_size      = sector_size,
-        .submit           = submit,
-        .disk_size        = disk_size,
-        .lock             = cur_device->lock, // preserve the spinlock state
+        .max_requests    = max_requests,
+        .active_requests = 0, // or use atomic_init later
+        .dev_data        = data,
+        .dev_id          = storage.count,
+        .sector_size     = sector_size,
+        .submit          = submit,
+        .disk_size       = disk_size,
+        .type            = type,
+        .lock            = cur_device->lock, // preserve the spinlock state
     };
 
-    cur_device->dev_data = data;
-    cur_device->dev_id = storage.count;
-    cur_device->sector_size = sector_size;
-    cur_device->submit = submit;
-    cur_device->max_requests = 1;
-    cur_device->disk_size = disk_size;
     storage.dev_arr[storage.count] = cur_device;
 
     if (disk_size > main_device_disk_size)
