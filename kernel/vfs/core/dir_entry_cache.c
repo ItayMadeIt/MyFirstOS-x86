@@ -18,6 +18,7 @@ dir_entry_t* dir_entry_create(
     assert(child_name_len <= MAX_NODE_NAME_LENGTH);
 
     dir_entry_t* entry = kmalloc(sizeof(dir_entry_t) + child_name_len + 1);   
+    assert(entry);
 
     memcpy(entry->name, child_name, child_name_len + 1);
     entry->inode  = inode;

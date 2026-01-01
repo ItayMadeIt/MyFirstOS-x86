@@ -1,5 +1,6 @@
 
 #include "memory/core/init.h"
+#include "core/defs.h"
 #include "memory/core/memory_manager.h"
 #include "memory/heap/heap.h"
 #include "memory/phys_alloc/bitmap_alloc.h"
@@ -72,19 +73,19 @@ void init_memory(boot_data_t* boot_data)
     init_virt_region();
     kvregion_mark(
         (void*)KERNEL_VIRT_ADDR, 
-        align_up_n(kernel_size, PAGE_SIZE) / PAGE_SIZE,
+        div_up(kernel_size, PAGE_SIZE),
         VREGION_KERNELIMG,
         "Kernel"
     );
     kvregion_mark(
         (void*)pfn_interval.begin, 
-        align_up_n(pfn_interval.end - pfn_interval.begin, PAGE_SIZE) / PAGE_SIZE,
+        div_up(pfn_interval.end - pfn_interval.begin, PAGE_SIZE),
         VREGION_PFN,
         "Page Descriptors"
     );
     kvregion_mark(
         (void*)heap_interval.begin, 
-        align_up_n(heap_interval.end - heap_interval.begin, PAGE_SIZE) / PAGE_SIZE,
+        div_up(heap_interval.end - heap_interval.begin, PAGE_SIZE),
         VREGION_HEAP, 
         "Heap"
     );

@@ -29,9 +29,14 @@ inline static enum stor_request_io block_to_stor_type(enum block_io_type block_t
 
 static stor_request_t* block_disk_make_stor_request(block_request_t* block_request)
 {
+    assert(
+        ((uptr)block_request->block_vbuffer % block_request->device->block_size == 0)
+    );
+
     stor_request_t* result = kmalloc(sizeof(stor_request_t));
     assert(result);
 
+    usize block_size = block_request->device->block_size;
     block_dev_disk_t* disk_data = &block_request->device->data.disk;
     stor_device_t* hw_device = disk_data->hw_device;
 
@@ -45,38 +50,10 @@ static stor_request_t* block_disk_make_stor_request(block_request_t* block_reque
 
     result->ctx = block_request;
 
-    if (((uptr)block_request->vbuffer & (hw_device->sector_size - 1)) == 0 && 
-        ((uptr)block_request->offset  & (hw_device->sector_size - 1)) == 0 && 
-        ((uptr)block_request->length  & (hw_device->sector_size - 1)) == 0)
-    {
-        block_request->bounce_vbuffer = NULL;
+    result->chunk_list->pa_buffer = virt_to_phys(block_request->block_vbuffer);
+    result->chunk_list->sectors   = block_request->block_count * block_size / hw_device->sector_size;
 
-        result->chunk_list->pa_buffer = virt_to_phys(block_request->vbuffer);
-        result->chunk_list->sectors   = block_request->length / hw_device->sector_size;
-
-        result->lba = block_request->offset / hw_device->sector_size;
-    }
-    else 
-    {
-        assert(PAGE_SIZE >= hw_device->sector_size);
-
-        usize_ptr forced_bytes = block_request->offset & (hw_device->sector_size - 1);
-        usize_ptr full_length  = block_request->length + forced_bytes;
-
-        usize_ptr pages_count =
-            align_up_n(full_length, PAGE_SIZE) / PAGE_SIZE;
-
-        block_request->bounce_vbuffer = kvalloc_pages(
-            pages_count,
-            VREGION_BIO_BUFFER
-        );
-
-        result->chunk_list->pa_buffer = virt_to_phys(block_request->bounce_vbuffer);
-        result->chunk_list->sectors   = 
-            align_up_n(full_length, hw_device->sector_size)/ hw_device->sector_size;
-
-        result->lba = block_request->offset / hw_device->sector_size;
-    }
+    result->lba = block_request->block_offset * block_size / hw_device->sector_size;
     
     return result;
 }
@@ -93,29 +70,20 @@ static void stor_disk_cb(stor_request_t* stor_request, i64 result)
     block_dev_disk_t* disk_data      = &block_dev->data.disk;
     ring_queue_t*     queue          = &disk_data->queue;
 
-    if (block_request->bounce_vbuffer)
-    {
-        usize_ptr forced_bytes = block_request->offset & (stor_dev->sector_size - 1);
-        void* begin_va_buffer = (void*)((uptr)block_request->bounce_vbuffer + forced_bytes);
-        memcpy(block_request->vbuffer, begin_va_buffer, block_request->length);
-
-        kvfree_pages(block_request->bounce_vbuffer);
-        block_request->bounce_vbuffer = NULL;
-    }
     block_request->cb(block_request, result);
+    block_req_cleanup(block_request);
+
+    block_request = NULL;
 
     spinlock_lock(&stor_dev->lock);
     if (stor_dev->active_requests < stor_dev->max_requests && 
         !ring_queue_is_empty(queue))
     {
         block_request_t* next = ring_queue_pop(queue);
-        stor_request_t* next_stor_request = block_disk_make_stor_request(next);
-        assert( stor_submit(next_stor_request) ) ;
+        stor_request_t*  next_stor_request = block_disk_make_stor_request(next);
+        assert(stor_submit(next_stor_request) ) ;
     }
     spinlock_unlock(&stor_dev->lock);
-
-    kfree(stor_request->chunk_list);
-    kfree(stor_request);
 }
 
 static void block_submit_disk(block_request_t* block_request)
@@ -138,7 +106,6 @@ static void block_submit_disk(block_request_t* block_request)
     {
         ring_queue_push(queue, block_request);
     }
-
 }
 
 block_device_t* block_disk_generate(stor_device_t* stor_dev)
@@ -148,8 +115,8 @@ block_device_t* block_disk_generate(stor_device_t* stor_dev)
     block_device->submit = block_submit_disk;
     block_device->type = BLOCK_DEV_DISK;
 
-    block_device->sector_size  = stor_dev->sector_size;
-    block_device->sector_count = stor_dev->disk_size / stor_dev->sector_size;
+    block_device->block_size  = stor_dev->sector_size;
+    block_device->block_count = stor_dev->disk_size / stor_dev->sector_size;
 
     block_device->data.disk.hw_device = stor_dev;
     ring_queue_init(&block_device->data.disk.queue);

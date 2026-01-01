@@ -26,7 +26,6 @@ static u32 system_timer_ms_fractions = 0;
 static u32 system_timer_ms = 0;
 static u32 tick_ms_fractions = 0;
 static u32 tick_ms = 0;
-static u32 tick_ms_frequency = 0;
 static u16 pit_reload_value = 0;
 static u32 pit_hz = 0;
 static u32 tick_count = 0;
@@ -105,7 +104,7 @@ void set_pit_vars(u32 desired_hz)
     }
 
     // Compute corrected frequency: (3579545 / reload) / 3
-    tick_ms_frequency = compute_tick_frequency(pit_reload_value);
+    pit_hz = compute_tick_frequency(pit_reload_value);
 
     // Calculate ms per tick in fixed-point
     compute_per_tick_time(pit_reload_value);

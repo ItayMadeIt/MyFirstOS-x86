@@ -8,7 +8,7 @@ typedef struct block_device block_device_t;
 typedef struct block_dev_partition
 {
     block_device_t* disk_block_device;
-    usize bytes_offset;
+    usize block_offset;
 
 } block_dev_partition_t;
 

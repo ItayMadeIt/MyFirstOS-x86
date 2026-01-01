@@ -1,3 +1,5 @@
+#include "arch/i386/core/paging.h"
+#include "core/defs.h"
 #include "memory/heap/heap.h"
 #include "memory/virt/virt_alloc.h"
 #include "services/block/manager.h"
@@ -24,7 +26,7 @@ typedef struct __attribute__((packed)) mbr
 
 static void partition_add_block_device(block_device_t* disk_block_dev, const mbr_partition_t* partition)
 {
-    usize sector_multiplier = disk_block_dev->sector_size / MBR_SECTOR_SIZE;
+    usize sector_multiplier = disk_block_dev->block_size / MBR_SECTOR_SIZE;
     
     usize lba_offset = partition->lba_offset / sector_multiplier;
     usize sector_count = partition->sector_count / sector_multiplier;
@@ -70,17 +72,15 @@ static void partitions_cb(block_request_t* request, i64 result)
 
 static void fetch_partitions(block_device_t* block_dev)
 {
-    u8* page_data = kmalloc(MBR_SECTOR_SIZE);
+    u8* page_data = kmalloc_aligned(MBR_SECTOR_SIZE, PAGE_SIZE);
 
-    block_request_t* request = block_req_generate(
-        block_dev, 
+    block_submit(block_dev, 
         BLOCK_IO_READ,
-        page_data, MBR_SECTOR_SIZE, 
+        page_data, 
+        div_up(MBR_SECTOR_SIZE, block_dev->block_size),
         0, 
         partitions_cb, page_data
     );
-
-    block_submit(request);
 }
 
 void fetch_storage()

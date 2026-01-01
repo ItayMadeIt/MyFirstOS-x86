@@ -16,9 +16,9 @@ void block_manager_add_device(block_device_t* device)
 {
     block_devs[block_dev_count++] = device;
 
-    if (device->sector_size * device->sector_count > block_dev_max_size)
+    if (device->block_size * device->block_count > block_dev_max_size)
     {
-        block_dev_max_size = device->sector_size * device->sector_count;
+        block_dev_max_size = device->block_size * device->block_count;
         main_block_dev = device; 
     }
 }

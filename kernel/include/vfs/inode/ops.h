@@ -23,17 +23,17 @@ typedef struct vfs_ops
     i32 (*cleanup)(struct inode* node);
 
 
-    struct inode* (*lookup)(struct inode* dir, const char* name);
+    i32 (*lookup)(struct inode* dir, const char* name, struct inode** result);
     
-    i32 (*read)  (struct inode* node, void* buf, size_t size, off_t offset);
-    i32 (*write) (struct inode* node, const void* buf, size_t size, off_t offset);
+    i32 (*read)  (struct inode* node, void* buf, usize size, off_t offset);
+    i32 (*write) (struct inode* node, const void* buf, usize size, off_t offset);
     
     i32 (*mkdir) (struct inode* dir, const char* name, mode_t mode);
     i32 (*rmdir) (struct inode* dir, const char* name, mode_t mode);
     
     i32 (*link)(struct inode* dir, const char* existing, const char* new_name);
     i32 (*symlink)(struct inode* dir, const char* target, const char* link_name);
-    i32 (*readlink)(struct inode* node, char* buf, size_t size);
+    i32 (*readlink)(struct inode* node, char* buf, usize size);
 
     i32 (*create)(struct inode* dir, const char* name, mode_t mode);
     i32 (*open)  (struct inode* node, flags_t flags);

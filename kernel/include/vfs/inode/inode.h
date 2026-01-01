@@ -9,11 +9,12 @@
 
 typedef struct inode 
 {
-    u64 inode_num;
     vfs_ops_t* ops;
 
-    void* fs_id;
-    u64   fs_id_length;
+    void*     fs_id;
+    usize_ptr fs_id_length;
+
+    usize size;
 
     struct superblock* sb;
     

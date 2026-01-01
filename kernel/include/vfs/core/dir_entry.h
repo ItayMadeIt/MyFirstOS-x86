@@ -6,9 +6,9 @@
 typedef struct dir_entry 
 {
     struct dir_entry* parent;
-    char* name;
-
     struct inode* inode;
+
+    char name[];
 
 } dir_entry_t;
 

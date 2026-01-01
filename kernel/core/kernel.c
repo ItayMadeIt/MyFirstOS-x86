@@ -1,11 +1,23 @@
 #include "arch/i386/core/paging.h"
 #include "arch/i386/memory/paging_utils.h"
 #include "core/num_defs.h"
+#include "filesystem/drivers/Ext2/disk.h"
+#include "filesystem/drivers/Ext2/features.h"
+#include "filesystem/drivers/Ext2/internal.h"
 #include "firmware/pci/pci.h"
 #include "drivers/storage.h"
+#include "memory/virt/virt_alloc.h"
+#include "memory/virt/virt_region.h"
 #include "services/block/device.h"
 #include "services/block/manager.h"
 #include "services/block/request.h"
+#include "vfs/core/errors.h"
+#include "vfs/core/mount.h"
+#include "vfs/core/path.h"
+#include "vfs/core/superblock.h"
+#include "vfs/core/vfs.h"
+#include "vfs/inode/inode.h"
+#include <stdbool.h>
 #include <stdio.h>
 #include <core/defs.h>
 #include <drivers/tty.h>
@@ -89,14 +101,6 @@ static void dummy_time_event(int_timer_event_t time_event)
     );
 }
 
-static void disk_cb(block_request_t* request, i64 result)
-{
-    (void)request;
-
-    assert(result >= 0);
-    *(bool*)request->ctx = true;
-}
-
 void kernel_main(boot_data_t* boot_data)
 {
     cpu_init();
@@ -118,31 +122,22 @@ void kernel_main(boot_data_t* boot_data)
     init_block_manager();
 
 	irq_enable();
+
+    block_device_t* block_dev = block_manager_get_device(2);
+    init_vfs(block_dev);
+    vfs_mount_map_t* map = vfs_get_mount_data();
+    dir_entry_t *result = NULL;
+    i32 res = vfs_lookup_path(map, "/file.txt", &result);
+    inode_t* inode = result->inode;
     
-    u8 partition1_data[PAGE_SIZE];
-    memset(partition1_data, 0xCC, PAGE_SIZE);
-    bool done = false;
-    
-    block_device_t* device = block_manager_get_device(0);
-    block_request_t* request = block_req_generate(
-        device, BLOCK_IO_READ,
-        partition1_data, PAGE_SIZE,
-        0, disk_cb, &done
-    );
-
-    block_submit(request);
-
-    while (! done);
-
-    for (usize i = 0; i < 256; i+=16)
+    if (result)
     {
-        printf(
-            "%02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X\n", 
-            partition1_data[i + 0], partition1_data[i + 1], partition1_data[i + 2], partition1_data[i + 3],
-            partition1_data[i + 4], partition1_data[i + 5], partition1_data[i + 6], partition1_data[i + 7],
-            partition1_data[i + 8], partition1_data[i + 9], partition1_data[i +10], partition1_data[i +11],
-            partition1_data[i +12], partition1_data[i +13], partition1_data[i +14], partition1_data[i +15]
-        );
+        for (usize i = 0; i < inode->size; i += sizeof(u8)) 
+        {
+            u8 ch;
+            inode->ops->read(inode, &ch, sizeof(ch), i);
+            printf("%c", ch);
+        }
     }
 
     while(1) cpu_halt();

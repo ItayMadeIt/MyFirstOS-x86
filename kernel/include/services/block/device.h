@@ -6,8 +6,8 @@
 
 typedef struct block_device
 {
-    usize sector_size;
-    usize sector_count;
+    usize block_size;
+    usize block_count;
 
     enum block_dev_type type;
     fn_block_submit_t submit;
@@ -17,7 +17,15 @@ typedef struct block_device
 
 } block_device_t;
 
-void block_submit(block_request_t* request);
+void block_submit(
+    block_device_t* device,
+    enum block_io_type io,
+    void* block_vbuffer,
+    usize_ptr block_count,
+    usize offset,
+    block_request_cb cb,
+    void* ctx
+);
 
 
 

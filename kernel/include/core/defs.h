@@ -60,6 +60,12 @@ static inline u32 log2_u32(u32 x)
 }
 
 
+static inline usize div_up(usize a, usize b)
+{
+    assert(b != 0);
+    return (a + (b-1)) / b;
+}
+
 static inline usize_ptr align_up_n(usize_ptr value, usize_ptr alignment/*2^n*/)
 {
     assert((alignment & (alignment-1)) == 0);

@@ -5,9 +5,10 @@
 #include "vfs/core/dir_entry_cache.h"
 #include "vfs/core/mount.h"
 
-dir_entry_t* vfs_lookup_path(
+i32 vfs_lookup_path(
     vfs_mount_map_t* vfs,
-    const char* path
+    const char* path,
+    dir_entry_t** result
 );
 
 #endif // __VFS_PATH_H__

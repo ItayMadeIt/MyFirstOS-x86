@@ -22,8 +22,10 @@ static bool init_root_bdev(block_device_t* block_dev)
 
     for (driver_count_t i = 0; i < fs_drivers_count; ++i) 
     {
+        assert(fs_drivers[i]->match);
         if ( fs_drivers[i]->match(block_dev) )
         {
+            assert(fs_drivers[i]->mount);
             fs_drivers[i]->mount(sb, block_dev);
 
             vfs_mount_set_root(

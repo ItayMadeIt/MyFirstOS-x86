@@ -26,15 +26,13 @@ typedef struct block_request
     block_device_t* device;
     enum block_io_type io;
 
-    usize offset;    // byte offset
-    usize length;    // bytes
+    usize block_offset;
+    usize block_count;
 
-    void* vbuffer;  
+    void* block_vbuffer;  
 
     block_request_cb cb;
     void* ctx;
-
-    void* bounce_vbuffer;
 
 } block_request_t;
 
@@ -45,9 +43,9 @@ typedef void (*fn_block_submit_t)(
 block_request_t* block_req_generate(
     block_device_t* device,
     enum block_io_type io,
-    void* vbuffer,
-    usize_ptr length,
-    usize offset,
+    void* block_vbuffer,
+    usize_ptr block_count,
+    usize block_offset,
     block_request_cb cb,
     void* ctx
 );

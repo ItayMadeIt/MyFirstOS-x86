@@ -2,6 +2,9 @@
 #include <kernel/core/cpu.h>
 #include <arch/i386/core/idt.h>
 #include <arch/i386/interrupts/irq.h>
+#include <stdio.h>
+
+#define IRQ_VECTOR_PAGE_FAULT 14
 
 idt_entry_t idt_entries[IDT_ENTRIES];
 void (*interrupt_callback_entries[IDT_ENTRIES]) (irq_frame_t* data);
@@ -26,6 +29,37 @@ static inline void load_idt_descriptor(idt_descriptor_t* idt_descriptor)
         : "r" (idt_descriptor)
         : "memory"
     );
+}
+
+static inline u32 read_cr2(void)
+{
+    u32 val;
+    __asm__ volatile ("mov %%cr2, %0" : "=r"(val));
+    return val;
+}
+
+static void interrupt_page_fault(irq_frame_t* frame)
+{
+    u32 fault_addr = read_cr2();
+    u32 err = frame->err_code;
+
+    u8 present   = err & 0x1;
+    u8 write     = err & 0x2;
+    u8 user      = err & 0x4;
+    u8 reserved  = err & 0x8;
+
+    printf("PAGE FAULT\n");
+    printf("  Address: 0x%08X\n", fault_addr);
+    printf("  Cause  : %s\n", present ? "protection violation" : "page not present");
+    printf("  Access : %s\n", write ? "write" : "read");
+    printf("  Mode   : %s\n", user ? "user" : "kernel");
+
+    if (reserved)
+    {
+        printf("  Error  : reserved bit violation\n");
+    }
+
+    abort();
 }
 
 void irq_enable()
@@ -168,6 +202,7 @@ void init_irq()
     set_idt_entry(0x2E, isr46, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
     set_idt_entry(0x2F, isr47, SEGMENT_SELECTOR_CODE_DPL0, IDT_INTERRUPT_32_DPL0);
 
+    irq_register_handler(IRQ_VECTOR_PAGE_FAULT, interrupt_page_fault);
 
     idt_descriptor_t idt_descriptor;
     idt_descriptor.base = (u32)&idt_entries;
